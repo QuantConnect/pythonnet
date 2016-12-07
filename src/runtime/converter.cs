@@ -203,6 +203,9 @@ namespace Python.Runtime
                 case TypeCode.Double:
                     return Runtime.PyFloat_FromDouble((double)value);
 
+                case TypeCode.Decimal:
+                    return Runtime.PyFloat_FromDouble(Convert.ToDouble((decimal)value));
+
                 case TypeCode.SByte:
                     return Runtime.PyInt_FromInt32((int)((sbyte)value));
 
@@ -825,7 +828,7 @@ namespace Python.Runtime
             }
 
 
-            type_error:
+        type_error:
 
             if (setError)
             {
@@ -837,7 +840,7 @@ namespace Python.Runtime
 
             return false;
 
-            overflow:
+        overflow:
 
             if (setError)
             {
