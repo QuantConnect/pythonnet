@@ -825,7 +825,7 @@ namespace Python.Runtime
             }
 
 
-        type_error:
+            type_error:
 
             if (setError)
             {
@@ -837,7 +837,7 @@ namespace Python.Runtime
 
             return false;
 
-        overflow:
+            overflow:
 
             if (setError)
             {
