@@ -105,7 +105,6 @@ namespace Python.Runtime
 
             if (op == int64Type && Runtime.IsPython2)
                 return Runtime.PyLongType;
-
             if (op == int64Type)
                 return Runtime.PyIntType;
 
