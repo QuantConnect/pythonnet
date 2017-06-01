@@ -7,13 +7,12 @@ using System.Text;
 
 namespace Python.Runtime
 {
-    //=======================================================================
-    // This file defines objects to support binary interop with the Python
-    // runtime. Generally, the definitions here need to be kept up to date
-    // when moving to new Python versions.
-    //=======================================================================
-
-    [Serializable()]
+    /// <summary>
+    /// This file defines objects to support binary interop with the Python
+    /// runtime. Generally, the definitions here need to be kept up to date
+    /// when moving to new Python versions.
+    /// </summary>
+    [Serializable]
     [AttributeUsage(AttributeTargets.All)]
     public class DocStringAttribute : Attribute
     {
@@ -31,7 +30,7 @@ namespace Python.Runtime
         private string docStr;
     }
 
-    [Serializable()]
+    [Serializable]
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Delegate)]
     internal class PythonMethodAttribute : Attribute
     {
@@ -40,7 +39,7 @@ namespace Python.Runtime
         }
     }
 
-    [Serializable()]
+    [Serializable]
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Delegate)]
     internal class ModuleFunctionAttribute : Attribute
     {
@@ -49,7 +48,7 @@ namespace Python.Runtime
         }
     }
 
-    [Serializable()]
+    [Serializable]
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Delegate)]
     internal class ForbidPythonThreadsAttribute : Attribute
     {
@@ -59,7 +58,7 @@ namespace Python.Runtime
     }
 
 
-    [Serializable()]
+    [Serializable]
     [AttributeUsage(AttributeTargets.Property)]
     internal class ModulePropertyAttribute : Attribute
     {
@@ -75,22 +74,22 @@ namespace Python.Runtime
         static ObjectOffset()
         {
             int size = IntPtr.Size;
-            int n = 0; // Py_TRACE_REFS add two pointers to PyObject_HEAD
-#if (Py_DEBUG)
+            var n = 0; // Py_TRACE_REFS add two pointers to PyObject_HEAD
+#if PYTHON_WITH_PYDEBUG
             _ob_next = 0;
             _ob_prev = 1 * size;
             n = 2;
 #endif
-            ob_refcnt = (n + 0)*size;
-            ob_type = (n + 1)*size;
-            ob_dict = (n + 2)*size;
-            ob_data = (n + 3)*size;
+            ob_refcnt = (n + 0) * size;
+            ob_type = (n + 1) * size;
+            ob_dict = (n + 2) * size;
+            ob_data = (n + 3) * size;
         }
 
         public static int magic(IntPtr ob)
         {
             if ((Runtime.PyObject_TypeCheck(ob, Exceptions.BaseException) ||
-                (Runtime.PyType_Check(ob) && Runtime.PyType_IsSubtype(ob, Exceptions.BaseException))))
+                 (Runtime.PyType_Check(ob) && Runtime.PyType_IsSubtype(ob, Exceptions.BaseException))))
             {
                 return ExceptionOffset.ob_data;
             }
@@ -100,7 +99,7 @@ namespace Python.Runtime
         public static int DictOffset(IntPtr ob)
         {
             if ((Runtime.PyObject_TypeCheck(ob, Exceptions.BaseException) ||
-                (Runtime.PyType_Check(ob) && Runtime.PyType_IsSubtype(ob, Exceptions.BaseException))))
+                 (Runtime.PyType_Check(ob) && Runtime.PyType_IsSubtype(ob, Exceptions.BaseException))))
             {
                 return ExceptionOffset.ob_dict;
             }
@@ -110,18 +109,18 @@ namespace Python.Runtime
         public static int Size(IntPtr ob)
         {
             if ((Runtime.PyObject_TypeCheck(ob, Exceptions.BaseException) ||
-                (Runtime.PyType_Check(ob) && Runtime.PyType_IsSubtype(ob, Exceptions.BaseException))))
+                 (Runtime.PyType_Check(ob) && Runtime.PyType_IsSubtype(ob, Exceptions.BaseException))))
             {
                 return ExceptionOffset.Size();
             }
-#if (Py_DEBUG)
+#if PYTHON_WITH_PYDEBUG
             return 6 * IntPtr.Size;
 #else
             return 4 * IntPtr.Size;
 #endif
         }
 
-#if (Py_DEBUG)
+#if PYTHON_WITH_PYDEBUG
         public static int _ob_next;
         public static int _ob_prev;
 #endif
@@ -154,15 +153,13 @@ namespace Python.Runtime
         // (start after PyObject_HEAD)
         public static int dict = 0;
         public static int args = 0;
-#if (PYTHON25 || PYTHON26 || PYTHON27)
+#if PYTHON2
         public static int message = 0;
-#elif (PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
+#elif PYTHON3
         public static int traceback = 0;
         public static int context = 0;
         public static int cause = 0;
-#if !PYTHON32
         public static int suppress_context = 0;
-#endif
 #endif
 
         // extra c# data
@@ -171,7 +168,7 @@ namespace Python.Runtime
     }
 
 
-#if (PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
+#if PYTHON3
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
     internal class BytesOffset
     {
@@ -188,7 +185,7 @@ namespace Python.Runtime
 
         /* The *real* layout of a type object when allocated on the heap */
         //typedef struct _heaptypeobject {
-#if (Py_DEBUG)  // #ifdef Py_TRACE_REFS
+#if PYTHON_WITH_PYDEBUG
 /* _PyObject_HEAD_EXTRA defines pointers to support a doubly-linked list of all live heap objects. */
         public static int _ob_next = 0;
         public static int _ob_prev = 0;
@@ -198,7 +195,7 @@ namespace Python.Runtime
         public static int ob_refcnt = 0;
         public static int ob_type = 0;
         // }
-        public static int ob_size = 0;      /* Number of items in _VAR_iable part */
+        public static int ob_size = 0; /* Number of items in _VAR_iable part */
         // }
         public static int ob_shash = 0;
         public static int ob_sval = 0; /* start of data */
@@ -225,11 +222,12 @@ namespace Python.Runtime
             }
         }
 
-        public static IntPtr AllocModuleDef(string modulename) {
+        public static IntPtr AllocModuleDef(string modulename)
+        {
             byte[] ascii = Encoding.ASCII.GetBytes(modulename);
             int size = name + ascii.Length + 1;
             IntPtr ptr = Marshal.AllocHGlobal(size);
-            for (int i = 0; i <= m_free; i += IntPtr.Size)
+            for (int i = 0; i < m_free; i += IntPtr.Size)
                 Marshal.WriteIntPtr(ptr, i, IntPtr.Zero);
             Marshal.Copy(ascii, 0, (IntPtr)(ptr + name), ascii.Length);
             Marshal.WriteIntPtr(ptr, m_name, (IntPtr)(ptr + name));
@@ -237,7 +235,8 @@ namespace Python.Runtime
             return ptr;
         }
 
-        public static void FreeModuleDef(IntPtr ptr) {
+        public static void FreeModuleDef(IntPtr ptr)
+        {
             Marshal.FreeHGlobal(ptr);
         }
 
@@ -270,8 +269,7 @@ namespace Python.Runtime
     /// </summary>
     internal class TypeFlags
     {
-#if (PYTHON23 || PYTHON24 || PYTHON25 || PYTHON26 || PYTHON27)
-        // these flags were removed in Python 3
+#if PYTHON2 // these flags were removed in Python 3
         public static int HaveGetCharBuffer = (1 << 0);
         public static int HaveSequenceIn = (1 << 1);
         public static int GC = 0;
@@ -292,10 +290,7 @@ namespace Python.Runtime
         /* XXX Reusing reserved constants */
         public static int Managed = (1 << 15); // PythonNet specific
         public static int Subclass = (1 << 16); // PythonNet specific
-#if (PYTHON25 || PYTHON26 || PYTHON27 || PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
         public static int HaveIndex = (1 << 17);
-#endif
-#if (PYTHON26 || PYTHON27 || PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
         /* Objects support nb_index in PyNumberMethods */
         public static int HaveVersionTag = (1 << 18);
         public static int ValidVersionTag = (1 << 19);
@@ -311,10 +306,8 @@ namespace Python.Runtime
         public static int DictSubclass = (1 << 29);
         public static int BaseExceptionSubclass = (1 << 30);
         public static int TypeSubclass = (1 << 31);
-#endif
 
-// Default flags for Python 2
-#if (PYTHON23 || PYTHON24 || PYTHON25 || PYTHON26 || PYTHON27)
+#if PYTHON2 // Default flags for Python 2
         public static int Default = (
             HaveGetCharBuffer |
             HaveSequenceIn |
@@ -324,17 +317,12 @@ namespace Python.Runtime
             HaveIter |
             HaveClass |
             HaveStacklessExtension |
-#if (PYTHON25 || PYTHON26 || PYTHON27)
-                HaveIndex |
-#endif
-                0);
-#endif
-
-// Default flags for Python 3
-#if (PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
+            HaveIndex |
+            0);
+#elif PYTHON3 // Default flags for Python 3
         public static int Default = (
-                            HaveStacklessExtension |
-                            HaveVersionTag);
+            HaveStacklessExtension |
+            HaveVersionTag);
 #endif
     }
 
@@ -346,8 +334,8 @@ namespace Python.Runtime
 
     internal class Interop
     {
-        static ArrayList keepAlive;
-        static Hashtable pmap;
+        private static ArrayList keepAlive;
+        private static Hashtable pmap;
 
         static Interop()
         {
@@ -394,7 +382,7 @@ namespace Python.Runtime
             pmap["nb_add"] = p["BinaryFunc"];
             pmap["nb_subtract"] = p["BinaryFunc"];
             pmap["nb_multiply"] = p["BinaryFunc"];
-#if !(PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
+#if PYTHON2
             pmap["nb_divide"] = p["BinaryFunc"];
 #endif
             pmap["nb_remainder"] = p["BinaryFunc"];
@@ -419,7 +407,7 @@ namespace Python.Runtime
             pmap["nb_inplace_add"] = p["BinaryFunc"];
             pmap["nb_inplace_subtract"] = p["BinaryFunc"];
             pmap["nb_inplace_multiply"] = p["BinaryFunc"];
-#if !(PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
+#if PYTHON2
             pmap["nb_inplace_divide"] = p["BinaryFunc"];
 #endif
             pmap["nb_inplace_remainder"] = p["BinaryFunc"];
@@ -433,9 +421,7 @@ namespace Python.Runtime
             pmap["nb_true_divide"] = p["BinaryFunc"];
             pmap["nb_inplace_floor_divide"] = p["BinaryFunc"];
             pmap["nb_inplace_true_divide"] = p["BinaryFunc"];
-#if (PYTHON25 || PYTHON26 || PYTHON27 || PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
             pmap["nb_index"] = p["UnaryFunc"];
-#endif
 
             pmap["sq_length"] = p["InquiryFunc"];
             pmap["sq_concat"] = p["BinaryFunc"];

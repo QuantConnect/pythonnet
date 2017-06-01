@@ -1,12 +1,10 @@
-using System;
 using System.Collections;
 
 namespace Python.Test
 {
-    //========================================================================
-    // Supports units tests for indexer access.
-    //========================================================================
-
+    /// <summary>
+    /// Supports units tests for indexer access.
+    /// </summary>
     public class IndexerBase
     {
         protected Hashtable t;
@@ -377,8 +375,7 @@ namespace Python.Test
         {
             get
             {
-                string key = i1.ToString() + i2.ToString() +
-                             i3.GetHashCode().ToString();
+                string key = i1.ToString() + i2.ToString() + i3.GetHashCode().ToString();
                 object value = t[key];
                 if (value != null)
                 {
@@ -388,8 +385,7 @@ namespace Python.Test
             }
             set
             {
-                string key = i1.ToString() + i2.ToString() +
-                             i3.GetHashCode().ToString();
+                string key = i1.ToString() + i2.ToString() + i3.GetHashCode().ToString();
                 t[key] = value;
             }
         }

@@ -1,12 +1,23 @@
 using System;
-using System.Reflection;
 using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
 using Python.Runtime;
 
 namespace Python.Runtime
 {
+    /// <summary>
+    /// Example of Embedding Python inside of a .NET program.
+    /// </summary>
+    /// <remarks>
+    /// It has similar functionality to doing `import clr` from within Python, but this does it
+    /// the other way around; That is, it loads Python inside of .NET program.
+    /// See https://github.com/pythonnet/pythonnet/issues/358 for more info.
+    /// </remarks>
     public sealed class PythonConsole
     {
+        private static AssemblyLoader assemblyLoader = new AssemblyLoader();
+
         private PythonConsole()
         {
         }
@@ -26,11 +37,11 @@ namespace Python.Runtime
             return i;
         }
 
-        // Register a callback function to load embedded assmeblies.
+        // Register a callback function to load embedded assemblies.
         // (Python.Runtime.dll is included as a resource)
         private sealed class AssemblyLoader
         {
-            Dictionary<string, Assembly> loadedAssemblies;
+            private Dictionary<string, Assembly> loadedAssemblies;
 
             public AssemblyLoader()
             {
@@ -39,7 +50,7 @@ namespace Python.Runtime
                 AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
                 {
                     string shortName = args.Name.Split(',')[0];
-                    String resourceName = shortName + ".dll";
+                    string resourceName = $"{shortName}.dll";
 
                     if (loadedAssemblies.ContainsKey(resourceName))
                     {
@@ -47,23 +58,20 @@ namespace Python.Runtime
                     }
 
                     // looks for the assembly from the resources and load it
-                    using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName))
+                    using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName))
                     {
                         if (stream != null)
                         {
-                            Byte[] assemblyData = new Byte[stream.Length];
+                            var assemblyData = new byte[stream.Length];
                             stream.Read(assemblyData, 0, assemblyData.Length);
                             Assembly assembly = Assembly.Load(assemblyData);
                             loadedAssemblies[resourceName] = assembly;
                             return assembly;
                         }
                     }
-
                     return null;
                 };
             }
-        };
-
-        private static AssemblyLoader assemblyLoader = new AssemblyLoader();
-    };
+        }
+    }
 }

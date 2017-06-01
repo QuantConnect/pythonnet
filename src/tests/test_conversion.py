@@ -1,844 +1,705 @@
-import sys, os, string, unittest, types
-from Python.Test import ConversionTest
+# -*- coding: utf-8 -*-
+
+"""Test CLR <-> Python type conversions."""
+
 import System
-import six
+import pytest
+from Python.Test import ConversionTest
 
-if six.PY3:
-    long = int
-    unichr = chr
+from ._compat import indexbytes, long, unichr
 
 
-class ConversionTests(unittest.TestCase):
-    """Test CLR <-> Python type conversions."""
+def test_bool_conversion():
+    """Test bool conversion."""
+    ob = ConversionTest()
+    assert ob.BooleanField is False
+    assert ob.BooleanField is False
+    assert ob.BooleanField == 0
 
-    def testBoolConversion(self):
-        """Test bool conversion."""
-        object = ConversionTest()
-        self.assertTrue(object.BooleanField == False)
-        self.assertTrue(object.BooleanField is False)
-        self.assertTrue(object.BooleanField == 0)
+    ob.BooleanField = True
+    assert ob.BooleanField is True
+    assert ob.BooleanField is True
+    assert ob.BooleanField == 1
 
-        object.BooleanField = True
-        self.assertTrue(object.BooleanField == True)
-        self.assertTrue(object.BooleanField is True)
-        self.assertTrue(object.BooleanField == 1)
+    ob.BooleanField = False
+    assert ob.BooleanField is False
+    assert ob.BooleanField is False
+    assert ob.BooleanField == 0
 
-        object.BooleanField = False
-        self.assertTrue(object.BooleanField == False)
-        self.assertTrue(object.BooleanField is False)
-        self.assertTrue(object.BooleanField == 0)
+    ob.BooleanField = 1
+    assert ob.BooleanField is True
+    assert ob.BooleanField is True
+    assert ob.BooleanField == 1
 
-        object.BooleanField = 1
-        self.assertTrue(object.BooleanField == True)
-        self.assertTrue(object.BooleanField is True)
-        self.assertTrue(object.BooleanField == 1)
+    ob.BooleanField = 0
+    assert ob.BooleanField is False
+    assert ob.BooleanField is False
+    assert ob.BooleanField == 0
 
-        object.BooleanField = 0
-        self.assertTrue(object.BooleanField == False)
-        self.assertTrue(object.BooleanField is False)
-        self.assertTrue(object.BooleanField == 0)
+    ob.BooleanField = System.Boolean(None)
+    assert ob.BooleanField is False
+    assert ob.BooleanField is False
+    assert ob.BooleanField == 0
 
-        object.BooleanField = System.Boolean(None)
-        self.assertTrue(object.BooleanField == False)
-        self.assertTrue(object.BooleanField is False)
-        self.assertTrue(object.BooleanField == 0)
+    ob.BooleanField = System.Boolean('')
+    assert ob.BooleanField is False
+    assert ob.BooleanField is False
+    assert ob.BooleanField == 0
 
-        object.BooleanField = System.Boolean('')
-        self.assertTrue(object.BooleanField == False)
-        self.assertTrue(object.BooleanField is False)
-        self.assertTrue(object.BooleanField == 0)
+    ob.BooleanField = System.Boolean(0)
+    assert ob.BooleanField is False
+    assert ob.BooleanField is False
+    assert ob.BooleanField == 0
 
-        object.BooleanField = System.Boolean(0)
-        self.assertTrue(object.BooleanField == False)
-        self.assertTrue(object.BooleanField is False)
-        self.assertTrue(object.BooleanField == 0)
+    ob.BooleanField = System.Boolean(1)
+    assert ob.BooleanField is True
+    assert ob.BooleanField is True
+    assert ob.BooleanField == 1
 
-        object.BooleanField = System.Boolean(1)
-        self.assertTrue(object.BooleanField == True)
-        self.assertTrue(object.BooleanField is True)
-        self.assertTrue(object.BooleanField == 1)
+    ob.BooleanField = System.Boolean('a')
+    assert ob.BooleanField is True
+    assert ob.BooleanField is True
+    assert ob.BooleanField == 1
 
-        object.BooleanField = System.Boolean('a')
-        self.assertTrue(object.BooleanField == True)
-        self.assertTrue(object.BooleanField is True)
-        self.assertTrue(object.BooleanField == 1)
 
-    def testSByteConversion(self):
-        """Test sbyte conversion."""
-        self.assertTrue(System.SByte.MaxValue == 127)
-        self.assertTrue(System.SByte.MinValue == -128)
+def test_sbyte_conversion():
+    """Test sbyte conversion."""
+    assert System.SByte.MaxValue == 127
+    assert System.SByte.MinValue == -128
 
-        object = ConversionTest()
-        self.assertTrue(object.SByteField == 0)
+    ob = ConversionTest()
+    assert ob.SByteField == 0
 
-        object.SByteField = 127
-        self.assertTrue(object.SByteField == 127)
+    ob.SByteField = 127
+    assert ob.SByteField == 127
 
-        object.SByteField = -128
-        self.assertTrue(object.SByteField == -128)
+    ob.SByteField = -128
+    assert ob.SByteField == -128
 
-        object.SByteField = System.SByte(127)
-        self.assertTrue(object.SByteField == 127)
+    ob.SByteField = System.SByte(127)
+    assert ob.SByteField == 127
 
-        object.SByteField = System.SByte(-128)
-        self.assertTrue(object.SByteField == -128)
+    ob.SByteField = System.SByte(-128)
+    assert ob.SByteField == -128
 
-        def test():
-            ConversionTest().SByteField = "spam"
+    with pytest.raises(TypeError):
+        ConversionTest().SByteField = "spam"
 
-        self.assertRaises(TypeError, test)
+    with pytest.raises(TypeError):
+        ConversionTest().SByteField = None
 
-        def test():
-            ConversionTest().SByteField = None
+    with pytest.raises(OverflowError):
+        ConversionTest().SByteField = 128
 
-        self.assertRaises(TypeError, test)
+    with pytest.raises(OverflowError):
+        ConversionTest().SByteField = -129
 
-        def test():
-            ConversionTest().SByteField = 128
+    with pytest.raises(OverflowError):
+        _ = System.SByte(128)
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(OverflowError):
+        _ = System.SByte(-129)
 
-        def test():
-            ConversionTest().SByteField = -129
 
-        self.assertRaises(OverflowError, test)
+def test_byte_conversion():
+    """Test byte conversion."""
+    assert System.Byte.MaxValue == 255
+    assert System.Byte.MinValue == 0
 
-        def test():
-            value = System.SByte(128)
+    ob = ConversionTest()
+    assert ob.ByteField == 0
 
-        self.assertRaises(OverflowError, test)
+    ob.ByteField = 255
+    assert ob.ByteField == 255
 
-        def test():
-            value = System.SByte(-129)
+    ob.ByteField = 0
+    assert ob.ByteField == 0
 
-        self.assertRaises(OverflowError, test)
+    ob.ByteField = System.Byte(255)
+    assert ob.ByteField == 255
 
-    def testByteConversion(self):
-        """Test byte conversion."""
-        self.assertTrue(System.Byte.MaxValue == 255)
-        self.assertTrue(System.Byte.MinValue == 0)
+    ob.ByteField = System.Byte(0)
+    assert ob.ByteField == 0
 
-        object = ConversionTest()
-        self.assertTrue(object.ByteField == 0)
+    with pytest.raises(TypeError):
+        ConversionTest().ByteField = "spam"
 
-        object.ByteField = 255
-        self.assertTrue(object.ByteField == 255)
+    with pytest.raises(TypeError):
+        ConversionTest().ByteField = None
 
-        object.ByteField = 0
-        self.assertTrue(object.ByteField == 0)
+    with pytest.raises(OverflowError):
+        ConversionTest().ByteField = 256
 
-        object.ByteField = System.Byte(255)
-        self.assertTrue(object.ByteField == 255)
+    with pytest.raises(OverflowError):
+        ConversionTest().ByteField = -1
 
-        object.ByteField = System.Byte(0)
-        self.assertTrue(object.ByteField == 0)
+    with pytest.raises(OverflowError):
+        _ = System.Byte(256)
 
-        def test():
-            ConversionTest().ByteField = "spam"
+    with pytest.raises(OverflowError):
+        _ = System.Byte(-1)
 
-        self.assertRaises(TypeError, test)
 
-        def test():
-            ConversionTest().ByteField = None
+def test_char_conversion():
+    """Test char conversion."""
+    assert System.Char.MaxValue == unichr(65535)
+    assert System.Char.MinValue == unichr(0)
 
-        self.assertRaises(TypeError, test)
+    ob = ConversionTest()
+    assert ob.CharField == u'A'
 
-        def test():
-            ConversionTest().ByteField = 256
+    ob.CharField = 'B'
+    assert ob.CharField == u'B'
 
-        self.assertRaises(OverflowError, test)
+    ob.CharField = u'B'
+    assert ob.CharField == u'B'
 
-        def test():
-            ConversionTest().ByteField = -1
+    ob.CharField = 67
+    assert ob.CharField == u'C'
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(OverflowError):
+        ConversionTest().CharField = 65536
 
-        def test():
-            value = System.Byte(256)
+    with pytest.raises(OverflowError):
+        ConversionTest().CharField = -1
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(TypeError):
+        ConversionTest().CharField = None
 
-        def test():
-            value = System.Byte(-1)
 
-        self.assertRaises(OverflowError, test)
+def test_int16_conversion():
+    """Test int16 conversion."""
+    assert System.Int16.MaxValue == 32767
+    assert System.Int16.MinValue == -32768
 
-    def testCharConversion(self):
-        """Test char conversion."""
-        self.assertTrue(System.Char.MaxValue == unichr(65535))
-        self.assertTrue(System.Char.MinValue == unichr(0))
+    ob = ConversionTest()
+    assert ob.Int16Field == 0
 
-        object = ConversionTest()
-        self.assertTrue(object.CharField == six.u('A'))
+    ob.Int16Field = 32767
+    assert ob.Int16Field == 32767
 
-        object.CharField = 'B'
-        self.assertTrue(object.CharField == six.u('B'))
+    ob.Int16Field = -32768
+    assert ob.Int16Field == -32768
 
-        object.CharField = six.u('B')
-        self.assertTrue(object.CharField == six.u('B'))
+    ob.Int16Field = System.Int16(32767)
+    assert ob.Int16Field == 32767
 
-        object.CharField = 67
-        self.assertTrue(object.CharField == six.u('C'))
+    ob.Int16Field = System.Int16(-32768)
+    assert ob.Int16Field == -32768
 
-        def test():
-            ConversionTest().CharField = 65536
+    with pytest.raises(TypeError):
+        ConversionTest().Int16Field = "spam"
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(TypeError):
+        ConversionTest().Int16Field = None
 
-        def test():
-            ConversionTest().CharField = -1
+    with pytest.raises(OverflowError):
+        ConversionTest().Int16Field = 32768
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(OverflowError):
+        ConversionTest().Int16Field = -32769
 
-        def test():
-            ConversionTest().CharField = None
+    with pytest.raises(OverflowError):
+        _ = System.Int16(32768)
 
-        self.assertRaises(TypeError, test)
+    with pytest.raises(OverflowError):
+        _ = System.Int16(-32769)
 
-    def testInt16Conversion(self):
-        """Test int16 conversion."""
-        self.assertTrue(System.Int16.MaxValue == 32767)
-        self.assertTrue(System.Int16.MinValue == -32768)
 
-        object = ConversionTest()
-        self.assertTrue(object.Int16Field == 0)
+def test_int32_conversion():
+    """Test int32 conversion."""
+    assert System.Int32.MaxValue == 2147483647
+    assert System.Int32.MinValue == -2147483648
 
-        object.Int16Field = 32767
-        self.assertTrue(object.Int16Field == 32767)
+    ob = ConversionTest()
+    assert ob.Int32Field == 0
 
-        object.Int16Field = -32768
-        self.assertTrue(object.Int16Field == -32768)
+    ob.Int32Field = 2147483647
+    assert ob.Int32Field == 2147483647
 
-        object.Int16Field = System.Int16(32767)
-        self.assertTrue(object.Int16Field == 32767)
+    ob.Int32Field = -2147483648
+    assert ob.Int32Field == -2147483648
 
-        object.Int16Field = System.Int16(-32768)
-        self.assertTrue(object.Int16Field == -32768)
+    ob.Int32Field = System.Int32(2147483647)
+    assert ob.Int32Field == 2147483647
 
-        def test():
-            ConversionTest().Int16Field = "spam"
+    ob.Int32Field = System.Int32(-2147483648)
+    assert ob.Int32Field == -2147483648
 
-        self.assertRaises(TypeError, test)
+    with pytest.raises(TypeError):
+        ConversionTest().Int32Field = "spam"
 
-        def test():
-            ConversionTest().Int16Field = None
+    with pytest.raises(TypeError):
+        ConversionTest().Int32Field = None
 
-        self.assertRaises(TypeError, test)
+    with pytest.raises(OverflowError):
+        ConversionTest().Int32Field = 2147483648
 
-        def test():
-            ConversionTest().Int16Field = 32768
+    with pytest.raises(OverflowError):
+        ConversionTest().Int32Field = -2147483649
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(OverflowError):
+        _ = System.Int32(2147483648)
 
-        def test():
-            ConversionTest().Int16Field = -32769
+    with pytest.raises(OverflowError):
+        _ = System.Int32(-2147483649)
 
-        self.assertRaises(OverflowError, test)
 
-        def test():
-            value = System.Int16(32768)
+def test_int64_conversion():
+    """Test int64 conversion."""
+    assert System.Int64.MaxValue == long(9223372036854775807)
+    assert System.Int64.MinValue == long(-9223372036854775808)
 
-        self.assertRaises(OverflowError, test)
+    ob = ConversionTest()
+    assert ob.Int64Field == 0
 
-        def test():
-            value = System.Int16(-32769)
+    ob.Int64Field = long(9223372036854775807)
+    assert ob.Int64Field == long(9223372036854775807)
 
-        self.assertRaises(OverflowError, test)
+    ob.Int64Field = long(-9223372036854775808)
+    assert ob.Int64Field == long(-9223372036854775808)
 
-    def testInt32Conversion(self):
-        """Test int32 conversion."""
-        self.assertTrue(System.Int32.MaxValue == 2147483647)
-        self.assertTrue(System.Int32.MinValue == -2147483648)
+    ob.Int64Field = System.Int64(long(9223372036854775807))
+    assert ob.Int64Field == long(9223372036854775807)
 
-        object = ConversionTest()
-        self.assertTrue(object.Int32Field == 0)
+    ob.Int64Field = System.Int64(long(-9223372036854775808))
+    assert ob.Int64Field == long(-9223372036854775808)
 
-        object.Int32Field = 2147483647
-        self.assertTrue(object.Int32Field == 2147483647)
+    with pytest.raises(TypeError):
+        ConversionTest().Int64Field = "spam"
 
-        object.Int32Field = -2147483648
-        self.assertTrue(object.Int32Field == -2147483648)
+    with pytest.raises(TypeError):
+        ConversionTest().Int64Field = None
 
-        object.Int32Field = System.Int32(2147483647)
-        self.assertTrue(object.Int32Field == 2147483647)
+    with pytest.raises(OverflowError):
+        ConversionTest().Int64Field = long(9223372036854775808)
 
-        object.Int32Field = System.Int32(-2147483648)
-        self.assertTrue(object.Int32Field == -2147483648)
+    with pytest.raises(OverflowError):
+        ConversionTest().Int64Field = long(-9223372036854775809)
 
-        def test():
-            ConversionTest().Int32Field = "spam"
+    with pytest.raises(OverflowError):
+        _ = System.Int64(long(9223372036854775808))
 
-        self.assertRaises(TypeError, test)
+    with pytest.raises(OverflowError):
+        _ = System.Int64(long(-9223372036854775809))
 
-        def test():
-            ConversionTest().Int32Field = None
 
-        self.assertRaises(TypeError, test)
+def test_uint16_conversion():
+    """Test uint16 conversion."""
+    assert System.UInt16.MaxValue == 65535
+    assert System.UInt16.MinValue == 0
 
-        def test():
-            ConversionTest().Int32Field = 2147483648
+    ob = ConversionTest()
+    assert ob.UInt16Field == 0
 
-        self.assertRaises(OverflowError, test)
+    ob.UInt16Field = 65535
+    assert ob.UInt16Field == 65535
 
-        def test():
-            ConversionTest().Int32Field = -2147483649
+    ob.UInt16Field = -0
+    assert ob.UInt16Field == 0
 
-        self.assertRaises(OverflowError, test)
+    ob.UInt16Field = System.UInt16(65535)
+    assert ob.UInt16Field == 65535
 
-        def test():
-            value = System.Int32(2147483648)
+    ob.UInt16Field = System.UInt16(0)
+    assert ob.UInt16Field == 0
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(TypeError):
+        ConversionTest().UInt16Field = "spam"
 
-        def test():
-            value = System.Int32(-2147483649)
+    with pytest.raises(TypeError):
+        ConversionTest().UInt16Field = None
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(OverflowError):
+        ConversionTest().UInt16Field = 65536
 
-    def testInt64Conversion(self):
-        """Test int64 conversion."""
-        self.assertTrue(System.Int64.MaxValue == long(9223372036854775807))
-        self.assertTrue(System.Int64.MinValue == long(-9223372036854775808))
+    with pytest.raises(OverflowError):
+        ConversionTest().UInt16Field = -1
 
-        object = ConversionTest()
-        self.assertTrue(object.Int64Field == 0)
+    with pytest.raises(OverflowError):
+        _ = System.UInt16(65536)
 
-        object.Int64Field = long(9223372036854775807)
-        self.assertTrue(object.Int64Field == long(9223372036854775807))
+    with pytest.raises(OverflowError):
+        _ = System.UInt16(-1)
 
-        object.Int64Field = long(-9223372036854775808)
-        self.assertTrue(object.Int64Field == long(-9223372036854775808))
 
-        object.Int64Field = System.Int64(long(9223372036854775807))
-        self.assertTrue(object.Int64Field == long(9223372036854775807))
+def test_uint32_conversion():
+    """Test uint32 conversion."""
+    assert System.UInt32.MaxValue == long(4294967295)
+    assert System.UInt32.MinValue == 0
 
-        object.Int64Field = System.Int64(long(-9223372036854775808))
-        self.assertTrue(object.Int64Field == long(-9223372036854775808))
+    ob = ConversionTest()
+    assert ob.UInt32Field == 0
 
-        def test():
-            ConversionTest().Int64Field = "spam"
+    ob.UInt32Field = long(4294967295)
+    assert ob.UInt32Field == long(4294967295)
 
-        self.assertRaises(TypeError, test)
+    ob.UInt32Field = -0
+    assert ob.UInt32Field == 0
 
-        def test():
-            ConversionTest().Int64Field = None
+    ob.UInt32Field = System.UInt32(long(4294967295))
+    assert ob.UInt32Field == long(4294967295)
 
-        self.assertRaises(TypeError, test)
+    ob.UInt32Field = System.UInt32(0)
+    assert ob.UInt32Field == 0
 
-        def test():
-            ConversionTest().Int64Field = long(9223372036854775808)
+    with pytest.raises(TypeError):
+        ConversionTest().UInt32Field = "spam"
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(TypeError):
+        ConversionTest().UInt32Field = None
 
-        def test():
-            ConversionTest().Int64Field = long(-9223372036854775809)
+    with pytest.raises(OverflowError):
+        ConversionTest().UInt32Field = long(4294967296)
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(OverflowError):
+        ConversionTest().UInt32Field = -1
 
-        def test():
-            value = System.Int64(long(9223372036854775808))
+    with pytest.raises(OverflowError):
+        _ = System.UInt32(long(4294967296))
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(OverflowError):
+        _ = System.UInt32(-1)
 
-        def test():
-            value = System.Int64(long(-9223372036854775809))
 
-        self.assertRaises(OverflowError, test)
+def test_uint64_conversion():
+    """Test uint64 conversion."""
+    assert System.UInt64.MaxValue == long(18446744073709551615)
+    assert System.UInt64.MinValue == 0
 
-    def testUInt16Conversion(self):
-        """Test uint16 conversion."""
-        self.assertTrue(System.UInt16.MaxValue == 65535)
-        self.assertTrue(System.UInt16.MinValue == 0)
+    ob = ConversionTest()
+    assert ob.UInt64Field == 0
 
-        object = ConversionTest()
-        self.assertTrue(object.UInt16Field == 0)
+    ob.UInt64Field = long(18446744073709551615)
+    assert ob.UInt64Field == long(18446744073709551615)
 
-        object.UInt16Field = 65535
-        self.assertTrue(object.UInt16Field == 65535)
+    ob.UInt64Field = -0
+    assert ob.UInt64Field == 0
 
-        object.UInt16Field = -0
-        self.assertTrue(object.UInt16Field == 0)
+    ob.UInt64Field = System.UInt64(long(18446744073709551615))
+    assert ob.UInt64Field == long(18446744073709551615)
 
-        object.UInt16Field = System.UInt16(65535)
-        self.assertTrue(object.UInt16Field == 65535)
+    ob.UInt64Field = System.UInt64(0)
+    assert ob.UInt64Field == 0
 
-        object.UInt16Field = System.UInt16(0)
-        self.assertTrue(object.UInt16Field == 0)
+    with pytest.raises(TypeError):
+        ConversionTest().UInt64Field = "spam"
 
-        def test():
-            ConversionTest().UInt16Field = "spam"
+    with pytest.raises(TypeError):
+        ConversionTest().UInt64Field = None
 
-        self.assertRaises(TypeError, test)
+    with pytest.raises(OverflowError):
+        ConversionTest().UInt64Field = long(18446744073709551616)
 
-        def test():
-            ConversionTest().UInt16Field = None
+    with pytest.raises(OverflowError):
+        ConversionTest().UInt64Field = -1
 
-        self.assertRaises(TypeError, test)
+    with pytest.raises(OverflowError):
+        _ = System.UInt64(long(18446744073709551616))
 
-        def test():
-            ConversionTest().UInt16Field = 65536
+    with pytest.raises(OverflowError):
+        _ = System.UInt64(-1)
 
-        self.assertRaises(OverflowError, test)
 
-        def test():
-            ConversionTest().UInt16Field = -1
+def test_single_conversion():
+    """Test single conversion."""
+    assert System.Single.MaxValue == 3.402823e38
+    assert System.Single.MinValue == -3.402823e38
 
-        self.assertRaises(OverflowError, test)
+    ob = ConversionTest()
+    assert ob.SingleField == 0.0
 
-        def test():
-            value = System.UInt16(65536)
+    ob.SingleField = 3.402823e38
+    assert ob.SingleField == 3.402823e38
 
-        self.assertRaises(OverflowError, test)
+    ob.SingleField = -3.402823e38
+    assert ob.SingleField == -3.402823e38
 
-        def test():
-            value = System.UInt16(-1)
+    ob.SingleField = System.Single(3.402823e38)
+    assert ob.SingleField == 3.402823e38
 
-        self.assertRaises(OverflowError, test)
+    ob.SingleField = System.Single(-3.402823e38)
+    assert ob.SingleField == -3.402823e38
 
-    def testUInt32Conversion(self):
-        """Test uint32 conversion."""
-        self.assertTrue(System.UInt32.MaxValue == long(4294967295))
-        self.assertTrue(System.UInt32.MinValue == 0)
+    with pytest.raises(TypeError):
+        ConversionTest().SingleField = "spam"
 
-        object = ConversionTest()
-        self.assertTrue(object.UInt32Field == 0)
+    with pytest.raises(TypeError):
+        ConversionTest().SingleField = None
 
-        object.UInt32Field = long(4294967295)
-        self.assertTrue(object.UInt32Field == long(4294967295))
+    with pytest.raises(OverflowError):
+        ConversionTest().SingleField = 3.402824e38
 
-        object.UInt32Field = -0
-        self.assertTrue(object.UInt32Field == 0)
+    with pytest.raises(OverflowError):
+        ConversionTest().SingleField = -3.402824e38
 
-        object.UInt32Field = System.UInt32(long(4294967295))
-        self.assertTrue(object.UInt32Field == long(4294967295))
+    with pytest.raises(OverflowError):
+        _ = System.Single(3.402824e38)
 
-        object.UInt32Field = System.UInt32(0)
-        self.assertTrue(object.UInt32Field == 0)
+    with pytest.raises(OverflowError):
+        _ = System.Single(-3.402824e38)
 
-        def test():
-            ConversionTest().UInt32Field = "spam"
 
-        self.assertRaises(TypeError, test)
+def test_double_conversion():
+    """Test double conversion."""
+    assert System.Double.MaxValue == 1.7976931348623157e308
+    assert System.Double.MinValue == -1.7976931348623157e308
 
-        def test():
-            ConversionTest().UInt32Field = None
+    ob = ConversionTest()
+    assert ob.DoubleField == 0.0
 
-        self.assertRaises(TypeError, test)
+    ob.DoubleField = 1.7976931348623157e308
+    assert ob.DoubleField == 1.7976931348623157e308
 
-        def test():
-            ConversionTest().UInt32Field = long(4294967296)
+    ob.DoubleField = -1.7976931348623157e308
+    assert ob.DoubleField == -1.7976931348623157e308
 
-        self.assertRaises(OverflowError, test)
+    ob.DoubleField = System.Double(1.7976931348623157e308)
+    assert ob.DoubleField == 1.7976931348623157e308
 
-        def test():
-            ConversionTest().UInt32Field = -1
+    ob.DoubleField = System.Double(-1.7976931348623157e308)
+    assert ob.DoubleField == -1.7976931348623157e308
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(TypeError):
+        ConversionTest().DoubleField = "spam"
 
-        def test():
-            value = System.UInt32(long(4294967296))
+    with pytest.raises(TypeError):
+        ConversionTest().DoubleField = None
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(OverflowError):
+        ConversionTest().DoubleField = 1.7976931348623159e308
 
-        def test():
-            value = System.UInt32(-1)
+    with pytest.raises(OverflowError):
+        ConversionTest().DoubleField = -1.7976931348623159e308
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(OverflowError):
+        _ = System.Double(1.7976931348623159e308)
 
-    def testUInt64Conversion(self):
-        """Test uint64 conversion."""
-        self.assertTrue(System.UInt64.MaxValue == long(18446744073709551615))
-        self.assertTrue(System.UInt64.MinValue == 0)
+    with pytest.raises(OverflowError):
+        _ = System.Double(-1.7976931348623159e308)
 
-        object = ConversionTest()
-        self.assertTrue(object.UInt64Field == 0)
 
-        object.UInt64Field = long(18446744073709551615)
-        self.assertTrue(object.UInt64Field == long(18446744073709551615))
+def test_decimal_conversion():
+    """Test decimal conversion."""
+    from System import Decimal
 
-        object.UInt64Field = -0
-        self.assertTrue(object.UInt64Field == 0)
+    max_d = Decimal.Parse("79228162514264337593543950335")
+    min_d = Decimal.Parse("-79228162514264337593543950335")
 
-        object.UInt64Field = System.UInt64(long(18446744073709551615))
-        self.assertTrue(object.UInt64Field == long(18446744073709551615))
+    assert Decimal.ToInt64(Decimal(10)) == long(10)
 
-        object.UInt64Field = System.UInt64(0)
-        self.assertTrue(object.UInt64Field == 0)
+    ob = ConversionTest()
+    assert ob.DecimalField == Decimal(0)
 
-        def test():
-            ConversionTest().UInt64Field = "spam"
+    ob.DecimalField = Decimal(10)
+    assert ob.DecimalField == Decimal(10)
 
-        self.assertRaises(TypeError, test)
+    ob.DecimalField = Decimal.One
+    assert ob.DecimalField == Decimal.One
 
-        def test():
-            ConversionTest().UInt64Field = None
+    ob.DecimalField = Decimal.Zero
+    assert ob.DecimalField == Decimal.Zero
 
-        self.assertRaises(TypeError, test)
+    ob.DecimalField = max_d
+    assert ob.DecimalField == max_d
 
-        def test():
-            ConversionTest().UInt64Field = long(18446744073709551616)
+    ob.DecimalField = min_d
+    assert ob.DecimalField == min_d
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(TypeError):
+        ConversionTest().DecimalField = None
 
-        def test():
-            ConversionTest().UInt64Field = -1
+    with pytest.raises(TypeError):
+        ConversionTest().DecimalField = "spam"
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(TypeError):
+        ConversionTest().DecimalField = 1
 
-        def test():
-            value = System.UInt64(long(18446744073709551616))
 
-        self.assertRaises(OverflowError, test)
+def test_string_conversion():
+    """Test string / unicode conversion."""
+    ob = ConversionTest()
 
-        def test():
-            value = System.UInt64(-1)
+    assert ob.StringField == "spam"
+    assert ob.StringField == u"spam"
 
-        self.assertRaises(OverflowError, test)
+    ob.StringField = "eggs"
+    assert ob.StringField == "eggs"
+    assert ob.StringField == u"eggs"
 
-    def testSingleConversion(self):
-        """Test single conversion."""
-        self.assertTrue(System.Single.MaxValue == 3.402823e38)
-        self.assertTrue(System.Single.MinValue == -3.402823e38)
+    ob.StringField = u"spam"
+    assert ob.StringField == "spam"
+    assert ob.StringField == u"spam"
 
-        object = ConversionTest()
-        self.assertTrue(object.SingleField == 0.0)
+    ob.StringField = u'\uffff\uffff'
+    assert ob.StringField == u'\uffff\uffff'
 
-        object.SingleField = 3.402823e38
-        self.assertTrue(object.SingleField == 3.402823e38)
+    ob.StringField = System.String("spam")
+    assert ob.StringField == "spam"
+    assert ob.StringField == u"spam"
 
-        object.SingleField = -3.402823e38
-        self.assertTrue(object.SingleField == -3.402823e38)
+    ob.StringField = System.String(u'\uffff\uffff')
+    assert ob.StringField == u'\uffff\uffff'
 
-        object.SingleField = System.Single(3.402823e38)
-        self.assertTrue(object.SingleField == 3.402823e38)
+    ob.StringField = None
+    assert ob.StringField is None
 
-        object.SingleField = System.Single(-3.402823e38)
-        self.assertTrue(object.SingleField == -3.402823e38)
+    with pytest.raises(TypeError):
+        ConversionTest().StringField = 1
 
-        def test():
-            ConversionTest().SingleField = "spam"
 
-        self.assertRaises(TypeError, test)
+def test_interface_conversion():
+    """Test interface conversion."""
+    from Python.Test import Spam, ISpam
 
-        def test():
-            ConversionTest().SingleField = None
+    ob = ConversionTest()
 
-        self.assertRaises(TypeError, test)
+    assert ISpam(ob.SpamField).GetValue() == "spam"
+    assert ob.SpamField.GetValue() == "spam"
 
-        def test():
-            ConversionTest().SingleField = 3.402824e38
+    ob.SpamField = Spam("eggs")
+    assert ISpam(ob.SpamField).GetValue() == "eggs"
+    assert ob.SpamField.GetValue() == "eggs"
 
-        self.assertRaises(OverflowError, test)
+    # need to test spam subclass here.
 
-        def test():
-            ConversionTest().SingleField = -3.402824e38
+    ob.SpamField = None
+    assert ob.SpamField is None
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(TypeError):
+        ob = ConversionTest()
+        ob.SpamField = System.String("bad")
 
-        def test():
-            value = System.Single(3.402824e38)
+    with pytest.raises(TypeError):
+        ob = ConversionTest()
+        ob.SpamField = System.Int32(1)
 
-        self.assertRaises(OverflowError, test)
 
-        def test():
-            value = System.Single(-3.402824e38)
+def test_object_conversion():
+    """Test ob conversion."""
+    from Python.Test import Spam
 
-        self.assertRaises(OverflowError, test)
+    ob = ConversionTest()
+    assert ob.ObjectField is None
 
-    def testDoubleConversion(self):
-        """Test double conversion."""
-        self.assertTrue(System.Double.MaxValue == 1.7976931348623157e308)
-        self.assertTrue(System.Double.MinValue == -1.7976931348623157e308)
+    ob.ObjectField = Spam("eggs")
+    assert ob.ObjectField.__class__.__name__ == "Spam"
+    assert ob.ObjectField.GetValue() == "eggs"
 
-        object = ConversionTest()
-        self.assertTrue(object.DoubleField == 0.0)
+    ob.ObjectField = None
+    assert ob.ObjectField is None
 
-        object.DoubleField = 1.7976931348623157e308
-        self.assertTrue(object.DoubleField == 1.7976931348623157e308)
+    ob.ObjectField = System.String("spam")
+    assert ob.ObjectField == "spam"
 
-        object.DoubleField = -1.7976931348623157e308
-        self.assertTrue(object.DoubleField == -1.7976931348623157e308)
+    ob.ObjectField = System.Int32(1)
+    assert ob.ObjectField == 1
 
-        object.DoubleField = System.Double(1.7976931348623157e308)
-        self.assertTrue(object.DoubleField == 1.7976931348623157e308)
+    # need to test subclass here
 
-        object.DoubleField = System.Double(-1.7976931348623157e308)
-        self.assertTrue(object.DoubleField == -1.7976931348623157e308)
+    with pytest.raises(TypeError):
+        class Foo(object):
+            pass
+        ob = ConversionTest()
+        ob.ObjectField = Foo
 
-        def test():
-            ConversionTest().DoubleField = "spam"
 
-        self.assertRaises(TypeError, test)
+def test_enum_conversion():
+    """Test enum conversion."""
+    from Python.Test import ShortEnum
 
-        def test():
-            ConversionTest().DoubleField = None
+    ob = ConversionTest()
+    assert ob.EnumField == ShortEnum.Zero
 
-        self.assertRaises(TypeError, test)
+    ob.EnumField = ShortEnum.One
+    assert ob.EnumField == ShortEnum.One
 
-        def test():
-            ConversionTest().DoubleField = 1.7976931348623159e308
+    ob.EnumField = 0
+    assert ob.EnumField == ShortEnum.Zero
+    assert ob.EnumField == 0
 
-        self.assertRaises(OverflowError, test)
+    ob.EnumField = 1
+    assert ob.EnumField == ShortEnum.One
+    assert ob.EnumField == 1
 
-        def test():
-            ConversionTest().DoubleField = -1.7976931348623159e308
+    with pytest.raises(ValueError):
+        ob = ConversionTest()
+        ob.EnumField = 10
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(ValueError):
+        ob = ConversionTest()
+        ob.EnumField = 255
 
-        def test():
-            value = System.Double(1.7976931348623159e308)
+    with pytest.raises(OverflowError):
+        ob = ConversionTest()
+        ob.EnumField = 1000000
 
-        self.assertRaises(OverflowError, test)
+    with pytest.raises(TypeError):
+        ob = ConversionTest()
+        ob.EnumField = "spam"
 
-        def test():
-            value = System.Double(-1.7976931348623159e308)
 
-        self.assertRaises(OverflowError, test)
+def test_null_conversion():
+    """Test null conversion."""
+    import System
+    
+    ob = ConversionTest()
 
-    def testDecimalConversion(self):
-        """Test decimal conversion."""
-        from System import Decimal
+    ob.StringField = None
+    assert ob.StringField is None
 
-        max_d = Decimal.Parse("79228162514264337593543950335")
-        min_d = Decimal.Parse("-79228162514264337593543950335")
+    ob.ObjectField = None
+    assert ob.ObjectField is None
 
-        self.assertTrue(Decimal.ToInt64(Decimal(10)) == long(10))
+    ob.SpamField = None
+    assert ob.SpamField is None
 
-        object = ConversionTest()
-        self.assertTrue(object.DecimalField == Decimal(0))
+    pi = 22/7
+    assert ob.Echo[System.Double](pi) == pi
+    assert ob.Echo[System.DateTime](None) is None
 
-        object.DecimalField = Decimal(10)
-        self.assertTrue(object.DecimalField == Decimal(10))
+    # Primitive types and enums should not be set to null.
 
-        object.DecimalField = Decimal.One
-        self.assertTrue(object.DecimalField == Decimal.One)
+    with pytest.raises(TypeError):
+        ConversionTest().Int32Field = None
 
-        object.DecimalField = Decimal.Zero
-        self.assertTrue(object.DecimalField == Decimal.Zero)
+    with pytest.raises(TypeError):
+        ConversionTest().EnumField = None
 
-        object.DecimalField = max_d
-        self.assertTrue(object.DecimalField == max_d)
 
-        object.DecimalField = min_d
-        self.assertTrue(object.DecimalField == min_d)
+def test_byte_array_conversion():
+    """Test byte array conversion."""
+    ob = ConversionTest()
 
-        def test():
-            ConversionTest().DecimalField = None
+    assert ob.ByteArrayField is None
 
-        self.assertRaises(TypeError, test)
+    ob.ByteArrayField = [0, 1, 2, 3, 4]
+    array = ob.ByteArrayField
+    assert len(array) == 5
+    assert array[0] == 0
+    assert array[4] == 4
 
-        def test():
-            ConversionTest().DecimalField = "spam"
+    value = b"testing"
+    ob.ByteArrayField = value
+    array = ob.ByteArrayField
+    for i, _ in enumerate(value):
+        assert array[i] == indexbytes(value, i)
 
-        self.assertRaises(TypeError, test)
 
-        def test():
-            ConversionTest().DecimalField = 1
+def test_sbyte_array_conversion():
+    """Test sbyte array conversion."""
+    ob = ConversionTest()
 
-        self.assertRaises(TypeError, test)
+    assert ob.SByteArrayField is None
 
-    def testStringConversion(self):
-        """Test string / unicode conversion."""
-        object = ConversionTest()
+    ob.SByteArrayField = [0, 1, 2, 3, 4]
+    array = ob.SByteArrayField
+    assert len(array) == 5
+    assert array[0] == 0
+    assert array[4] == 4
 
-        self.assertTrue(object.StringField == "spam")
-        self.assertTrue(object.StringField == six.u("spam"))
-
-        object.StringField = "eggs"
-        self.assertTrue(object.StringField == "eggs")
-        self.assertTrue(object.StringField == six.u("eggs"))
-
-        object.StringField = six.u("spam")
-        self.assertTrue(object.StringField == "spam")
-        self.assertTrue(object.StringField == six.u("spam"))
-
-        object.StringField = six.u('\uffff\uffff')
-        self.assertTrue(object.StringField == six.u('\uffff\uffff'))
-
-        object.StringField = System.String("spam")
-        self.assertTrue(object.StringField == "spam")
-        self.assertTrue(object.StringField == six.u("spam"))
-
-        object.StringField = System.String(six.u('\uffff\uffff'))
-        self.assertTrue(object.StringField == six.u('\uffff\uffff'))
-
-        object.StringField = None
-        self.assertTrue(object.StringField == None)
-
-        def test():
-            ConversionTest().StringField = 1
-
-        self.assertRaises(TypeError, test)
-
-    def testInterfaceConversion(self):
-        """Test interface conversion."""
-        from Python.Test import Spam, ISpam
-
-        object = ConversionTest()
-
-        self.assertTrue(ISpam(object.SpamField).GetValue() == "spam")
-        self.assertTrue(object.SpamField.GetValue() == "spam")
-
-        object.SpamField = Spam("eggs")
-        self.assertTrue(ISpam(object.SpamField).GetValue() == "eggs")
-        self.assertTrue(object.SpamField.GetValue() == "eggs")
-
-        # need to test spam subclass here.
-
-        object.SpamField = None
-        self.assertTrue(object.SpamField == None)
-
-        def test():
-            object = ConversionTest()
-            object.SpamField = System.String("bad")
-
-        self.assertRaises(TypeError, test)
-
-        def test():
-            object = ConversionTest()
-            object.SpamField = System.Int32(1)
-
-        self.assertRaises(TypeError, test)
-
-    def testObjectConversion(self):
-        """Test object conversion."""
-        from Python.Test import Spam
-
-        object = ConversionTest()
-        self.assertTrue(object.ObjectField == None)
-
-        object.ObjectField = Spam("eggs")
-        self.assertTrue(object.ObjectField.__class__.__name__ == "Spam")
-        self.assertTrue(object.ObjectField.GetValue() == "eggs")
-
-        object.ObjectField = None
-        self.assertTrue(object.ObjectField == None)
-
-        object.ObjectField = System.String("spam")
-        self.assertTrue(object.ObjectField == "spam")
-
-        object.ObjectField = System.Int32(1)
-        self.assertTrue(object.ObjectField == 1)
-
-        # need to test subclass here
-
-        def test():
-            object = ConversionTest()
-            object.ObjectField = self
-
-        self.assertRaises(TypeError, test)
-
-    def testEnumConversion(self):
-        """Test enum conversion."""
-        from Python.Test import ShortEnum
-
-        object = ConversionTest()
-        self.assertTrue(object.EnumField == ShortEnum.Zero)
-
-        object.EnumField = ShortEnum.One
-        self.assertTrue(object.EnumField == ShortEnum.One)
-
-        object.EnumField = 0
-        self.assertTrue(object.EnumField == ShortEnum.Zero)
-        self.assertTrue(object.EnumField == 0)
-
-        object.EnumField = 1
-        self.assertTrue(object.EnumField == ShortEnum.One)
-        self.assertTrue(object.EnumField == 1)
-
-        def test():
-            object = ConversionTest()
-            object.EnumField = 10
-
-        self.assertRaises(ValueError, test)
-
-        def test():
-            object = ConversionTest()
-            object.EnumField = 255
-
-        self.assertRaises(ValueError, test)
-
-        def test():
-            object = ConversionTest()
-            object.EnumField = 1000000
-
-        self.assertRaises(OverflowError, test)
-
-        def test():
-            object = ConversionTest()
-            object.EnumField = "spam"
-
-        self.assertRaises(TypeError, test)
-
-    def testNullConversion(self):
-        """Test null conversion."""
-        object = ConversionTest()
-
-        object.StringField = None
-        self.assertTrue(object.StringField == None)
-
-        object.ObjectField = None
-        self.assertTrue(object.ObjectField == None)
-
-        object.SpamField = None
-        self.assertTrue(object.SpamField == None)
-
-        # Primitive types and enums should not be set to null.
-
-        def test():
-            ConversionTest().Int32Field = None
-
-        self.assertRaises(TypeError, test)
-
-        def test():
-            ConversionTest().EnumField = None
-
-        self.assertRaises(TypeError, test)
-
-    def testByteArrayConversion(self):
-        """Test byte array conversion."""
-        object = ConversionTest()
-
-        self.assertTrue(object.ByteArrayField == None)
-
-        object.ByteArrayField = [0, 1, 2, 3, 4]
-        array = object.ByteArrayField
-        self.assertTrue(len(array) == 5)
-        self.assertTrue(array[0] == 0)
-        self.assertTrue(array[4] == 4)
-
-        value = six.b("testing")
-        object.ByteArrayField = value
-        array = object.ByteArrayField
-        for i in range(len(value)):
-            self.assertTrue(array[i] == six.indexbytes(value, i))
-
-    def testSByteArrayConversion(self):
-        """Test sbyte array conversion."""
-        object = ConversionTest()
-
-        self.assertTrue(object.SByteArrayField == None)
-
-        object.SByteArrayField = [0, 1, 2, 3, 4]
-        array = object.SByteArrayField
-        self.assertTrue(len(array) == 5)
-        self.assertTrue(array[0] == 0)
-        self.assertTrue(array[4] == 4)
-
-        value = six.b("testing")
-        object.SByteArrayField = value
-        array = object.SByteArrayField
-        for i in range(len(value)):
-            self.assertTrue(array[i] == six.indexbytes(value, i))
-
-
-def test_suite():
-    return unittest.makeSuite(ConversionTests)
-
-
-def main():
-    unittest.TextTestRunner().run(test_suite())
-
-
-if __name__ == '__main__':
-    main()
+    value = b"testing"
+    ob.SByteArrayField = value
+    array = ob.SByteArrayField
+    for i, _ in enumerate(value):
+        assert array[i] == indexbytes(value, i)

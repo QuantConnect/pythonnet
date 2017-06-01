@@ -1,9 +1,7 @@
-using System;
 
-//========================================================================
-// Supports units tests for access to types without a namespace.
-//========================================================================
-
+/// <summary>
+/// Supports units tests for access to types without a namespace.
+/// </summary>
 public class NoNamespaceType
 {
 }

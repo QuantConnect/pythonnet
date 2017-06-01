@@ -1,18 +1,15 @@
-using System;
-
 namespace Python.Test
 {
-    //========================================================================
-    // Supports units tests for property access.
-    //========================================================================
-
+    /// <summary>
+    /// Supports units tests for property access.
+    /// </summary>
     public class PropertyTest
     {
         public PropertyTest()
         {
         }
 
-        int _public_property = 0;
+        private int _public_property = 0;
 
         public int PublicProperty
         {
@@ -20,7 +17,7 @@ namespace Python.Test
             set { _public_property = value; }
         }
 
-        static int _public_static_property = 0;
+        private static int _public_static_property = 0;
 
         public static int PublicStaticProperty
         {
@@ -28,7 +25,7 @@ namespace Python.Test
             set { _public_static_property = value; }
         }
 
-        int _protected_property = 0;
+        private int _protected_property = 0;
 
         protected int ProtectedProperty
         {
@@ -36,7 +33,7 @@ namespace Python.Test
             set { _protected_property = value; }
         }
 
-        static int _protected_static_property = 0;
+        private static int _protected_static_property = 0;
 
         protected static int ProtectedStaticProperty
         {
@@ -44,7 +41,7 @@ namespace Python.Test
             set { _protected_static_property = value; }
         }
 
-        int _internal_property = 0;
+        private int _internal_property = 0;
 
         internal int InternalProperty
         {
@@ -52,7 +49,7 @@ namespace Python.Test
             set { _internal_property = value; }
         }
 
-        static int _internal_static_property = 0;
+        private static int _internal_static_property = 0;
 
         internal static int InternalStaticProperty
         {
@@ -60,7 +57,7 @@ namespace Python.Test
             set { _internal_static_property = value; }
         }
 
-        int _private_property = 0;
+        private int _private_property = 0;
 
         private int PrivateProperty
         {
@@ -68,7 +65,7 @@ namespace Python.Test
             set { _private_property = value; }
         }
 
-        static int _private_static_property = 0;
+        private static int _private_static_property = 0;
 
         private static int PrivateStaticProperty
         {
@@ -76,7 +73,7 @@ namespace Python.Test
             set { _private_static_property = value; }
         }
 
-        ShortEnum _enum_property = ShortEnum.Zero;
+        private ShortEnum _enum_property = ShortEnum.Zero;
 
         public ShortEnum EnumProperty
         {

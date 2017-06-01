@@ -1,13 +1,11 @@
 using System;
-using System.Collections;
 using Python.Runtime;
 
 namespace Python.Test
 {
-    //========================================================================
-    // Supports CLR threading / reentrancy unit tests.
-    //========================================================================
-
+    /// <summary>
+    /// Supports CLR threading / reentrant unit tests.
+    /// </summary>
     public class ThreadTest
     {
         private static PyObject module;
@@ -24,10 +22,11 @@ namespace Python.Test
             "\n";
 
 
-        // This method calls back into the CPython runtime - tests
-        // call this from Python to check that we don't hang on
-        // nested transitions from managed to Python code and back.
-
+        /// <summary>
+        /// This method calls back into the CPython runtime - tests
+        /// call this from Python to check that we don't hang on
+        /// nested transitions from managed to Python code and back.
+        /// </summary>
         public static string CallEchoString(string arg)
         {
             IntPtr gs = PythonEngine.AcquireLock();
@@ -38,9 +37,9 @@ namespace Python.Test
                     module = PythonEngine.ModuleFromString("tt", testmod);
                 }
                 PyObject func = module.GetAttr("echostring");
-                PyString parg = new PyString(arg);
+                var parg = new PyString(arg);
                 PyObject temp = func.Invoke(parg);
-                string result = (string)temp.AsManagedObject(typeof(String));
+                var result = (string)temp.AsManagedObject(typeof(string));
                 func.Dispose();
                 parg.Dispose();
                 temp.Dispose();
@@ -63,9 +62,9 @@ namespace Python.Test
                 }
 
                 PyObject func = module.GetAttr("echostring2");
-                PyString parg = new PyString(arg);
+                var parg = new PyString(arg);
                 PyObject temp = func.Invoke(parg);
-                string result = (string)temp.AsManagedObject(typeof(String));
+                var result = (string)temp.AsManagedObject(typeof(string));
                 func.Dispose();
                 parg.Dispose();
                 temp.Dispose();

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Reflection;
 
 namespace Python.Runtime
@@ -9,25 +9,24 @@ namespace Python.Runtime
     /// </summary>
     /// <remarks>
     /// ClassManager stores a ConstructorBinding instance in the class's __dict__['Overloads']
-    ///
     /// SomeType.Overloads[Type, ...] works like this:
-    /// 1) Python retreives the Overloads attribute from this ClassObject's dictionary normally
+    /// 1) Python retrieves the Overloads attribute from this ClassObject's dictionary normally
     /// and finds a non-null tp_descr_get slot which is called by the interpreter
     /// and returns an IncRef()ed pyHandle to itself.
     /// 2) The ConstructorBinding object handles the [] syntax in its mp_subscript by matching
-    /// the Type object parameters to a contructor overload using Type.GetConstructor()
-    ///  [NOTE: I don't know why method overloads are not searched the same way.]
-    /// and creating the BoundContructor oject which contains ContructorInfo object.
+    /// the Type object parameters to a constructor overload using Type.GetConstructor()
+    /// [NOTE: I don't know why method overloads are not searched the same way.]
+    /// and creating the BoundContructor object which contains ContructorInfo object.
     /// 3) In tp_call, if ctorInfo is not null, ctorBinder.InvokeRaw() is called.
     /// </remarks>
     internal class ConstructorBinding : ExtensionType
     {
-        Type type; // The managed Type being wrapped in a ClassObject
-        IntPtr pyTypeHndl; // The python type tells GetInstHandle which Type to create.
-        ConstructorBinder ctorBinder;
-        IntPtr repr;
+        private Type type; // The managed Type being wrapped in a ClassObject
+        private IntPtr pyTypeHndl; // The python type tells GetInstHandle which Type to create.
+        private ConstructorBinder ctorBinder;
+        private IntPtr repr;
 
-        public ConstructorBinding(Type type, IntPtr pyTypeHndl, ConstructorBinder ctorBinder) : base()
+        public ConstructorBinding(Type type, IntPtr pyTypeHndl, ConstructorBinder ctorBinder)
         {
             this.type = type;
             Runtime.XIncref(pyTypeHndl);
@@ -43,12 +42,15 @@ namespace Python.Runtime
         /// selection.
         /// </summary>
         /// <param name="op"> PyObject* to a Constructors wrapper </param>
-        /// <param name="instance"> the instance that the attribute was accessed through,
-        /// or None when the attribute is accessed through the owner </param>
+        /// <param name="instance">
+        /// the instance that the attribute was accessed through,
+        /// or None when the attribute is accessed through the owner
+        /// </param>
         /// <param name="owner"> always the owner class </param>
-        /// <returns> a CtorMapper (that borrows a reference to this python type and the
-        /// ClassObject's ConstructorBinder) wrapper. </returns>
-        ///
+        /// <returns>
+        /// a CtorMapper (that borrows a reference to this python type and the
+        /// ClassObject's ConstructorBinder) wrapper.
+        /// </returns>
         /// <remarks>
         /// Python 2.6.5 docs:
         /// object.__get__(self, instance, owner)
@@ -60,7 +62,7 @@ namespace Python.Runtime
         /// </remarks>
         public static IntPtr tp_descr_get(IntPtr op, IntPtr instance, IntPtr owner)
         {
-            ConstructorBinding self = (ConstructorBinding)GetManagedObject(op);
+            var self = (ConstructorBinding)GetManagedObject(op);
             if (self == null)
             {
                 return IntPtr.Zero;
@@ -77,20 +79,17 @@ namespace Python.Runtime
             return self.pyHandle;
         }
 
-        //====================================================================
-        // Implement explicit overload selection using subscript syntax ([]).
-        //====================================================================
         /// <summary>
+        /// Implement explicit overload selection using subscript syntax ([]).
+        /// </summary>
+        /// <remarks>
         /// ConstructorBinding.GetItem(PyObject *o, PyObject *key)
         /// Return element of o corresponding to the object key or NULL on failure.
         /// This is the equivalent of the Python expression o[key].
-        /// </summary>
-        /// <param name="tp"></param>
-        /// <param name="idx"></param>
-        /// <returns></returns>
+        /// </remarks>
         public static IntPtr mp_subscript(IntPtr op, IntPtr key)
         {
-            ConstructorBinding self = (ConstructorBinding)GetManagedObject(op);
+            var self = (ConstructorBinding)GetManagedObject(op);
 
             Type[] types = Runtime.PythonArgsToTypeArray(key);
             if (types == null)
@@ -102,23 +101,21 @@ namespace Python.Runtime
             ConstructorInfo ci = self.type.GetConstructor(types);
             if (ci == null)
             {
-                string msg = "No match found for constructor signature";
-                return Exceptions.RaiseTypeError(msg);
+                return Exceptions.RaiseTypeError("No match found for constructor signature");
             }
-            BoundContructor boundCtor = new BoundContructor(self.type, self.pyTypeHndl, self.ctorBinder, ci);
+            var boundCtor = new BoundContructor(self.type, self.pyTypeHndl, self.ctorBinder, ci);
 
-            /* Since nothing's chached, do we need the increment???
+            /* Since nothing is cached, do we need the increment???
             Runtime.XIncref(boundCtor.pyHandle);  // Decref'd by the interpreter??? */
             return boundCtor.pyHandle;
         }
 
-        //====================================================================
-        // ConstructorBinding  __repr__ implementation [borrowed from MethodObject].
-        //====================================================================
-
+        /// <summary>
+        /// ConstructorBinding  __repr__ implementation [borrowed from MethodObject].
+        /// </summary>
         public static IntPtr tp_repr(IntPtr ob)
         {
-            ConstructorBinding self = (ConstructorBinding)GetManagedObject(ob);
+            var self = (ConstructorBinding)GetManagedObject(ob);
             if (self.repr != IntPtr.Zero)
             {
                 Runtime.XIncref(self.repr);
@@ -126,27 +123,28 @@ namespace Python.Runtime
             }
             MethodBase[] methods = self.ctorBinder.GetMethods();
             string name = self.type.FullName;
-            string doc = "";
-            for (int i = 0; i < methods.Length; i++)
+            var doc = "";
+            foreach (MethodBase t in methods)
             {
                 if (doc.Length > 0)
+                {
                     doc += "\n";
-                string str = methods[i].ToString();
+                }
+                string str = t.ToString();
                 int idx = str.IndexOf("(");
-                doc += String.Format("{0}{1}", name, str.Substring(idx));
+                doc += string.Format("{0}{1}", name, str.Substring(idx));
             }
             self.repr = Runtime.PyString_FromString(doc);
             Runtime.XIncref(self.repr);
             return self.repr;
         }
 
-        //====================================================================
-        // ConstructorBinding dealloc implementation.
-        //====================================================================
-
-        public static new void tp_dealloc(IntPtr ob)
+        /// <summary>
+        /// ConstructorBinding dealloc implementation.
+        /// </summary>
+        public new static void tp_dealloc(IntPtr ob)
         {
-            ConstructorBinding self = (ConstructorBinding)GetManagedObject(ob);
+            var self = (ConstructorBinding)GetManagedObject(ob);
             Runtime.XDecref(self.repr);
             Runtime.XDecref(self.pyTypeHndl);
             ExtensionType.FinalizeObject(self);
@@ -154,7 +152,7 @@ namespace Python.Runtime
     }
 
     /// <summary>
-    /// Implements a Python type that constucts the given Type given a particular ContructorInfo.
+    /// Implements a Python type that constructs the given Type given a particular ContructorInfo.
     /// </summary>
     /// <remarks>
     /// Here mostly because I wanted a new __repr__ function for the selected constructor.
@@ -163,14 +161,13 @@ namespace Python.Runtime
     /// </remarks>
     internal class BoundContructor : ExtensionType
     {
-        Type type; // The managed Type being wrapped in a ClassObject
-        IntPtr pyTypeHndl; // The python type tells GetInstHandle which Type to create.
-        ConstructorBinder ctorBinder;
-        ConstructorInfo ctorInfo;
-        IntPtr repr;
+        private Type type; // The managed Type being wrapped in a ClassObject
+        private IntPtr pyTypeHndl; // The python type tells GetInstHandle which Type to create.
+        private ConstructorBinder ctorBinder;
+        private ConstructorInfo ctorInfo;
+        private IntPtr repr;
 
         public BoundContructor(Type type, IntPtr pyTypeHndl, ConstructorBinder ctorBinder, ConstructorInfo ci)
-            : base()
         {
             this.type = type;
             Runtime.XIncref(pyTypeHndl);
@@ -183,13 +180,13 @@ namespace Python.Runtime
         /// <summary>
         /// BoundContructor.__call__(PyObject *callable_object, PyObject *args, PyObject *kw)
         /// </summary>
-        /// <param name="ob"> PyObject *callable_object </param>
+        /// <param name="op"> PyObject *callable_object </param>
         /// <param name="args"> PyObject *args </param>
         /// <param name="kw"> PyObject *kw </param>
         /// <returns> A reference to a new instance of the class by invoking the selected ctor(). </returns>
         public static IntPtr tp_call(IntPtr op, IntPtr args, IntPtr kw)
         {
-            BoundContructor self = (BoundContructor)GetManagedObject(op);
+            var self = (BoundContructor)GetManagedObject(op);
             // Even though a call with null ctorInfo just produces the old behavior
             /*if (self.ctorInfo == null) {
                 string msg = "Usage: Class.Overloads[CLR_or_python_Type, ...]";
@@ -197,7 +194,7 @@ namespace Python.Runtime
             }*/
             // Bind using ConstructorBinder.Bind and invoke the ctor providing a null instancePtr
             // which will fire self.ctorInfo using ConstructorInfo.Invoke().
-            Object obj = self.ctorBinder.InvokeRaw(IntPtr.Zero, args, kw, self.ctorInfo);
+            object obj = self.ctorBinder.InvokeRaw(IntPtr.Zero, args, kw, self.ctorInfo);
             if (obj == null)
             {
                 // XXX set an error
@@ -208,13 +205,12 @@ namespace Python.Runtime
             return CLRObject.GetInstHandle(obj, self.pyTypeHndl);
         }
 
-        //====================================================================
-        // BoundContructor  __repr__ implementation [borrowed from MethodObject].
-        //====================================================================
-
+        /// <summary>
+        /// BoundContructor  __repr__ implementation [borrowed from MethodObject].
+        /// </summary>
         public static IntPtr tp_repr(IntPtr ob)
         {
-            BoundContructor self = (BoundContructor)GetManagedObject(ob);
+            var self = (BoundContructor)GetManagedObject(ob);
             if (self.repr != IntPtr.Zero)
             {
                 Runtime.XIncref(self.repr);
@@ -223,22 +219,21 @@ namespace Python.Runtime
             string name = self.type.FullName;
             string str = self.ctorInfo.ToString();
             int idx = str.IndexOf("(");
-            str = String.Format("returns a new {0}{1}", name, str.Substring(idx));
+            str = string.Format("returns a new {0}{1}", name, str.Substring(idx));
             self.repr = Runtime.PyString_FromString(str);
             Runtime.XIncref(self.repr);
             return self.repr;
         }
 
-        //====================================================================
-        // ConstructorBinding dealloc implementation.
-        //====================================================================
-
-        public static new void tp_dealloc(IntPtr ob)
+        /// <summary>
+        /// ConstructorBinding dealloc implementation.
+        /// </summary>
+        public new static void tp_dealloc(IntPtr ob)
         {
-            BoundContructor self = (BoundContructor)GetManagedObject(ob);
+            var self = (BoundContructor)GetManagedObject(ob);
             Runtime.XDecref(self.repr);
             Runtime.XDecref(self.pyTypeHndl);
-            ExtensionType.FinalizeObject(self);
+            FinalizeObject(self);
         }
     }
 }

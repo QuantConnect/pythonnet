@@ -4,14 +4,15 @@ namespace Python.Runtime
 {
     /// <summary>
     /// Represents a Python long int object. See the documentation at
-    /// http://www.python.org/doc/current/api/longObjects.html
+    /// PY2: https://docs.python.org/2/c-api/long.html
+    /// PY3: https://docs.python.org/3/c-api/long.html
+    /// for details.
     /// </summary>
     public class PyLong : PyNumber
     {
         /// <summary>
         /// PyLong Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyLong from an existing object reference. Note
         /// that the instance assumes ownership of the object reference.
@@ -25,13 +26,12 @@ namespace Python.Runtime
         /// <summary>
         /// PyLong Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Copy constructor - obtain a PyLong from a generic PyObject. An
         /// ArgumentException will be thrown if the given object is not a
         /// Python long object.
         /// </remarks>
-        public PyLong(PyObject o) : base()
+        public PyLong(PyObject o)
         {
             if (!IsLongType(o))
             {
@@ -45,181 +45,140 @@ namespace Python.Runtime
         /// <summary>
         /// PyLong Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyLong from an int32 value.
         /// </remarks>
-        public PyLong(int value) : base()
+        public PyLong(int value)
         {
-            obj = Runtime.PyLong_FromLong((long)value);
-            if (obj == IntPtr.Zero)
-            {
-                throw new PythonException();
-            }
+            obj = Runtime.PyLong_FromLong(value);
+            Runtime.CheckExceptionOccurred();
         }
 
 
         /// <summary>
         /// PyLong Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyLong from a uint32 value.
         /// </remarks>
         [CLSCompliant(false)]
-        public PyLong(uint value) : base()
+        public PyLong(uint value)
         {
-            obj = Runtime.PyLong_FromLong((long)value);
-            if (obj == IntPtr.Zero)
-            {
-                throw new PythonException();
-            }
+            obj = Runtime.PyLong_FromLong(value);
+            Runtime.CheckExceptionOccurred();
         }
 
 
         /// <summary>
         /// PyLong Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyLong from an int64 value.
         /// </remarks>
-        public PyLong(long value) : base()
+        public PyLong(long value)
         {
             obj = Runtime.PyLong_FromLongLong(value);
-            if (obj == IntPtr.Zero)
-            {
-                throw new PythonException();
-            }
+            Runtime.CheckExceptionOccurred();
         }
 
 
         /// <summary>
         /// PyLong Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyLong from a uint64 value.
         /// </remarks>
         [CLSCompliant(false)]
-        public PyLong(ulong value) : base()
+        public PyLong(ulong value)
         {
             obj = Runtime.PyLong_FromUnsignedLongLong(value);
-            if (obj == IntPtr.Zero)
-            {
-                throw new PythonException();
-            }
+            Runtime.CheckExceptionOccurred();
         }
 
 
         /// <summary>
         /// PyLong Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyLong from an int16 value.
         /// </remarks>
-        public PyLong(short value) : base()
+        public PyLong(short value)
         {
-            obj = Runtime.PyLong_FromLong((long)value);
-            if (obj == IntPtr.Zero)
-            {
-                throw new PythonException();
-            }
+            obj = Runtime.PyLong_FromLong(value);
+            Runtime.CheckExceptionOccurred();
         }
 
 
         /// <summary>
         /// PyLong Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyLong from an uint16 value.
         /// </remarks>
         [CLSCompliant(false)]
-        public PyLong(ushort value) : base()
+        public PyLong(ushort value)
         {
-            obj = Runtime.PyLong_FromLong((long)value);
-            if (obj == IntPtr.Zero)
-            {
-                throw new PythonException();
-            }
+            obj = Runtime.PyLong_FromLong(value);
+            Runtime.CheckExceptionOccurred();
         }
 
 
         /// <summary>
         /// PyLong Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyLong from a byte value.
         /// </remarks>
-        public PyLong(byte value) : base()
+        public PyLong(byte value)
         {
-            obj = Runtime.PyLong_FromLong((long)value);
-            if (obj == IntPtr.Zero)
-            {
-                throw new PythonException();
-            }
+            obj = Runtime.PyLong_FromLong(value);
+            Runtime.CheckExceptionOccurred();
         }
 
 
         /// <summary>
         /// PyLong Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyLong from an sbyte value.
         /// </remarks>
         [CLSCompliant(false)]
-        public PyLong(sbyte value) : base()
+        public PyLong(sbyte value)
         {
-            obj = Runtime.PyLong_FromLong((long)value);
-            if (obj == IntPtr.Zero)
-            {
-                throw new PythonException();
-            }
+            obj = Runtime.PyLong_FromLong(value);
+            Runtime.CheckExceptionOccurred();
         }
 
 
         /// <summary>
         /// PyLong Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyLong from an double value.
         /// </remarks>
-        public PyLong(double value) : base()
+        public PyLong(double value)
         {
             obj = Runtime.PyLong_FromDouble(value);
-            if (obj == IntPtr.Zero)
-            {
-                throw new PythonException();
-            }
+            Runtime.CheckExceptionOccurred();
         }
 
 
         /// <summary>
         /// PyLong Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyLong from a string value.
         /// </remarks>
-        public PyLong(string value) : base()
+        public PyLong(string value)
         {
             obj = Runtime.PyLong_FromString(value, IntPtr.Zero, 0);
-            if (obj == IntPtr.Zero)
-            {
-                throw new PythonException();
-            }
+            Runtime.CheckExceptionOccurred();
         }
 
 
         /// <summary>
         /// IsLongType Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns true if the given object is a Python long.
         /// </remarks>
@@ -232,8 +191,6 @@ namespace Python.Runtime
         /// <summary>
         /// AsLong Method
         /// </summary>
-        ///
-        /// <remarks>
         /// <remarks>
         /// Convert a Python object to a Python long if possible, raising
         /// a PythonException if the conversion is not possible. This is
@@ -242,43 +199,37 @@ namespace Python.Runtime
         public static PyLong AsLong(PyObject value)
         {
             IntPtr op = Runtime.PyNumber_Long(value.obj);
-            if (op == IntPtr.Zero)
-            {
-                throw new PythonException();
-            }
+            Runtime.CheckExceptionOccurred();
             return new PyLong(op);
         }
 
         /// <summary>
         /// ToInt16 Method
         /// </summary>
-        ///
         /// <remarks>
         /// Return the value of the Python long object as an int16.
         /// </remarks>
         public short ToInt16()
         {
-            return System.Convert.ToInt16(this.ToInt64());
+            return Convert.ToInt16(ToInt64());
         }
 
 
         /// <summary>
         /// ToInt32 Method
         /// </summary>
-        ///
         /// <remarks>
         /// Return the value of the Python long object as an int32.
         /// </remarks>
         public int ToInt32()
         {
-            return System.Convert.ToInt32(this.ToInt64());
+            return Convert.ToInt32(ToInt64());
         }
 
 
         /// <summary>
         /// ToInt64 Method
         /// </summary>
-        ///
         /// <remarks>
         /// Return the value of the Python long object as an int64.
         /// </remarks>

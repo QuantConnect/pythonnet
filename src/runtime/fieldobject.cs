@@ -1,33 +1,29 @@
 using System;
-using System.Collections;
 using System.Reflection;
-using System.Runtime.InteropServices;
 
 namespace Python.Runtime
 {
-    //========================================================================
-    // Implements a Python descriptor type that provides access to CLR fields.
-    //========================================================================
-
+    /// <summary>
+    /// Implements a Python descriptor type that provides access to CLR fields.
+    /// </summary>
     internal class FieldObject : ExtensionType
     {
-        FieldInfo info;
+        private FieldInfo info;
 
-        public FieldObject(FieldInfo info) : base()
+        public FieldObject(FieldInfo info)
         {
             this.info = info;
         }
 
-        //====================================================================
-        // Descriptor __get__ implementation. This method returns the
-        // value of the field on the given object. The returned value
-        // is converted to an appropriately typed Python object.
-        //====================================================================
-
+        /// <summary>
+        /// Descriptor __get__ implementation. This method returns the
+        /// value of the field on the given object. The returned value
+        /// is converted to an appropriately typed Python object.
+        /// </summary>
         public static IntPtr tp_descr_get(IntPtr ds, IntPtr ob, IntPtr tp)
         {
-            FieldObject self = (FieldObject)GetManagedObject(ds);
-            Object result;
+            var self = (FieldObject)GetManagedObject(ds);
+            object result;
 
             if (self == null)
             {
@@ -36,14 +32,12 @@ namespace Python.Runtime
 
             FieldInfo info = self.info;
 
-            if ((ob == IntPtr.Zero) || (ob == Runtime.PyNone))
+            if (ob == IntPtr.Zero || ob == Runtime.PyNone)
             {
                 if (!info.IsStatic)
                 {
                     Exceptions.SetError(Exceptions.TypeError,
-                        "instance attribute must be accessed " +
-                        "through a class instance"
-                        );
+                        "instance attribute must be accessed through a class instance");
                     return IntPtr.Zero;
                 }
                 try
@@ -60,7 +54,7 @@ namespace Python.Runtime
 
             try
             {
-                CLRObject co = (CLRObject)GetManagedObject(ob);
+                var co = (CLRObject)GetManagedObject(ob);
                 result = info.GetValue(co.inst);
                 return Converter.ToPython(result, info.FieldType);
             }
@@ -71,16 +65,15 @@ namespace Python.Runtime
             }
         }
 
-        //====================================================================
-        // Descriptor __set__ implementation. This method sets the value of
-        // a field based on the given Python value. The Python value must be
-        // convertible to the type of the field.
-        //====================================================================
-
-        public static new int tp_descr_set(IntPtr ds, IntPtr ob, IntPtr val)
+        /// <summary>
+        /// Descriptor __set__ implementation. This method sets the value of
+        /// a field based on the given Python value. The Python value must be
+        /// convertible to the type of the field.
+        /// </summary>
+        public new static int tp_descr_set(IntPtr ds, IntPtr ob, IntPtr val)
         {
-            FieldObject self = (FieldObject)GetManagedObject(ds);
-            Object newval;
+            var self = (FieldObject)GetManagedObject(ds);
+            object newval;
 
             if (self == null)
             {
@@ -89,9 +82,7 @@ namespace Python.Runtime
 
             if (val == IntPtr.Zero)
             {
-                Exceptions.SetError(Exceptions.TypeError,
-                    "cannot delete field"
-                    );
+                Exceptions.SetError(Exceptions.TypeError, "cannot delete field");
                 return -1;
             }
 
@@ -99,28 +90,22 @@ namespace Python.Runtime
 
             if (info.IsLiteral || info.IsInitOnly)
             {
-                Exceptions.SetError(Exceptions.TypeError,
-                    "field is read-only"
-                    );
+                Exceptions.SetError(Exceptions.TypeError, "field is read-only");
                 return -1;
             }
 
             bool is_static = info.IsStatic;
 
-            if ((ob == IntPtr.Zero) || (ob == Runtime.PyNone))
+            if (ob == IntPtr.Zero || ob == Runtime.PyNone)
             {
                 if (!is_static)
                 {
-                    Exceptions.SetError(Exceptions.TypeError,
-                        "instance attribute must be set " +
-                        "through a class instance"
-                        );
+                    Exceptions.SetError(Exceptions.TypeError, "instance attribute must be set through a class instance");
                     return -1;
                 }
             }
 
-            if (!Converter.ToManaged(val, info.FieldType, out newval,
-                true))
+            if (!Converter.ToManaged(val, info.FieldType, out newval, true))
             {
                 return -1;
             }
@@ -129,7 +114,7 @@ namespace Python.Runtime
             {
                 if (!is_static)
                 {
-                    CLRObject co = (CLRObject)GetManagedObject(ob);
+                    var co = (CLRObject)GetManagedObject(ob);
                     info.SetValue(co.inst, newval);
                 }
                 else
@@ -145,15 +130,13 @@ namespace Python.Runtime
             }
         }
 
-        //====================================================================
-        // Descriptor __repr__ implementation.
-        //====================================================================
-
+        /// <summary>
+        /// Descriptor __repr__ implementation.
+        /// </summary>
         public static IntPtr tp_repr(IntPtr ob)
         {
-            FieldObject self = (FieldObject)GetManagedObject(ob);
-            string s = String.Format("<field '{0}'>", self.info.Name);
-            return Runtime.PyString_FromStringAndSize(s, s.Length);
+            var self = (FieldObject)GetManagedObject(ob);
+            return Runtime.PyString_FromString($"<field '{self.info.Name}'>");
         }
     }
 }

@@ -1,35 +1,38 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Globalization;
 using System.Security;
-using System.Collections;
 
 namespace Python.Runtime
 {
-    //========================================================================
-    // Performs data conversions between managed types and Python types.
-    //========================================================================
-
-    [SuppressUnmanagedCodeSecurityAttribute()]
+    /// <summary>
+    /// Performs data conversions between managed types and Python types.
+    /// </summary>
+    [SuppressUnmanagedCodeSecurity]
     internal class Converter
     {
         private Converter()
         {
         }
 
-        static NumberFormatInfo nfi;
-        static Type objectType;
-        static Type stringType;
-        static Type singleType;
-        static Type doubleType;
-        static Type decimalType;
-        static Type int16Type;
-        static Type int32Type;
-        static Type int64Type;
-        static Type flagsType;
-        static Type boolType;
-        static Type typeType;
+        private static NumberFormatInfo nfi;
+        private static Type objectType;
+        private static Type stringType;
+        private static Type singleType;
+        private static Type doubleType;
+        private static Type decimalType;
+        private static Type int16Type;
+        private static Type int32Type;
+        private static Type int64Type;
+        private static Type flagsType;
+        private static Type boolType;
+        private static Type typeType;
+        static IntPtr decimalCtor;
+        static IntPtr dateTimeCtor;
+        static IntPtr timeSpanCtor;
 
         static Converter()
         {
@@ -45,89 +48,96 @@ namespace Python.Runtime
             flagsType = typeof(FlagsAttribute);
             boolType = typeof(Boolean);
             typeType = typeof(Type);
+            
+            IntPtr decimalMod = Runtime.PyImport_ImportModule("decimal");
+            if (decimalMod == null) throw new PythonException();
+
+            IntPtr dateTimeMod = Runtime.PyImport_ImportModule("datetime");
+            if (dateTimeMod == null) throw new PythonException();
+
+            decimalCtor = Runtime.PyObject_GetAttrString(decimalMod, "Decimal");
+            if (decimalCtor == null) throw new PythonException();
+
+            dateTimeCtor = Runtime.PyObject_GetAttrString(dateTimeMod, "datetime");
+            if (dateTimeCtor == null) throw new PythonException();
+
+            timeSpanCtor = Runtime.PyObject_GetAttrString(dateTimeMod, "timedelta");
+            if (timeSpanCtor == null) throw new PythonException();
         }
 
 
-        //====================================================================
-        // Given a builtin Python type, return the corresponding CLR type.
-        //====================================================================
-
+        /// <summary>
+        /// Given a builtin Python type, return the corresponding CLR type.
+        /// </summary>
         internal static Type GetTypeByAlias(IntPtr op)
         {
-            if ((op == Runtime.PyStringType) ||
-                (op == Runtime.PyUnicodeType))
-            {
+            if (op == Runtime.PyStringType)
                 return stringType;
-            }
-            else if (op == Runtime.PyIntType)
-            {
+
+            if (op == Runtime.PyUnicodeType)
+                return stringType;
+
+            if (op == Runtime.PyIntType)
                 return int32Type;
-            }
-            else if (op == Runtime.PyLongType)
-            {
+
+            if (op == Runtime.PyLongType)
                 return int64Type;
-            }
-            else if (op == Runtime.PyFloatType)
-            {
+
+            if (op == Runtime.PyFloatType)
                 return doubleType;
-            }
-            else if (op == Runtime.PyBoolType)
-            {
+
+            if (op == Runtime.PyBoolType)
                 return boolType;
-            }
+
             return null;
         }
 
         internal static IntPtr GetPythonTypeByAlias(Type op)
         {
             if (op == stringType)
-            {
                 return Runtime.PyUnicodeType;
-            }
-#if (PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
-            else if ((op == int16Type) ||
-                     (op == int32Type) ||
-                     (op == int64Type)) {
+
+            if (op == int16Type)
                 return Runtime.PyIntType;
-            }
-#endif
-            else if ((op == int16Type) ||
-                     (op == int32Type))
-            {
+
+            if (op == int32Type)
                 return Runtime.PyIntType;
-            }
-            else if (op == int64Type)
-            {
+
+            if (op == int64Type && Runtime.IsPython2)
                 return Runtime.PyLongType;
-            }
-            else if ((op == doubleType) ||
-                     (op == singleType) ||
-                     (op == decimalType))
-            {
+            if (op == int64Type)
+                return Runtime.PyIntType;
+
+            if (op == doubleType)
                 return Runtime.PyFloatType;
-            }
-            else if (op == boolType)
-            {
+
+            if (op == singleType)
+                return Runtime.PyFloatType;
+
+            if (op == boolType)
                 return Runtime.PyBoolType;
-            }
+
+            if (op == decimalType)
+                return Runtime.PyFloatType;
+
             return IntPtr.Zero;
         }
 
 
-        //====================================================================
-        // Return a Python object for the given native object, converting
-        // basic types (string, int, etc.) into equivalent Python objects.
-        // This always returns a new reference. Note that the System.Decimal
-        // type has no Python equivalent and converts to a managed instance.
-        //====================================================================
+        /// <summary>
+        /// Return a Python object for the given native object, converting
+        /// basic types (string, int, etc.) into equivalent Python objects.
+        /// This always returns a new reference. Note that the System.Decimal
+        /// type has no Python equivalent and converts to a managed instance.
+        /// </summary>
         internal static IntPtr ToPython<T>(T value)
         {
             return ToPython(value, typeof(T));
         }
 
-        internal static IntPtr ToPython(Object value, Type type)
+        internal static IntPtr ToPython(object value, Type type)
         {
-            if(value is PyObject)
+            if (value is PyObject)
             {
                 IntPtr handle = ((PyObject)value).Handle;
                 Runtime.XIncref(handle);
@@ -144,9 +154,25 @@ namespace Python.Runtime
                 return result;
             }
 
+            if (value is IList && value.GetType().IsGenericType)
+            {
+                using (var resultlist = new PyList())
+                {
+                    foreach (object o in (IEnumerable)value)
+                    {
+                        using (var p = new PyObject(ToPython(o, o?.GetType())))
+                        {
+                            resultlist.Append(p);
+                        }
+                    }
+                    Runtime.XIncref(resultlist.Handle);
+                    return resultlist.Handle;
+                }
+            }
+
             // it the type is a python subclass of a managed type then return the
-            // underying python object rather than construct a new wrapper object.
-            IPythonDerivedType pyderived = value as IPythonDerivedType;
+            // underlying python object rather than construct a new wrapper object.
+            var pyderived = value as IPythonDerivedType;
             if (null != pyderived)
             {
                 return ClassDerivedObject.ToPython(pyderived);
@@ -163,6 +189,14 @@ namespace Python.Runtime
             switch (tc)
             {
                 case TypeCode.Object:
+                    if (value is TimeSpan)
+                    {
+                        var timespan = (TimeSpan)value;
+
+                        IntPtr timeSpanArgs = Runtime.PyTuple_New(1);
+                        Runtime.PyTuple_SetItem(timeSpanArgs, 0, Runtime.PyFloat_FromDouble(timespan.TotalDays));
+                        return Runtime.PyObject_CallObject(timeSpanCtor, timeSpanArgs);
+                    }
                     return CLRObject.GetInstHandle(value, type);
 
                 case TypeCode.String:
@@ -216,15 +250,30 @@ namespace Python.Runtime
                     return Runtime.PyLong_FromUnsignedLongLong((ulong)value);
 
                 case TypeCode.Decimal:
-                    IntPtr mod = Runtime.PyImport_ImportModule("decimal");
-                    IntPtr ctor = Runtime.PyObject_GetAttrString(mod, "Decimal");
-
                     string d2s = ((decimal)value).ToString(nfi);
                     IntPtr d2p = Runtime.PyString_FromString(d2s);
-                    IntPtr args = Runtime.PyTuple_New(1);
-                    Runtime.PyTuple_SetItem(args, 0, d2p);
-                    
-                    return Runtime.PyObject_CallObject(ctor, args);
+                    IntPtr decimalArgs = Runtime.PyTuple_New(1);
+                    Runtime.PyTuple_SetItem(decimalArgs, 0, d2p);
+
+                    return Runtime.PyObject_CallObject(decimalCtor, decimalArgs);
+
+                case TypeCode.DateTime:
+                    var datetime = (DateTime)value;
+                    var offset = DateTimeOffset.Now.Offset;
+
+                    IntPtr dateTimeArgs = Runtime.PyTuple_New(8);
+                    Runtime.PyTuple_SetItem(dateTimeArgs, 0, Runtime.PyInt_FromInt32(datetime.Year));
+                    Runtime.PyTuple_SetItem(dateTimeArgs, 1, Runtime.PyInt_FromInt32(datetime.Month));
+                    Runtime.PyTuple_SetItem(dateTimeArgs, 2, Runtime.PyInt_FromInt32(datetime.Day));
+                    Runtime.PyTuple_SetItem(dateTimeArgs, 3, Runtime.PyInt_FromInt32(datetime.Hour));
+                    Runtime.PyTuple_SetItem(dateTimeArgs, 4, Runtime.PyInt_FromInt32(datetime.Minute));
+                    Runtime.PyTuple_SetItem(dateTimeArgs, 5, Runtime.PyInt_FromInt32(datetime.Second));
+                    Runtime.PyTuple_SetItem(dateTimeArgs, 6, Runtime.PyInt_FromInt32(datetime.Millisecond));
+                    Runtime.PyTuple_SetItem(dateTimeArgs, 7,
+                        datetime.Kind == DateTimeKind.Local ? TzInfo(offset.Hours, offset.Minutes) :
+                        datetime.Kind == DateTimeKind.Utc ? TzInfo() : Runtime.PyNone);
+
+                    return Runtime.PyObject_CallObject(dateTimeCtor, dateTimeArgs);
 
                 default:
                     if (value is IEnumerable)
@@ -234,7 +283,9 @@ namespace Python.Runtime
                             foreach (object o in (IEnumerable)value)
                             {
                                 using (var p = new PyObject(ToPython(o, o?.GetType())))
+                                {
                                     resultlist.Append(p);
+                                }
                             }
                             Runtime.XIncref(resultlist.Handle);
                             return resultlist.Handle;
@@ -245,13 +296,42 @@ namespace Python.Runtime
             }
         }
 
+        static IntPtr TzInfo(int hours = 0, int minutes = 0)
+        {
+            string code = string.Format(
+                    "from datetime import timedelta, tzinfo\n" +
+                    "class GMT{0:00}{1:00}(tzinfo):\n" +
+                    "    def utcoffset(self, dt):\n" +
+                    "        return timedelta(hours={0:00}, minutes={1:00})\n" +
+                    "    def tzname(self, dt):\n" +
+                    "        return \"GMT {0:00}:{1:00}\"\n" +
+                    "    def dst (self, dt):\n" +
+                    "        return timedelta(0)\n" +
+                    "tz=GMT{0:00}{1:00}()",
 
-        //====================================================================
-        // In a few situations, we don't have any advisory type information
-        // when we want to convert an object to Python.
-        //====================================================================
+                    hours, minutes);
 
-        internal static IntPtr ToPythonImplicit(Object value)
+            IntPtr gs = PythonEngine.AcquireLock();
+            try
+            {
+                var mod = PythonEngine.ModuleFromString("custom_tzinfo", code);
+                return mod == null ? Runtime.PyNone : mod.GetAttr("tz").Handle;
+            }
+            catch (Exception)
+            {
+                return Runtime.PyNone;
+            }
+            finally
+            {
+                PythonEngine.ReleaseLock(gs);
+            }
+        }
+
+        /// <summary>
+        /// In a few situations, we don't have any advisory type information
+        /// when we want to convert an object to Python.
+        /// </summary>
+        internal static IntPtr ToPythonImplicit(object value)
         {
             if (value == null)
             {
@@ -264,11 +344,10 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // Return a managed object for the given Python object, taking funny
-        // byref types into account.
-        //====================================================================
-
+        /// <summary>
+        /// Return a managed object for the given Python object, taking funny
+        /// byref types into account.
+        /// </summary>
         internal static bool ToManaged(IntPtr value, Type type,
             out object result, bool setError)
         {
@@ -281,7 +360,7 @@ namespace Python.Runtime
 
 
         internal static bool ToManagedValue(IntPtr value, Type obType,
-            out Object result, bool setError)
+            out object result, bool setError)
         {
             if (obType == typeof(PyObject))
             {
@@ -305,9 +384,7 @@ namespace Python.Runtime
                         result = tmp;
                         return true;
                     }
-                    string err = "value cannot be converted to {0}";
-                    err = String.Format(err, obType);
-                    Exceptions.SetError(Exceptions.TypeError, err);
+                    Exceptions.SetError(Exceptions.TypeError, $"value cannot be converted to {obType}");
                     return false;
                 }
                 if (mt is ClassBase)
@@ -315,7 +392,7 @@ namespace Python.Runtime
                     result = ((ClassBase)mt).type;
                     return true;
                 }
-                // shouldnt happen
+                // shouldn't happen
                 return false;
             }
 
@@ -323,6 +400,17 @@ namespace Python.Runtime
             {
                 result = null;
                 return true;
+            }
+
+            if (obType.IsGenericType && obType.GetGenericTypeDefinition() == typeof(Nullable<>))
+            {
+                if( value == Runtime.PyNone )
+                {
+                    result = null;
+                    return true;
+                }
+                // Set type to underlying type
+                obType = obType.GetGenericArguments()[0];
             }
 
             if (obType.IsArray)
@@ -335,57 +423,49 @@ namespace Python.Runtime
                 return ToEnum(value, obType, out result, setError);
             }
 
-            // Conversion to 'Object' is done based on some reasonable
-            // default conversions (Python string -> managed string,
-            // Python int -> Int32 etc.).
-
+            // Conversion to 'Object' is done based on some reasonable default
+            // conversions (Python string -> managed string, Python int -> Int32 etc.).
             if (obType == objectType)
             {
                 if (Runtime.IsStringType(value))
                 {
-                    return ToPrimitive(value, stringType, out result,
-                        setError);
+                    return ToPrimitive(value, stringType, out result, setError);
                 }
 
-                else if (Runtime.PyBool_Check(value))
+                if (Runtime.PyBool_Check(value))
                 {
                     return ToPrimitive(value, boolType, out result, setError);
                 }
 
-                else if (Runtime.PyInt_Check(value))
+                if (Runtime.PyInt_Check(value))
                 {
                     return ToPrimitive(value, int32Type, out result, setError);
                 }
 
-                else if (Runtime.PyLong_Check(value))
+                if (Runtime.PyLong_Check(value))
                 {
                     return ToPrimitive(value, int64Type, out result, setError);
                 }
 
-                else if (Runtime.PyFloat_Check(value))
+                if (Runtime.PyFloat_Check(value))
                 {
                     return ToPrimitive(value, doubleType, out result, setError);
                 }
 
-                else if (Runtime.PySequence_Check(value))
+                if (Runtime.PySequence_Check(value))
                 {
-                    return ToArray(value, typeof(object[]), out result,
-                        setError);
+                    return ToArray(value, typeof(object[]), out result, setError);
                 }
 
                 if (setError)
                 {
-                    Exceptions.SetError(Exceptions.TypeError,
-                        "value cannot be converted to Object"
-                        );
+                    Exceptions.SetError(Exceptions.TypeError, "value cannot be converted to Object");
                 }
 
                 return false;
             }
 
-            // Conversion to 'Type' is done using the same mappings as above
-            // for objects.
-
+            // Conversion to 'Type' is done using the same mappings as above for objects.
             if (obType == typeType)
             {
                 if (value == Runtime.PyStringType)
@@ -394,31 +474,31 @@ namespace Python.Runtime
                     return true;
                 }
 
-                else if (value == Runtime.PyBoolType)
+                if (value == Runtime.PyBoolType)
                 {
                     result = boolType;
                     return true;
                 }
 
-                else if (value == Runtime.PyIntType)
+                if (value == Runtime.PyIntType)
                 {
                     result = int32Type;
                     return true;
                 }
 
-                else if (value == Runtime.PyLongType)
+                if (value == Runtime.PyLongType)
                 {
                     result = int64Type;
                     return true;
                 }
 
-                else if (value == Runtime.PyFloatType)
+                if (value == Runtime.PyFloatType)
                 {
                     result = doubleType;
                     return true;
                 }
 
-                else if (value == Runtime.PyListType || value == Runtime.PyTupleType)
+                if (value == Runtime.PyListType || value == Runtime.PyTupleType)
                 {
                     result = typeof(object[]);
                     return true;
@@ -426,23 +506,25 @@ namespace Python.Runtime
 
                 if (setError)
                 {
-                    Exceptions.SetError(Exceptions.TypeError,
-                        "value cannot be converted to Type"
-                        );
+                    Exceptions.SetError(Exceptions.TypeError, "value cannot be converted to Type");
                 }
 
                 return false;
             }
 
+            var underlyingType = Nullable.GetUnderlyingType(obType);
+            if (underlyingType != null)
+            {
+                return ToManagedValue(value, underlyingType, out result, setError);
+            }
+
             return ToPrimitive(value, obType, out result, setError);
         }
 
-        //====================================================================
-        // Convert a Python value to an instance of a primitive managed type.
-        //====================================================================
-
-        static bool ToPrimitive(IntPtr value, Type obType, out Object result,
-            bool setError)
+        /// <summary>
+        /// Convert a Python value to an instance of a primitive managed type.
+        /// </summary>
+        private static bool ToPrimitive(IntPtr value, Type obType, out object result, bool setError)
         {
             IntPtr overflow = Exceptions.OverflowError;
             TypeCode tc = Type.GetTypeCode(obType);
@@ -452,6 +534,32 @@ namespace Python.Runtime
 
             switch (tc)
             {
+                case TypeCode.Object:
+                    if (obType == typeof(TimeSpan))
+                    {
+                        op = Runtime.PyObject_Str(value);
+                        TimeSpan ts;
+                        var arr = Runtime.GetManagedString(op).Split(',');
+                        string sts = arr.Length == 1 ? arr[0] : arr[1];
+                        if (!TimeSpan.TryParse(sts, out ts))
+                        {
+                            goto type_error;
+                        }
+                        Runtime.XDecref(op);
+
+                        int days = 0;
+                        if (arr.Length > 1)
+                        {
+                            if (!int.TryParse(arr[0].Split(' ')[0].Trim(), out days))
+                            {
+                                goto type_error;
+                            }
+                        }
+                        result = ts.Add(TimeSpan.FromDays(days));
+                        return true;
+                    }
+                    break;
+
                 case TypeCode.String:
                     string st = Runtime.GetManagedString(value);
                     if (st == null)
@@ -462,9 +570,8 @@ namespace Python.Runtime
                     return true;
 
                 case TypeCode.Int32:
-#if !(PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
                     // Trickery to support 64-bit platforms.
-                    if (IntPtr.Size == 4)
+                    if (Runtime.IsPython2 && Runtime.Is32Bit)
                     {
                         op = Runtime.PyNumber_Int(value);
 
@@ -488,12 +595,8 @@ namespace Python.Runtime
                         result = ival;
                         return true;
                     }
-                    else
+                    else // Python3 always use PyLong API
                     {
-#else
-    // When using Python3 always use the PyLong API
-                {
-#endif
                         op = Runtime.PyNumber_Long(value);
                         if (op == IntPtr.Zero)
                         {
@@ -506,7 +609,7 @@ namespace Python.Runtime
                         }
                         long ll = (long)Runtime.PyLong_AsLongLong(op);
                         Runtime.XDecref(op);
-                        if ((ll == -1) && Exceptions.ErrorOccurred())
+                        if (ll == -1 && Exceptions.ErrorOccurred())
                         {
                             goto overflow;
                         }
@@ -519,27 +622,27 @@ namespace Python.Runtime
                     }
 
                 case TypeCode.Boolean:
-                    result = (Runtime.PyObject_IsTrue(value) != 0);
+                    result = Runtime.PyObject_IsTrue(value) != 0;
                     return true;
 
                 case TypeCode.Byte:
-#if (PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
-                if (Runtime.PyObject_TypeCheck(value, Runtime.PyBytesType))
-                {
-                    if (Runtime.PyBytes_Size(value) == 1)
+#if PYTHON3
+                    if (Runtime.PyObject_TypeCheck(value, Runtime.PyBytesType))
                     {
-                        op = Runtime.PyBytes_AS_STRING(value);
-                        result = (byte)Marshal.ReadByte(op);
-                        return true;
+                        if (Runtime.PyBytes_Size(value) == 1)
+                        {
+                            op = Runtime.PyBytes_AS_STRING(value);
+                            result = (byte)Marshal.ReadByte(op);
+                            return true;
+                        }
+                        goto type_error;
                     }
-                    goto type_error;
-                }
-#else
+#elif PYTHON2
                     if (Runtime.PyObject_TypeCheck(value, Runtime.PyStringType))
                     {
                         if (Runtime.PyString_Size(value) == 1)
                         {
-                            op = Runtime.PyString_AS_STRING(value);
+                            op = Runtime.PyString_AsString(value);
                             result = (byte)Marshal.ReadByte(op);
                             return true;
                         }
@@ -568,21 +671,23 @@ namespace Python.Runtime
                     return true;
 
                 case TypeCode.SByte:
-#if (PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
-                if (Runtime.PyObject_TypeCheck(value, Runtime.PyBytesType)) {
-                    if (Runtime.PyBytes_Size(value) == 1) {
-                        op = Runtime.PyBytes_AS_STRING(value);
-                        result = (byte)Marshal.ReadByte(op);
-                        return true;
+#if PYTHON3
+                    if (Runtime.PyObject_TypeCheck(value, Runtime.PyBytesType))
+                    {
+                        if (Runtime.PyBytes_Size(value) == 1)
+                        {
+                            op = Runtime.PyBytes_AS_STRING(value);
+                            result = (byte)Marshal.ReadByte(op);
+                            return true;
+                        }
+                        goto type_error;
                     }
-                    goto type_error;
-                }
-#else
+#elif PYTHON2
                     if (Runtime.PyObject_TypeCheck(value, Runtime.PyStringType))
                     {
                         if (Runtime.PyString_Size(value) == 1)
                         {
-                            op = Runtime.PyString_AS_STRING(value);
+                            op = Runtime.PyString_AsString(value);
                             result = (sbyte)Marshal.ReadByte(op);
                             return true;
                         }
@@ -611,44 +716,37 @@ namespace Python.Runtime
                     return true;
 
                 case TypeCode.Char:
-#if (PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
-                if (Runtime.PyObject_TypeCheck(value, Runtime.PyBytesType)) {
-                    if (Runtime.PyBytes_Size(value) == 1) {
-                        op = Runtime.PyBytes_AS_STRING(value);
-                        result = (byte)Marshal.ReadByte(op);
-                        return true;
+#if PYTHON3
+                    if (Runtime.PyObject_TypeCheck(value, Runtime.PyBytesType))
+                    {
+                        if (Runtime.PyBytes_Size(value) == 1)
+                        {
+                            op = Runtime.PyBytes_AS_STRING(value);
+                            result = (byte)Marshal.ReadByte(op);
+                            return true;
+                        }
+                        goto type_error;
                     }
-                    goto type_error;
-                }
-#else
+#elif PYTHON2
                     if (Runtime.PyObject_TypeCheck(value, Runtime.PyStringType))
                     {
                         if (Runtime.PyString_Size(value) == 1)
                         {
-                            op = Runtime.PyString_AS_STRING(value);
+                            op = Runtime.PyString_AsString(value);
                             result = (char)Marshal.ReadByte(op);
                             return true;
                         }
                         goto type_error;
                     }
 #endif
-                    else if (Runtime.PyObject_TypeCheck(value,
-                        Runtime.PyUnicodeType))
+                    else if (Runtime.PyObject_TypeCheck(value, Runtime.PyUnicodeType))
                     {
                         if (Runtime.PyUnicode_GetSize(value) == 1)
                         {
-                            op = Runtime.PyUnicode_AS_UNICODE(value);
-#if (!UCS4)
-    // 2011-01-02: Marshal as character array because the cast
-    // result = (char)Marshal.ReadInt16(op); throws an OverflowException
-    // on negative numbers with Check Overflow option set on the project
-                        Char[] buff = new Char[1];
-                        Marshal.Copy(op, buff, 0, 1);
-                        result = buff[0];
-#else
-                            // XXX this is probably NOT correct?
-                            result = (char)Marshal.ReadInt32(op);
-#endif
+                            op = Runtime.PyUnicode_AsUnicode(value);
+                            Char[] buff = new Char[1];
+                            Marshal.Copy(op, buff, 0, 1);
+                            result = buff[0];
                             return true;
                         }
                         goto type_error;
@@ -822,17 +920,27 @@ namespace Python.Runtime
                     Runtime.XDecref(op);
                     result = m;
                     return true;
+
+                case TypeCode.DateTime:
+                    op = Runtime.PyObject_Str(value);
+                    DateTime dt;
+                    string sdt = Runtime.GetManagedString(op);
+                    if (!DateTime.TryParse(sdt, out dt))
+                    {
+                        goto type_error;
+                    }
+                    Runtime.XDecref(op);
+                    result = dt;
+                    return true;
             }
 
 
-            type_error:
+        type_error:
 
             if (setError)
             {
-                string format = "'{0}' value cannot be converted to {1}";
                 string tpName = Runtime.PyObject_GetTypeName(value);
-                string error = String.Format(format, tpName, obType);
-                Exceptions.SetError(Exceptions.TypeError, error);
+                Exceptions.SetError(Exceptions.TypeError, $"'{tpName}' value cannot be converted to {obType}");
             }
 
             return false;
@@ -841,40 +949,34 @@ namespace Python.Runtime
 
             if (setError)
             {
-                string error = "value too large to convert";
-                Exceptions.SetError(Exceptions.OverflowError, error);
+                Exceptions.SetError(Exceptions.OverflowError, "value too large to convert");
             }
 
             return false;
         }
 
 
-        static void SetConversionError(IntPtr value, Type target)
+        private static void SetConversionError(IntPtr value, Type target)
         {
             IntPtr ob = Runtime.PyObject_Repr(value);
             string src = Runtime.GetManagedString(ob);
             Runtime.XDecref(ob);
-            string error = String.Format(
-                "Cannot convert {0} to {1}", src, target
-                );
-            Exceptions.SetError(Exceptions.TypeError, error);
+            Exceptions.SetError(Exceptions.TypeError, $"Cannot convert {src} to {target}");
         }
 
 
-        //====================================================================
-        // Convert a Python value to a correctly typed managed array instance.
-        // The Python value must support the Python sequence protocol and the
-        // items in the sequence must be convertible to the target array type.
-        //====================================================================
-
-        static bool ToArray(IntPtr value, Type obType, out Object result,
-            bool setError)
+        /// <summary>
+        /// Convert a Python value to a correctly typed managed array instance.
+        /// The Python value must support the Python sequence protocol and the
+        /// items in the sequence must be convertible to the target array type.
+        /// </summary>
+        private static bool ToArray(IntPtr value, Type obType, out object result, bool setError)
         {
             Type elementType = obType.GetElementType();
             int size = Runtime.PySequence_Size(value);
             result = null;
 
-            if (size < 0)
+            if (size < 0 || elementType.IsGenericType)
             {
                 if (setError)
                 {
@@ -885,11 +987,10 @@ namespace Python.Runtime
 
             Array items = Array.CreateInstance(elementType, size);
 
-            // XXX - is there a better way to unwrap this if it is a real
-            // array?
-            for (int i = 0; i < size; i++)
+            // XXX - is there a better way to unwrap this if it is a real array?
+            for (var i = 0; i < size; i++)
             {
-                Object obj = null;
+                object obj = null;
                 IntPtr item = Runtime.PySequence_GetItem(value, i);
                 if (item == IntPtr.Zero)
                 {
@@ -915,12 +1016,10 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // Convert a Python value to a correctly typed managed enum instance.
-        //====================================================================
-
-        static bool ToEnum(IntPtr value, Type obType, out Object result,
-            bool setError)
+        /// <summary>
+        /// Convert a Python value to a correctly typed managed enum instance.
+        /// </summary>
+        private static bool ToEnum(IntPtr value, Type obType, out object result, bool setError)
         {
             Type etype = Enum.GetUnderlyingType(obType);
             result = null;
@@ -944,8 +1043,7 @@ namespace Python.Runtime
 
             if (setError)
             {
-                string error = "invalid enumeration value";
-                Exceptions.SetError(Exceptions.ValueError, error);
+                Exceptions.SetError(Exceptions.ValueError, "invalid enumeration value");
             }
 
             return false;

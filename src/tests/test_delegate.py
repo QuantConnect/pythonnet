@@ -1,326 +1,269 @@
-import clr
+# -*- coding: utf-8 -*-
+# TODO: Add test for ObjectDelegate
 
-clr.AddReference('Python.Test')
+"""Test CLR delegate support."""
 
-from Python.Test import DelegateTest, PublicDelegate
-from Python.Test import StringDelegate, ObjectDelegate
-from Python.Test import BoolDelegate
-import sys, os, string, unittest, types
 import Python.Test as Test
 import System
-import six
+import pytest
+from Python.Test import DelegateTest, StringDelegate
 
-if six.PY3:
-    DictProxyType = type(object.__dict__)
-else:
-    DictProxyType = types.DictProxyType
+from ._compat import DictProxyType
+from .utils import HelloClass, hello_func, MultipleHandler
 
 
-class DelegateTests(unittest.TestCase):
-    """Test CLR delegate support."""
+def test_delegate_standard_attrs():
+    """Test standard delegate attributes."""
+    from Python.Test import PublicDelegate
 
-    def testDelegateStandardAttrs(self):
-        """Test standard delegate attributes."""
-        self.assertTrue(PublicDelegate.__name__ == 'PublicDelegate')
-        self.assertTrue(PublicDelegate.__module__ == 'Python.Test')
-        self.assertTrue(type(PublicDelegate.__dict__) == DictProxyType)
-        self.assertTrue(PublicDelegate.__doc__ == None)
+    assert PublicDelegate.__name__ == 'PublicDelegate'
+    assert PublicDelegate.__module__ == 'Python.Test'
+    assert isinstance(PublicDelegate.__dict__, DictProxyType)
+    assert PublicDelegate.__doc__ is None
 
-    def testGlobalDelegateVisibility(self):
-        """Test visibility of module-level delegates."""
-        from Python.Test import PublicDelegate
 
-        self.assertTrue(PublicDelegate.__name__ == 'PublicDelegate')
-        self.assertTrue(Test.PublicDelegate.__name__ == 'PublicDelegate')
+def test_global_delegate_visibility():
+    """Test visibility of module-level delegates."""
+    from Python.Test import PublicDelegate
 
-        def test():
-            from Python.Test import InternalDelegate
+    assert PublicDelegate.__name__ == 'PublicDelegate'
+    assert Test.PublicDelegate.__name__ == 'PublicDelegate'
 
-        self.assertRaises(ImportError, test)
+    with pytest.raises(ImportError):
+        from Python.Test import InternalDelegate
+        _ = InternalDelegate
 
-        def test():
-            i = Test.InternalDelegate
+    with pytest.raises(AttributeError):
+        _ = Test.InternalDelegate
 
-        self.assertRaises(AttributeError, test)
 
-    def testNestedDelegateVisibility(self):
-        """Test visibility of nested delegates."""
-        ob = DelegateTest.PublicDelegate
-        self.assertTrue(ob.__name__ == 'PublicDelegate')
+def test_nested_delegate_visibility():
+    """Test visibility of nested delegates."""
+    ob = DelegateTest.PublicDelegate
+    assert ob.__name__ == 'PublicDelegate'
 
-        ob = DelegateTest.ProtectedDelegate
-        self.assertTrue(ob.__name__ == 'ProtectedDelegate')
+    ob = DelegateTest.ProtectedDelegate
+    assert ob.__name__ == 'ProtectedDelegate'
 
-        def test():
-            ob = DelegateTest.InternalDelegate
+    with pytest.raises(AttributeError):
+        _ = DelegateTest.InternalDelegate
 
-        self.assertRaises(AttributeError, test)
+    with pytest.raises(AttributeError):
+        _ = DelegateTest.PrivateDelegate
 
-        def test():
-            ob = DelegateTest.PrivateDelegate
 
-        self.assertRaises(AttributeError, test)
+def test_delegate_from_function():
+    """Test delegate implemented with a Python function."""
 
-    def testDelegateFromFunction(self):
-        """Test delegate implemented with a Python function."""
+    d = StringDelegate(hello_func)
+    ob = DelegateTest()
 
-        def sayhello():
-            return "hello"
+    assert ob.CallStringDelegate(d) == "hello"
+    assert d() == "hello"
 
-        d = StringDelegate(sayhello)
-        ob = DelegateTest()
+    ob.stringDelegate = d
+    assert ob.CallStringDelegate(ob.stringDelegate) == "hello"
+    assert ob.stringDelegate() == "hello"
 
-        self.assertTrue(ob.CallStringDelegate(d) == "hello")
-        self.assertTrue(d() == "hello")
 
-        ob.stringDelegate = d
-        self.assertTrue(ob.CallStringDelegate(ob.stringDelegate) == "hello")
-        self.assertTrue(ob.stringDelegate() == "hello")
+def test_delegate_from_method():
+    """Test delegate implemented with a Python instance method."""
 
-    def testDelegateFromMethod(self):
-        """Test delegate implemented with a Python instance method."""
+    inst = HelloClass()
+    d = StringDelegate(inst.hello)
+    ob = DelegateTest()
 
-        class Hello:
-            def sayhello(self):
-                return "hello"
+    assert ob.CallStringDelegate(d) == "hello"
+    assert d() == "hello"
 
-        inst = Hello()
-        d = StringDelegate(inst.sayhello)
-        ob = DelegateTest()
+    ob.stringDelegate = d
+    assert ob.CallStringDelegate(ob.stringDelegate) == "hello"
+    assert ob.stringDelegate() == "hello"
 
-        self.assertTrue(ob.CallStringDelegate(d) == "hello")
-        self.assertTrue(d() == "hello")
 
-        ob.stringDelegate = d
-        self.assertTrue(ob.CallStringDelegate(ob.stringDelegate) == "hello")
-        self.assertTrue(ob.stringDelegate() == "hello")
+def test_delegate_from_unbound_method():
+    """Test failure mode for unbound methods."""
 
-    def testDelegateFromUnboundMethod(self):
-        """Test failure mode for unbound methods."""
+    with pytest.raises(TypeError):
+        d = StringDelegate(HelloClass.hello)
+        d()
 
-        class Hello:
-            def sayhello(self):
-                return "hello"
 
-        def test():
-            d = StringDelegate(Hello.sayhello)
-            d()
+def test_delegate_from_static_method():
+    """Test delegate implemented with a Python static method."""
 
-        self.assertRaises(TypeError, test)
+    d = StringDelegate(HelloClass.s_hello)
+    ob = DelegateTest()
 
-    def testDelegateFromStaticMethod(self):
-        """Test delegate implemented with a Python static method."""
+    assert ob.CallStringDelegate(d) == "hello"
+    assert d() == "hello"
 
-        class Hello:
-            def sayhello():
-                return "hello"
+    ob.stringDelegate = d
+    assert ob.CallStringDelegate(ob.stringDelegate) == "hello"
+    assert ob.stringDelegate() == "hello"
 
-            sayhello = staticmethod(sayhello)
+    inst = HelloClass()
+    d = StringDelegate(inst.s_hello)
+    ob = DelegateTest()
 
-        d = StringDelegate(Hello.sayhello)
-        ob = DelegateTest()
+    assert ob.CallStringDelegate(d) == "hello"
+    assert d() == "hello"
 
-        self.assertTrue(ob.CallStringDelegate(d) == "hello")
-        self.assertTrue(d() == "hello")
+    ob.stringDelegate = d
+    assert ob.CallStringDelegate(ob.stringDelegate) == "hello"
+    assert ob.stringDelegate() == "hello"
 
-        ob.stringDelegate = d
-        self.assertTrue(ob.CallStringDelegate(ob.stringDelegate) == "hello")
-        self.assertTrue(ob.stringDelegate() == "hello")
 
-        inst = Hello()
-        d = StringDelegate(inst.sayhello)
-        ob = DelegateTest()
+def test_delegate_from_class_method():
+    """Test delegate implemented with a Python class method."""
 
-        self.assertTrue(ob.CallStringDelegate(d) == "hello")
-        self.assertTrue(d() == "hello")
+    d = StringDelegate(HelloClass.c_hello)
+    ob = DelegateTest()
 
-        ob.stringDelegate = d
-        self.assertTrue(ob.CallStringDelegate(ob.stringDelegate) == "hello")
-        self.assertTrue(ob.stringDelegate() == "hello")
+    assert ob.CallStringDelegate(d) == "hello"
+    assert d() == "hello"
 
-    def testDelegateFromClassMethod(self):
-        """Test delegate implemented with a Python class method."""
+    ob.stringDelegate = d
+    assert ob.CallStringDelegate(ob.stringDelegate) == "hello"
+    assert ob.stringDelegate() == "hello"
 
-        class Hello:
-            def sayhello(self):
-                return "hello"
+    inst = HelloClass()
+    d = StringDelegate(inst.c_hello)
+    ob = DelegateTest()
 
-            sayhello = classmethod(sayhello)
+    assert ob.CallStringDelegate(d) == "hello"
+    assert d() == "hello"
 
-        d = StringDelegate(Hello.sayhello)
-        ob = DelegateTest()
+    ob.stringDelegate = d
+    assert ob.CallStringDelegate(ob.stringDelegate) == "hello"
+    assert ob.stringDelegate() == "hello"
 
-        self.assertTrue(ob.CallStringDelegate(d) == "hello")
-        self.assertTrue(d() == "hello")
 
-        ob.stringDelegate = d
-        self.assertTrue(ob.CallStringDelegate(ob.stringDelegate) == "hello")
-        self.assertTrue(ob.stringDelegate() == "hello")
+def test_delegate_from_callable():
+    """Test delegate implemented with a Python callable object."""
 
-        inst = Hello()
-        d = StringDelegate(inst.sayhello)
-        ob = DelegateTest()
+    inst = HelloClass()
+    d = StringDelegate(inst)
+    ob = DelegateTest()
 
-        self.assertTrue(ob.CallStringDelegate(d) == "hello")
-        self.assertTrue(d() == "hello")
+    assert ob.CallStringDelegate(d) == "hello"
+    assert d() == "hello"
 
-        ob.stringDelegate = d
-        self.assertTrue(ob.CallStringDelegate(ob.stringDelegate) == "hello")
-        self.assertTrue(ob.stringDelegate() == "hello")
+    ob.stringDelegate = d
+    assert ob.CallStringDelegate(ob.stringDelegate) == "hello"
+    assert ob.stringDelegate() == "hello"
 
-    def testDelegateFromCallable(self):
-        """Test delegate implemented with a Python callable object."""
 
-        class Hello:
-            def __call__(self):
-                return "hello"
+def test_delegate_from_managed_instance_method():
+    """Test delegate implemented with a managed instance method."""
+    ob = DelegateTest()
+    d = StringDelegate(ob.SayHello)
 
-        inst = Hello()
-        d = StringDelegate(inst)
-        ob = DelegateTest()
+    assert ob.CallStringDelegate(d) == "hello"
+    assert d() == "hello"
 
-        self.assertTrue(ob.CallStringDelegate(d) == "hello")
-        self.assertTrue(d() == "hello")
+    ob.stringDelegate = d
+    assert ob.CallStringDelegate(ob.stringDelegate) == "hello"
+    assert ob.stringDelegate() == "hello"
 
-        ob.stringDelegate = d
-        self.assertTrue(ob.CallStringDelegate(ob.stringDelegate) == "hello")
-        self.assertTrue(ob.stringDelegate() == "hello")
 
-    def testDelegateFromManagedInstanceMethod(self):
-        """Test delegate implemented with a managed instance method."""
-        ob = DelegateTest()
-        d = StringDelegate(ob.SayHello)
+def test_delegate_from_managed_static_method():
+    """Test delegate implemented with a managed static method."""
+    d = StringDelegate(DelegateTest.StaticSayHello)
+    ob = DelegateTest()
 
-        self.assertTrue(ob.CallStringDelegate(d) == "hello")
-        self.assertTrue(d() == "hello")
+    assert ob.CallStringDelegate(d) == "hello"
+    assert d() == "hello"
 
-        ob.stringDelegate = d
-        self.assertTrue(ob.CallStringDelegate(ob.stringDelegate) == "hello")
-        self.assertTrue(ob.stringDelegate() == "hello")
+    ob.stringDelegate = d
+    assert ob.CallStringDelegate(ob.stringDelegate) == "hello"
+    assert ob.stringDelegate() == "hello"
 
-    def testDelegateFromManagedStaticMethod(self):
-        """Test delegate implemented with a managed static method."""
-        d = StringDelegate(DelegateTest.StaticSayHello)
-        ob = DelegateTest()
 
-        self.assertTrue(ob.CallStringDelegate(d) == "hello")
-        self.assertTrue(d() == "hello")
+def test_delegate_from_delegate():
+    """Test delegate implemented with another delegate."""
+    d1 = StringDelegate(hello_func)
+    d2 = StringDelegate(d1)
+    ob = DelegateTest()
 
-        ob.stringDelegate = d
-        self.assertTrue(ob.CallStringDelegate(ob.stringDelegate) == "hello")
-        self.assertTrue(ob.stringDelegate() == "hello")
+    assert ob.CallStringDelegate(d2) == "hello"
+    assert d2() == "hello"
 
-    def testDelegateFromDelegate(self):
-        """Test delegate implemented with another delegate."""
+    ob.stringDelegate = d2
+    assert ob.CallStringDelegate(ob.stringDelegate) == "hello"
+    assert ob.stringDelegate() == "hello"
 
-        def sayhello():
-            return "hello"
 
-        d1 = StringDelegate(sayhello)
-        d2 = StringDelegate(d1)
-        ob = DelegateTest()
+def test_delegate_with_invalid_args():
+    """Test delegate instantiation with invalid (non-callable) args."""
 
-        self.assertTrue(ob.CallStringDelegate(d2) == "hello")
-        self.assertTrue(d2() == "hello")
+    with pytest.raises(TypeError):
+        _ = StringDelegate(None)
 
-        ob.stringDelegate = d2
-        self.assertTrue(ob.CallStringDelegate(ob.stringDelegate) == "hello")
-        self.assertTrue(ob.stringDelegate() == "hello")
+    with pytest.raises(TypeError):
+        _ = StringDelegate("spam")
 
-    def testDelegateWithInvalidArgs(self):
-        """Test delegate instantiation with invalid (non-callable) args."""
+    with pytest.raises(TypeError):
+        _ = StringDelegate(1)
 
-        def test():
-            d = StringDelegate(None)
 
-        self.assertRaises(TypeError, test)
+def test_multicast_delegate():
+    """Test multicast delegates."""
 
-        def test():
-            d = StringDelegate("spam")
+    inst = MultipleHandler()
+    d1 = StringDelegate(inst.count)
+    d2 = StringDelegate(inst.count)
 
-        self.assertRaises(TypeError, test)
+    md = System.Delegate.Combine(d1, d2)
+    ob = DelegateTest()
 
-        def test():
-            d = StringDelegate(1)
+    assert ob.CallStringDelegate(md) == "ok"
+    assert inst.value == 2
 
-        self.assertRaises(TypeError, test)
+    assert md() == "ok"
+    assert inst.value == 4
 
-    def testMulticastDelegate(self):
-        """Test multicast delegates."""
 
-        class Multi:
-            def __init__(self):
-                self.value = 0
+def test_subclass_delegate_fails():
+    """Test that subclassing of a delegate type fails."""
+    from Python.Test import PublicDelegate
 
-            def count(self):
-                self.value += 1
-                return 'ok'
+    with pytest.raises(TypeError):
+        class Boom(PublicDelegate):
+            pass
 
-        inst = Multi()
-        d1 = StringDelegate(inst.count)
-        d2 = StringDelegate(inst.count)
+        _ = Boom
 
-        md = System.Delegate.Combine(d1, d2)
-        ob = DelegateTest()
 
-        self.assertTrue(ob.CallStringDelegate(md) == "ok")
-        self.assertTrue(inst.value == 2)
+def test_delegate_equality():
+    """Test delegate equality."""
 
-        self.assertTrue(md() == "ok")
-        self.assertTrue(inst.value == 4)
+    d = StringDelegate(hello_func)
+    ob = DelegateTest()
+    ob.stringDelegate = d
+    assert ob.stringDelegate == d
 
-    def testSubclassDelegateFails(self):
-        """Test that subclassing of a delegate type fails."""
 
-        def test():
-            class Boom(PublicDelegate):
-                pass
+def test_bool_delegate():
+    """Test boolean delegate."""
+    from Python.Test import BoolDelegate
 
-        self.assertRaises(TypeError, test)
+    def always_so_negative():
+        return 0
 
-    def testDelegateEquality(self):
-        """Test delegate equality."""
+    d = BoolDelegate(always_so_negative)
+    ob = DelegateTest()
+    ob.CallBoolDelegate(d)
 
-        def sayhello():
-            return "hello"
+    assert not d()
+    assert not ob.CallBoolDelegate(d)
 
-        d = StringDelegate(sayhello)
-        ob = DelegateTest()
-        ob.stringDelegate = d
-        self.assertTrue(ob.stringDelegate == d)
+    # test async delegates
 
-    def testBoolDelegate(self):
-        """Test boolean delegate."""
+    # test multicast delegates
 
-        def always_so_negative():
-            return 0
+    # test explicit op_
 
-        d = BoolDelegate(always_so_negative)
-        ob = DelegateTest()
-        ob.CallBoolDelegate(d)
+    # test sig mismatch, both on managed and Python side
 
-        self.assertTrue(not d())
-
-        self.assertTrue(not ob.CallBoolDelegate(d))
-
-        # test async delegates
-
-        # test multicast delegates
-
-        # test explicit op_
-
-        # test sig mismatch, both on managed and Python side
-
-        # test return wrong type
-
-
-def test_suite():
-    return unittest.makeSuite(DelegateTests)
-
-
-def main():
-    unittest.TextTestRunner().run(test_suite())
-
-
-if __name__ == '__main__':
-    main()
+    # test return wrong type

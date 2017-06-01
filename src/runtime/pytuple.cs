@@ -4,14 +4,15 @@ namespace Python.Runtime
 {
     /// <summary>
     /// Represents a Python tuple object. See the documentation at
-    /// http://www.python.org/doc/current/api/tupleObjects.html for details.
+    /// PY2: https://docs.python.org/2/c-api/tupleObjects.html
+    /// PY3: https://docs.python.org/3/c-api/tupleObjects.html
+    /// for details.
     /// </summary>
     public class PyTuple : PySequence
     {
         /// <summary>
         /// PyTuple Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyTuple from an existing object reference. Note
         /// that the instance assumes ownership of the object reference.
@@ -25,13 +26,12 @@ namespace Python.Runtime
         /// <summary>
         /// PyTuple Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Copy constructor - obtain a PyTuple from a generic PyObject. An
         /// ArgumentException will be thrown if the given object is not a
         /// Python tuple object.
         /// </remarks>
-        public PyTuple(PyObject o) : base()
+        public PyTuple(PyObject o)
         {
             if (!IsTupleType(o))
             {
@@ -45,40 +45,35 @@ namespace Python.Runtime
         /// <summary>
         /// PyTuple Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new empty PyTuple.
         /// </remarks>
-        public PyTuple() : base()
+        public PyTuple()
         {
             obj = Runtime.PyTuple_New(0);
-            if (obj == IntPtr.Zero)
-            {
-                throw new PythonException();
-            }
+            Runtime.CheckExceptionOccurred();
         }
 
 
         /// <summary>
         /// PyTuple Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyTuple from an array of PyObject instances.
+        /// <para />
+        /// See caveats about PyTuple_SetItem:
+        /// https://www.coursehero.com/file/p4j2ogg/important-exceptions-to-this-rule-PyTupleSetItem-and-PyListSetItem-These/
         /// </remarks>
-        public PyTuple(PyObject[] items) : base()
+        public PyTuple(PyObject[] items)
         {
             int count = items.Length;
             obj = Runtime.PyTuple_New(count);
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
             {
                 IntPtr ptr = items[i].obj;
                 Runtime.XIncref(ptr);
-                int r = Runtime.PyTuple_SetItem(obj, i, ptr);
-                if (r < 0)
-                {
-                    throw new PythonException();
-                }
+                Runtime.PyTuple_SetItem(obj, i, ptr);
+                Runtime.CheckExceptionOccurred();
             }
         }
 
@@ -86,7 +81,6 @@ namespace Python.Runtime
         /// <summary>
         /// IsTupleType Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns true if the given object is a Python tuple.
         /// </remarks>
@@ -99,7 +93,6 @@ namespace Python.Runtime
         /// <summary>
         /// AsTuple Method
         /// </summary>
-        ///
         /// <remarks>
         /// Convert a Python object to a Python tuple if possible, raising
         /// a PythonException if the conversion is not possible. This is
@@ -108,10 +101,7 @@ namespace Python.Runtime
         public static PyTuple AsTuple(PyObject value)
         {
             IntPtr op = Runtime.PySequence_Tuple(value.obj);
-            if (op == IntPtr.Zero)
-            {
-                throw new PythonException();
-            }
+            Runtime.CheckExceptionOccurred();
             return new PyTuple(op);
         }
     }

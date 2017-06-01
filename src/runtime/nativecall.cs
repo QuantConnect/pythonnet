@@ -1,9 +1,8 @@
 using System;
-using System.Threading;
-using System.Runtime.InteropServices;
-using System.Collections;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Python.Runtime
 {
@@ -13,12 +12,10 @@ namespace Python.Runtime
     /// C API can just be wrapped with p/invoke, but there are some
     /// situations (specifically, calling functions through Python
     /// type structures) where we need to call functions indirectly.
-    ///
     /// This class uses Reflection.Emit to generate IJW thunks that
     /// support indirect calls to native code using various common
     /// call signatures. This is mainly a workaround for the fact
     /// that you can't spell an indirect call in C# (but can in IL).
-    ///
     /// Another approach that would work is for this to be turned
     /// into a separate utility program that could be run during the
     /// build process to generate the thunks as a separate assembly
@@ -26,8 +23,8 @@ namespace Python.Runtime
     /// </summary>
     internal class NativeCall
     {
-        static AssemblyBuilder aBuilder;
-        static ModuleBuilder mBuilder;
+        private static AssemblyBuilder aBuilder;
+        private static ModuleBuilder mBuilder;
 
         public static INativeCall Impl;
 
@@ -40,14 +37,13 @@ namespace Python.Runtime
             // interface (defined below) and generate the required thunk
             // code based on the method signatures.
 
-            AssemblyName aname = new AssemblyName();
-            aname.Name = "e__NativeCall_Assembly";
-            AssemblyBuilderAccess aa = AssemblyBuilderAccess.Run;
+            var aname = new AssemblyName { Name = "e__NativeCall_Assembly" };
+            var aa = AssemblyBuilderAccess.Run;
 
             aBuilder = Thread.GetDomain().DefineDynamicAssembly(aname, aa);
             mBuilder = aBuilder.DefineDynamicModule("e__NativeCall_Module");
 
-            TypeAttributes ta = TypeAttributes.Public;
+            var ta = TypeAttributes.Public;
             TypeBuilder tBuilder = mBuilder.DefineType("e__NativeCall", ta);
 
             Type iType = typeof(INativeCall);
@@ -72,8 +68,8 @@ namespace Python.Runtime
             int count = pi.Length;
             int argc = count - 1;
 
-            Type[] args = new Type[count];
-            for (int i = 0; i < count; i++)
+            var args = new Type[count];
+            for (var i = 0; i < count; i++)
             {
                 args[i] = pi[i].ParameterType;
             }
@@ -84,16 +80,16 @@ namespace Python.Runtime
                 MethodAttributes.Virtual,
                 method.ReturnType,
                 args
-                );
+            );
 
             // Build the method signature for the actual native function.
             // This is essentially the signature of the wrapper method
             // minus the first argument (the passed in function pointer).
 
-            Type[] nargs = new Type[argc];
-            for (int i = 1; i < count; i++)
+            var nargs = new Type[argc];
+            for (var i = 1; i < count; i++)
             {
-                nargs[(i - 1)] = args[i];
+                nargs[i - 1] = args[i];
             }
 
             // IL generation: the (implicit) first argument of the method
@@ -103,9 +99,9 @@ namespace Python.Runtime
 
             ILGenerator il = mb.GetILGenerator();
 
-            for (int i = 0; i < argc; i++)
+            for (var i = 0; i < argc; i++)
             {
-                il.Emit(OpCodes.Ldarg_S, (i + 2));
+                il.Emit(OpCodes.Ldarg_S, i + 2);
             }
 
             il.Emit(OpCodes.Ldarg_1);
@@ -114,12 +110,11 @@ namespace Python.Runtime
                 CallingConvention.Cdecl,
                 method.ReturnType,
                 nargs
-                );
+            );
 
             il.Emit(OpCodes.Ret);
 
             tb.DefineMethodOverride(mb, method);
-            return;
         }
 
 
@@ -128,14 +123,12 @@ namespace Python.Runtime
             Impl.Void_Call_1(fp, a1);
         }
 
-        public static IntPtr Call_3(IntPtr fp, IntPtr a1, IntPtr a2,
-            IntPtr a3)
+        public static IntPtr Call_3(IntPtr fp, IntPtr a1, IntPtr a2, IntPtr a3)
         {
             return Impl.Call_3(fp, a1, a2, a3);
         }
 
-        public static int Int_Call_3(IntPtr fp, IntPtr a1, IntPtr a2,
-            IntPtr a3)
+        public static int Int_Call_3(IntPtr fp, IntPtr a1, IntPtr a2, IntPtr a3)
         {
             return Impl.Int_Call_3(fp, a1, a2, a3);
         }

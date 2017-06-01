@@ -1,14 +1,11 @@
 using System;
-using System.Collections;
 using System.Reflection;
-using System.Security.Permissions;
 
 namespace Python.Runtime
 {
-    //========================================================================
-    // Bundles the information required to support an indexer property.
-    //========================================================================
-
+    /// <summary>
+    /// Bundles the information required to support an indexer property.
+    /// </summary>
     internal class Indexer
     {
         public MethodBinder GetterBinder;
@@ -60,28 +57,34 @@ namespace Python.Runtime
         internal bool NeedsDefaultArgs(IntPtr args)
         {
             int pynargs = Runtime.PyTuple_Size(args);
-            var methods = SetterBinder.GetMethods();
+            MethodBase[] methods = SetterBinder.GetMethods();
             if (methods.Length == 0)
+            {
                 return false;
+            }
 
             MethodBase mi = methods[0];
             ParameterInfo[] pi = mi.GetParameters();
             // need to subtract one for the value
             int clrnargs = pi.Length - 1;
             if (pynargs == clrnargs || pynargs > clrnargs)
+            {
                 return false;
+            }
 
             for (int v = pynargs; v < clrnargs; v++)
             {
                 if (pi[v].DefaultValue == DBNull.Value)
+                {
                     return false;
+                }
             }
             return true;
         }
 
         /// <summary>
         /// This will return default arguments a new instance of a tuple. The size
-        ///  of the tuple will indicate the number of default arguments.
+        /// of the tuple will indicate the number of default arguments.
         /// </summary>
         /// <param name="args">This is pointing to the tuple args passed in</param>
         /// <returns>a new instance of the tuple containing the default args</returns>
@@ -89,24 +92,25 @@ namespace Python.Runtime
         {
             // if we don't need default args return empty tuple
             if (!NeedsDefaultArgs(args))
+            {
                 return Runtime.PyTuple_New(0);
+            }
             int pynargs = Runtime.PyTuple_Size(args);
 
             // Get the default arg tuple
-            var methods = SetterBinder.GetMethods();
+            MethodBase[] methods = SetterBinder.GetMethods();
             MethodBase mi = methods[0];
             ParameterInfo[] pi = mi.GetParameters();
             int clrnargs = pi.Length - 1;
             IntPtr defaultArgs = Runtime.PyTuple_New(clrnargs - pynargs);
-            for (int i = 0; i < (clrnargs - pynargs); i++)
+            for (var i = 0; i < clrnargs - pynargs; i++)
             {
                 if (pi[i + pynargs].DefaultValue == DBNull.Value)
-                    continue;
-                else
                 {
-                    IntPtr arg = Converter.ToPython(pi[i + pynargs].DefaultValue, pi[i + pynargs].ParameterType);
-                    Runtime.PyTuple_SetItem(defaultArgs, i, arg);
+                    continue;
                 }
+                IntPtr arg = Converter.ToPython(pi[i + pynargs].DefaultValue, pi[i + pynargs].ParameterType);
+                Runtime.PyTuple_SetItem(defaultArgs, i, arg);
             }
             return defaultArgs;
         }

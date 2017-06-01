@@ -1,31 +1,30 @@
 using System;
 using System.Runtime.InteropServices;
-using System.Collections;
-using System.Reflection;
 
 namespace Python.Runtime
 {
     /// <summary>
     /// Base class for extensions whose instances *share* a single Python
     /// type object, such as the types that represent CLR methods, fields,
-    /// etc. Instances implemented by this class do not support subtyping.
+    /// etc. Instances implemented by this class do not support sub-typing.
     /// </summary>
     internal abstract class ExtensionType : ManagedType
     {
-        public ExtensionType() : base()
+        public ExtensionType()
         {
             // Create a new PyObject whose type is a generated type that is
-            // implemented by the particuar concrete ExtensionType subclass.
+            // implemented by the particular concrete ExtensionType subclass.
             // The Python instance object is related to an instance of a
             // particular concrete subclass with a hidden CLR gchandle.
 
-            IntPtr tp = TypeManager.GetTypeHandle(this.GetType());
+            IntPtr tp = TypeManager.GetTypeHandle(GetType());
 
-//              int rc = (int)Marshal.ReadIntPtr(tp, TypeOffset.ob_refcnt);
-//              if (rc > 1050) {
-//              DebugUtil.Print("tp is: ", tp);
-//              DebugUtil.DumpType(tp);
-//              }
+            //int rc = (int)Marshal.ReadIntPtr(tp, TypeOffset.ob_refcnt);
+            //if (rc > 1050)
+            //{
+            //    DebugUtil.Print("tp is: ", tp);
+            //    DebugUtil.DumpType(tp);
+            //}
 
             IntPtr py = Runtime.PyType_GenericAlloc(tp, 0);
 
@@ -39,16 +38,15 @@ namespace Python.Runtime
 
             Runtime.PyObject_GC_UnTrack(py);
 
-            this.tpHandle = tp;
-            this.pyHandle = py;
-            this.gcHandle = gc;
+            tpHandle = tp;
+            pyHandle = py;
+            gcHandle = gc;
         }
 
 
-        //====================================================================
-        // Common finalization code to support custom tp_deallocs.
-        //====================================================================
-
+        /// <summary>
+        /// Common finalization code to support custom tp_deallocs.
+        /// </summary>
         public static void FinalizeObject(ManagedType self)
         {
             Runtime.PyObject_GC_Del(self.pyHandle);
@@ -57,13 +55,12 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // Type __setattr__ implementation.
-        //====================================================================
-
+        /// <summary>
+        /// Type __setattr__ implementation.
+        /// </summary>
         public static int tp_setattro(IntPtr ob, IntPtr key, IntPtr val)
         {
-            string message = "type does not support setting attributes";
+            var message = "type does not support setting attributes";
             if (val == IntPtr.Zero)
             {
                 message = "readonly attribute";
@@ -73,23 +70,20 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // Default __set__ implementation - this prevents descriptor instances
-        // being silently replaced in a type __dict__ by default __setattr__.
-        //====================================================================
-
+        /// <summary>
+        /// Default __set__ implementation - this prevents descriptor instances
+        /// being silently replaced in a type __dict__ by default __setattr__.
+        /// </summary>
         public static int tp_descr_set(IntPtr ds, IntPtr ob, IntPtr val)
         {
-            string message = "attribute is read-only";
-            Exceptions.SetError(Exceptions.AttributeError, message);
+            Exceptions.SetError(Exceptions.AttributeError, "attribute is read-only");
             return -1;
         }
 
 
-        //====================================================================
-        // Required Python GC support.
-        //====================================================================
-
+        /// <summary>
+        /// Required Python GC support.
+        /// </summary>
         public static int tp_traverse(IntPtr ob, IntPtr func, IntPtr args)
         {
             return 0;
@@ -108,10 +102,9 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // Default dealloc implementation.
-        //====================================================================
-
+        /// <summary>
+        /// Default dealloc implementation.
+        /// </summary>
         public static void tp_dealloc(IntPtr ob)
         {
             // Clean up a Python instance of this extension type. This

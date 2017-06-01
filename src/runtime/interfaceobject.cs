@@ -16,65 +16,58 @@ namespace Python.Runtime
 
         internal InterfaceObject(Type tp) : base(tp)
         {
-            CoClassAttribute coclass = (CoClassAttribute)
-                Attribute.GetCustomAttribute(tp, cc_attr);
+            var coclass = (CoClassAttribute)Attribute.GetCustomAttribute(tp, cc_attr);
             if (coclass != null)
             {
                 ctor = coclass.CoClass.GetConstructor(Type.EmptyTypes);
             }
         }
 
-        static Type cc_attr;
+        private static Type cc_attr;
 
         static InterfaceObject()
         {
             cc_attr = typeof(CoClassAttribute);
         }
 
-        //====================================================================
-        // Implements __new__ for reflected interface types.
-        //====================================================================
-
+        /// <summary>
+        /// Implements __new__ for reflected interface types.
+        /// </summary>
         public static IntPtr tp_new(IntPtr tp, IntPtr args, IntPtr kw)
         {
-            InterfaceObject self = (InterfaceObject)GetManagedObject(tp);
+            var self = (InterfaceObject)GetManagedObject(tp);
             int nargs = Runtime.PyTuple_Size(args);
             Type type = self.type;
-            Object obj;
+            object obj;
 
             if (nargs == 1)
             {
                 IntPtr inst = Runtime.PyTuple_GetItem(args, 0);
-                CLRObject co = GetManagedObject(inst) as CLRObject;
+                var co = GetManagedObject(inst) as CLRObject;
 
-                if ((co == null) || (!type.IsInstanceOfType(co.inst)))
+                if (co == null || !type.IsInstanceOfType(co.inst))
                 {
-                    string msg = "object does not implement " + type.Name;
-                    Exceptions.SetError(Exceptions.TypeError, msg);
+                    Exceptions.SetError(Exceptions.TypeError, $"object does not implement {type.Name}");
                     return IntPtr.Zero;
                 }
 
                 obj = co.inst;
             }
 
-            else if ((nargs == 0) && (self.ctor != null))
+            else if (nargs == 0 && self.ctor != null)
             {
                 obj = self.ctor.Invoke(null);
 
                 if (obj == null || !type.IsInstanceOfType(obj))
                 {
-                    Exceptions.SetError(Exceptions.TypeError,
-                        "CoClass default constructor failed"
-                        );
+                    Exceptions.SetError(Exceptions.TypeError, "CoClass default constructor failed");
                     return IntPtr.Zero;
                 }
             }
 
             else
             {
-                Exceptions.SetError(Exceptions.TypeError,
-                    "interface takes exactly one argument"
-                    );
+                Exceptions.SetError(Exceptions.TypeError, "interface takes exactly one argument");
                 return IntPtr.Zero;
             }
 

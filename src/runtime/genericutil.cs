@@ -1,9 +1,5 @@
 using System;
-using System.Runtime.InteropServices;
 using System.Collections.Generic;
-using System.Collections;
-using System.Reflection;
-using System.Security;
 
 namespace Python.Runtime
 {
@@ -13,7 +9,7 @@ namespace Python.Runtime
     /// </summary>
     internal class GenericUtil
     {
-        static Dictionary<string, Dictionary<string, List<string>>> mapping;
+        private static Dictionary<string, Dictionary<string, List<string>>> mapping;
 
         private GenericUtil()
         {
@@ -21,18 +17,18 @@ namespace Python.Runtime
 
         static GenericUtil()
         {
-            mapping = new
-                Dictionary<string, Dictionary<string, List<string>>>();
+            mapping = new Dictionary<string, Dictionary<string, List<string>>>();
         }
 
-        //====================================================================
-        // Register a generic type that appears in a given namespace.
-        //====================================================================
-
+        /// <summary>
+        /// Register a generic type that appears in a given namespace.
+        /// </summary>
         internal static void Register(Type t)
         {
             if (null == t.Namespace || null == t.Name)
+            {
                 return;
+            }
 
             Dictionary<string, List<string>> nsmap = null;
             mapping.TryGetValue(t.Namespace, out nsmap);
@@ -57,10 +53,9 @@ namespace Python.Runtime
             gnames.Add(t.Name);
         }
 
-        //====================================================================
-        // xxx
-        //====================================================================
-
+        /// <summary>
+        /// xxx
+        /// </summary>
         public static List<string> GetGenericBaseNames(string ns)
         {
             Dictionary<string, List<string>> nsmap = null;
@@ -69,7 +64,7 @@ namespace Python.Runtime
             {
                 return null;
             }
-            List<string> names = new List<string>();
+            var names = new List<string>();
             foreach (string key in nsmap.Keys)
             {
                 names.Add(key);
@@ -77,10 +72,9 @@ namespace Python.Runtime
             return names;
         }
 
-        //====================================================================
-        // xxx
-        //====================================================================
-
+        /// <summary>
+        /// xxx
+        /// </summary>
         public static Type GenericForType(Type t, int paramCount)
         {
             return GenericByName(t.Namespace, t.Name, paramCount);
@@ -91,7 +85,9 @@ namespace Python.Runtime
             foreach (Type t in GenericsByName(ns, name))
             {
                 if (t.GetGenericArguments().Length == paramCount)
+                {
                     return t;
+                }
             }
             return null;
         }
@@ -123,7 +119,7 @@ namespace Python.Runtime
                 return null;
             }
 
-            List<Type> result = new List<Type>();
+            var result = new List<Type>();
             foreach (string name in names)
             {
                 string qname = ns + "." + name;
@@ -137,10 +133,9 @@ namespace Python.Runtime
             return result;
         }
 
-        //====================================================================
-        // xxx
-        //====================================================================
-
+        /// <summary>
+        /// xxx
+        /// </summary>
         public static string GenericNameForBaseName(string ns, string name)
         {
             Dictionary<string, List<string>> nsmap = null;
@@ -151,11 +146,7 @@ namespace Python.Runtime
             }
             List<string> gnames = null;
             nsmap.TryGetValue(name, out gnames);
-            if (gnames == null)
-            {
-                return null;
-            }
-            if (gnames.Count > 0)
+            if (gnames?.Count > 0)
             {
                 return gnames[0];
             }

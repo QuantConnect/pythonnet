@@ -2,10 +2,9 @@ using System;
 
 namespace Python.Test
 {
-    //========================================================================
-    // Supports CLR enum unit tests.
-    //========================================================================
-
+    /// <summary>
+    /// Supports CLR enum unit tests.
+    /// </summary>
     public enum ByteEnum : byte
     {
         Zero,
@@ -86,7 +85,7 @@ namespace Python.Test
         Five
     }
 
-    [FlagsAttribute]
+    [Flags]
     public enum FlagsEnum
     {
         Zero,

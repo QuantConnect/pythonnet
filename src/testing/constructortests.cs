@@ -1,20 +1,18 @@
 using System;
-using System.Collections;
 using System.IO;
 
 namespace Python.Test
 {
-    //========================================================================
-    // These classes support the CLR constructor unit tests.
-    //========================================================================
-
+    /// <summary>
+    /// These classes support the CLR constructor unit tests.
+    /// </summary>
     public class EnumConstructorTest
     {
         public TypeCode value;
 
         public EnumConstructorTest(TypeCode v)
         {
-            this.value = v;
+            value = v;
         }
     }
 
@@ -25,7 +23,7 @@ namespace Python.Test
 
         public FlagsConstructorTest(FileAccess v)
         {
-            this.value = v;
+            value = v;
         }
     }
 
@@ -36,7 +34,7 @@ namespace Python.Test
 
         public StructConstructorTest(Guid v)
         {
-            this.value = v;
+            value = v;
         }
     }
 
@@ -47,7 +45,7 @@ namespace Python.Test
 
         public SubclassConstructorTest(Exception v)
         {
-            this.value = v;
+            value = v;
         }
     }
 }

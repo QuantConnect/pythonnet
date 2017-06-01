@@ -2,25 +2,26 @@ using Python.Runtime;
 
 namespace Python.Test
 {
-    //========================================================================
-    // Supports units tests for exposing docstrings from C# to Python
-    //========================================================================
-
-    // Classes with a constructor have their docstring set to the ctor signature.
-    // Test if a class has an explicit doc string it gets set correctly.
-    [DocStringAttribute("DocWithCtorTest Class")]
+    /// <summary>
+    /// Supports units tests for exposing docstrings from C# to Python
+    /// </summary>
+    /// <remarks>
+    /// Classes with a constructor have their docstring set to the ctor signature.
+    /// Test if a class has an explicit doc string it gets set correctly.
+    /// </remarks>
+    [DocString("DocWithCtorTest Class")]
     public class DocWithCtorTest
     {
         public DocWithCtorTest()
         {
         }
 
-        [DocStringAttribute("DocWithCtorTest TestMethod")]
+        [DocString("DocWithCtorTest TestMethod")]
         public void TestMethod()
         {
         }
 
-        [DocStringAttribute("DocWithCtorTest StaticTestMethod")]
+        [DocString("DocWithCtorTest StaticTestMethod")]
         public static void StaticTestMethod()
         {
         }
@@ -41,15 +42,15 @@ namespace Python.Test
         }
     }
 
-    [DocStringAttribute("DocWithoutCtorTest Class")]
+    [DocString("DocWithoutCtorTest Class")]
     public class DocWithoutCtorTest
     {
-        [DocStringAttribute("DocWithoutCtorTest TestMethod")]
+        [DocString("DocWithoutCtorTest TestMethod")]
         public void TestMethod()
         {
         }
 
-        [DocStringAttribute("DocWithoutCtorTest StaticTestMethod")]
+        [DocString("DocWithoutCtorTest StaticTestMethod")]
         public static void StaticTestMethod()
         {
         }

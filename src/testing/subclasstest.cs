@@ -1,7 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace Python.Test
 {
@@ -14,14 +12,14 @@ namespace Python.Test
         string bar(string s, int i);
 
         // test events on interfaces
-        event TestEventHandler TestEvent;
+        event EventHandlerTest TestEvent;
 
         void OnTestEvent(int value);
     }
 
     public class SubClassTest : IInterfaceTest
     {
-        public event TestEventHandler TestEvent;
+        public event EventHandlerTest TestEvent;
 
         public SubClassTest()
         {
@@ -60,7 +58,9 @@ namespace Python.Test
         public virtual void OnTestEvent(int value)
         {
             if (null != TestEvent)
-                TestEvent(this, new TestEventArgs(value));
+            {
+                TestEvent(this, new EventArgsTest(value));
+            }
         }
     }
 
@@ -70,12 +70,11 @@ namespace Python.Test
         {
             public void SomeMethod()
             {
-
             }
         }
     }
 
-    public class TestFunctions
+    public class FunctionsTest
     {
         public static string test_foo(IInterfaceTest x)
         {
@@ -92,7 +91,7 @@ namespace Python.Test
         // test instances can be constructed in managed code
         public static IInterfaceTest create_instance(Type t)
         {
-            return (IInterfaceTest)t.GetConstructor(new Type[] { }).Invoke(new Object[] { });
+            return (IInterfaceTest)t.GetConstructor(new Type[] { }).Invoke(new object[] { });
         }
 
         // test instances pass through managed code unchanged
@@ -104,7 +103,7 @@ namespace Python.Test
         public static int test_event(IInterfaceTest x, int value)
         {
             // reuse the event handler from eventtest.cs
-            EventTest et = new EventTest();
+            var et = new EventTest();
             x.TestEvent += et.GenericHandler;
 
             // raise the event (should trigger both python and managed handlers)

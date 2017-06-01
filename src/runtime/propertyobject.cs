@@ -1,22 +1,20 @@
 using System;
-using System.Collections;
 using System.Reflection;
 using System.Security.Permissions;
 
 namespace Python.Runtime
 {
-    //========================================================================
-    // Implements a Python descriptor type that manages CLR properties.
-    //========================================================================
-
+    /// <summary>
+    /// Implements a Python descriptor type that manages CLR properties.
+    /// </summary>
     internal class PropertyObject : ExtensionType
     {
-        PropertyInfo info;
-        MethodInfo getter;
-        MethodInfo setter;
+        private PropertyInfo info;
+        private MethodInfo getter;
+        private MethodInfo setter;
 
-        [StrongNameIdentityPermissionAttribute(SecurityAction.Assert)]
-        public PropertyObject(PropertyInfo md) : base()
+        [StrongNameIdentityPermission(SecurityAction.Assert)]
+        public PropertyObject(PropertyInfo md)
         {
             getter = md.GetGetMethod(true);
             setter = md.GetSetMethod(true);
@@ -24,17 +22,16 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // Descriptor __get__ implementation. This method returns the
-        // value of the property on the given object. The returned value
-        // is converted to an appropriately typed Python object.
-        //====================================================================
-
+        /// <summary>
+        /// Descriptor __get__ implementation. This method returns the
+        /// value of the property on the given object. The returned value
+        /// is converted to an appropriately typed Python object.
+        /// </summary>
         public static IntPtr tp_descr_get(IntPtr ds, IntPtr ob, IntPtr tp)
         {
-            PropertyObject self = (PropertyObject)GetManagedObject(ds);
+            var self = (PropertyObject)GetManagedObject(ds);
             MethodInfo getter = self.getter;
-            Object result;
+            object result;
 
 
             if (getter == null)
@@ -42,14 +39,12 @@ namespace Python.Runtime
                 return Exceptions.RaiseTypeError("property cannot be read");
             }
 
-            if ((ob == IntPtr.Zero) || (ob == Runtime.PyNone))
+            if (ob == IntPtr.Zero || ob == Runtime.PyNone)
             {
-                if (!(getter.IsStatic))
+                if (!getter.IsStatic)
                 {
                     Exceptions.SetError(Exceptions.TypeError,
-                        "instance property must be accessed through " +
-                        "a class instance"
-                        );
+                        "instance property must be accessed through a class instance");
                     return IntPtr.Zero;
                 }
 
@@ -64,7 +59,7 @@ namespace Python.Runtime
                 }
             }
 
-            CLRObject co = GetManagedObject(ob) as CLRObject;
+            var co = GetManagedObject(ob) as CLRObject;
             if (co == null)
             {
                 return Exceptions.RaiseTypeError("invalid target");
@@ -87,17 +82,16 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // Descriptor __set__ implementation. This method sets the value of
-        // a property based on the given Python value. The Python value must
-        // be convertible to the type of the property.
-        //====================================================================
-
-        public static new int tp_descr_set(IntPtr ds, IntPtr ob, IntPtr val)
+        /// <summary>
+        /// Descriptor __set__ implementation. This method sets the value of
+        /// a property based on the given Python value. The Python value must
+        /// be convertible to the type of the property.
+        /// </summary>
+        public new static int tp_descr_set(IntPtr ds, IntPtr ob, IntPtr val)
         {
-            PropertyObject self = (PropertyObject)GetManagedObject(ds);
+            var self = (PropertyObject)GetManagedObject(ds);
             MethodInfo setter = self.setter;
-            Object newval;
+            object newval;
 
             if (val == IntPtr.Zero)
             {
@@ -112,21 +106,18 @@ namespace Python.Runtime
             }
 
 
-            if (!Converter.ToManaged(val, self.info.PropertyType, out newval,
-                true))
+            if (!Converter.ToManaged(val, self.info.PropertyType, out newval, true))
             {
                 return -1;
             }
 
             bool is_static = setter.IsStatic;
 
-            if ((ob == IntPtr.Zero) || (ob == Runtime.PyNone))
+            if (ob == IntPtr.Zero || ob == Runtime.PyNone)
             {
-                if (!(is_static))
+                if (!is_static)
                 {
-                    Exceptions.RaiseTypeError(
-                        "instance property must be set on an instance"
-                        );
+                    Exceptions.RaiseTypeError("instance property must be set on an instance");
                     return -1;
                 }
             }
@@ -135,7 +126,7 @@ namespace Python.Runtime
             {
                 if (!is_static)
                 {
-                    CLRObject co = GetManagedObject(ob) as CLRObject;
+                    var co = GetManagedObject(ob) as CLRObject;
                     if (co == null)
                     {
                         Exceptions.RaiseTypeError("invalid target");
@@ -161,15 +152,13 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // Descriptor __repr__ implementation.
-        //====================================================================
-
+        /// <summary>
+        /// Descriptor __repr__ implementation.
+        /// </summary>
         public static IntPtr tp_repr(IntPtr ob)
         {
-            PropertyObject self = (PropertyObject)GetManagedObject(ob);
-            string s = String.Format("<property '{0}'>", self.info.Name);
-            return Runtime.PyString_FromStringAndSize(s, s.Length);
+            var self = (PropertyObject)GetManagedObject(ob);
+            return Runtime.PyString_FromString($"<property '{self.info.Name}'>");
         }
     }
 }

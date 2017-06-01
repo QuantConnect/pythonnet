@@ -1,12 +1,8 @@
-using System;
-
-
 namespace Python.Test
 {
-    //========================================================================
-    // Supports units tests for field access.
-    //========================================================================
-
+    /// <summary>
+    /// Supports units tests for field access.
+    /// </summary>
     public class ConversionTest
     {
         public ConversionTest()
@@ -36,8 +32,14 @@ namespace Python.Test
 
         public byte[] ByteArrayField;
         public sbyte[] SByteArrayField;
+
+        public T? Echo<T>(T? arg) where T: struct {
+            return arg;
+        }
+
     }
 
+    
 
     public interface ISpam
     {
@@ -46,7 +48,7 @@ namespace Python.Test
 
     public class Spam : ISpam
     {
-        string value;
+        private string value;
 
         public Spam(string value)
         {

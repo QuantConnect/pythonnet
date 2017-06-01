@@ -1,8 +1,8 @@
 using System;
-using System.Runtime.InteropServices;
-using System.Collections.Generic;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security;
 
 namespace Python.Runtime
@@ -10,7 +10,6 @@ namespace Python.Runtime
     /// <summary>
     /// The ClassManager is responsible for creating and managing instances
     /// that implement the Python type objects that reflect managed classes.
-    ///
     /// Each managed type reflected to Python is represented by an instance
     /// of a concrete subclass of ClassBase. Each instance is associated with
     /// a generated Python type object, whose slots point to static methods
@@ -18,8 +17,8 @@ namespace Python.Runtime
     /// </summary>
     internal class ClassManager
     {
-        static Dictionary<Type, ClassBase> cache;
-        static Type dtype;
+        private static Dictionary<Type, ClassBase> cache;
+        private static Type dtype;
 
         private ClassManager()
         {
@@ -28,18 +27,17 @@ namespace Python.Runtime
         static ClassManager()
         {
             cache = new Dictionary<Type, ClassBase>(128);
-            // SEE: http://msdn.microsoft.com/en-us/library/96b1ayy4%28VS.90%29.aspx
+            // SEE: https://msdn.microsoft.com/en-us/library/96b1ayy4(v=vs.100).aspx
             // ""All delegates inherit from MulticastDelegate, which inherits from Delegate.""
             // Was Delegate, which caused a null MethodInfo returned from GetMethode("Invoke")
             // and crashed on Linux under Mono.
-            dtype = typeof(System.MulticastDelegate);
+            dtype = typeof(MulticastDelegate);
         }
 
-        //====================================================================
-        // Return the ClassBase-derived instance that implements a particular
-        // reflected managed type, creating it if it doesn't yet exist.
-        //====================================================================
-
+        /// <summary>
+        /// Return the ClassBase-derived instance that implements a particular
+        /// reflected managed type, creating it if it doesn't yet exist.
+        /// </summary>
         internal static ClassBase GetClass(Type type)
         {
             ClassBase cb = null;
@@ -50,18 +48,18 @@ namespace Python.Runtime
             }
             cb = CreateClass(type);
             cache.Add(type, cb);
-            // Initialize the object later, as this might call this GetClass method recursivly (for example when a nested class inherits its declaring class...)
+            // Initialize the object later, as this might call this GetClass method
+            // recursively (for example when a nested class inherits its declaring class...)
             InitClassBase(type, cb);
             return cb;
         }
 
 
-        //====================================================================
-        // Create a new ClassBase-derived instance that implements a reflected
-        // managed type. The new object will be associated with a generated
-        // Python type object.
-        //====================================================================
-
+        /// <summary>
+        /// Create a new ClassBase-derived instance that implements a reflected
+        /// managed type. The new object will be associated with a generated
+        /// Python type object.
+        /// </summary>
         private static ClassBase CreateClass(Type type)
         {
             // Next, select the appropriate managed implementation class.
@@ -140,30 +138,29 @@ namespace Python.Runtime
             IDictionaryEnumerator iter = info.members.GetEnumerator();
             while (iter.MoveNext())
             {
-                ManagedType item = (ManagedType)iter.Value;
-                string name = (string)iter.Key;
+                var item = (ManagedType)iter.Value;
+                var name = (string)iter.Key;
                 Runtime.PyDict_SetItemString(dict, name, item.pyHandle);
             }
 
             // If class has constructors, generate an __doc__ attribute.
-
             IntPtr doc = IntPtr.Zero;
             Type marker = typeof(DocStringAttribute);
-            Attribute[] attrs = (Attribute[])type.GetCustomAttributes(marker, false);
+            var attrs = (Attribute[])type.GetCustomAttributes(marker, false);
             if (attrs.Length == 0)
             {
                 doc = IntPtr.Zero;
             }
             else
             {
-                DocStringAttribute attr = (DocStringAttribute)attrs[0];
+                var attr = (DocStringAttribute)attrs[0];
                 string docStr = attr.DocString;
                 doc = Runtime.PyString_FromString(docStr);
                 Runtime.PyDict_SetItemString(dict, "__doc__", doc);
                 Runtime.XDecref(doc);
             }
 
-            ClassObject co = impl as ClassObject;
+            var co = impl as ClassObject;
             // If this is a ClassObject AND it has constructors, generate a __doc__ attribute.
             // required that the ClassObject.ctors be changed to internal
             if (co != null)
@@ -173,9 +170,9 @@ namespace Python.Runtime
                     // Implement Overloads on the class object
                     if (!CLRModule._SuppressOverloads)
                     {
-                        ConstructorBinding ctors = new ConstructorBinding(type, tp, co.binder);
+                        var ctors = new ConstructorBinding(type, tp, co.binder);
                         // ExtensionType types are untracked, so don't Incref() them.
-                        // XXX deprecate __overloads__ soon...
+                        // TODO: deprecate __overloads__ soon...
                         Runtime.PyDict_SetItemString(dict, "__overloads__", ctors.pyHandle);
                         Runtime.PyDict_SetItemString(dict, "Overloads", ctors.pyHandle);
                     }
@@ -189,18 +186,17 @@ namespace Python.Runtime
                     }
                 }
             }
-
         }
 
         private static ClassInfo GetClassInfo(Type type)
         {
-            ClassInfo ci = new ClassInfo(type);
-            Hashtable methods = new Hashtable();
+            var ci = new ClassInfo(type);
+            var methods = new Hashtable();
             ArrayList list;
             MethodInfo meth;
             ManagedType ob;
-            String name;
-            Object item;
+            string name;
+            object item;
             Type tp;
             int i, n;
 
@@ -210,15 +206,14 @@ namespace Python.Runtime
             // method and a class B that defines two more. The name-based
             // descriptor Python will find needs to know about inherited
             // overloads as well as those declared on the sub class.
-
             BindingFlags flags = BindingFlags.Static |
                                  BindingFlags.Instance |
                                  BindingFlags.Public |
                                  BindingFlags.NonPublic;
 
             MemberInfo[] info = type.GetMembers(flags);
-            Hashtable local = new Hashtable();
-            ArrayList items = new ArrayList();
+            var local = new Hashtable();
+            var items = new ArrayList();
             MemberInfo m;
 
             // Loop through once to find out which names are declared
@@ -273,7 +268,7 @@ namespace Python.Runtime
 
             for (i = 0; i < items.Count; i++)
             {
-                MemberInfo mi = (MemberInfo)items[i];
+                var mi = (MemberInfo)items[i];
 
                 switch (mi.MemberType)
                 {
@@ -281,7 +276,9 @@ namespace Python.Runtime
                         meth = (MethodInfo)mi;
                         if (!(meth.IsPublic || meth.IsFamily ||
                               meth.IsFamilyOrAssembly))
+                        {
                             continue;
+                        }
                         name = meth.Name;
                         item = methods[name];
                         if (item == null)
@@ -293,7 +290,7 @@ namespace Python.Runtime
                         continue;
 
                     case MemberTypes.Property:
-                        PropertyInfo pi = (PropertyInfo)mi;
+                        var pi = (PropertyInfo)mi;
 
                         MethodInfo mm = null;
                         try
@@ -317,7 +314,9 @@ namespace Python.Runtime
                         }
 
                         if (!(mm.IsPublic || mm.IsFamily || mm.IsFamilyOrAssembly))
+                        {
                             continue;
+                        }
 
                         // Check for indexer
                         ParameterInfo[] args = pi.GetIndexParameters();
@@ -338,18 +337,22 @@ namespace Python.Runtime
                         continue;
 
                     case MemberTypes.Field:
-                        FieldInfo fi = (FieldInfo)mi;
+                        var fi = (FieldInfo)mi;
                         if (!(fi.IsPublic || fi.IsFamily || fi.IsFamilyOrAssembly))
+                        {
                             continue;
+                        }
                         ob = new FieldObject(fi);
                         ci.members[mi.Name] = ob;
                         continue;
 
                     case MemberTypes.Event:
-                        EventInfo ei = (EventInfo)mi;
+                        var ei = (EventInfo)mi;
                         MethodInfo me = ei.GetAddMethod(true);
                         if (!(me.IsPublic || me.IsFamily || me.IsFamilyOrAssembly))
+                        {
                             continue;
+                        }
                         ob = new EventObject(ei);
                         ci.members[ei.Name] = ob;
                         continue;
@@ -358,9 +361,11 @@ namespace Python.Runtime
                         tp = (Type)mi;
                         if (!(tp.IsNestedPublic || tp.IsNestedFamily ||
                               tp.IsNestedFamORAssem))
+                        {
                             continue;
+                        }
                         // Note the given instance might be uninitialized
-                        ob = ClassManager.GetClass(tp);
+                        ob = GetClass(tp);
                         ci.members[mi.Name] = ob;
                         continue;
                 }
@@ -373,9 +378,7 @@ namespace Python.Runtime
                 name = (string)iter.Key;
                 list = (ArrayList)iter.Value;
 
-                MethodInfo[] mlist = (MethodInfo[])list.ToArray(
-                    typeof(MethodInfo)
-                    );
+                var mlist = (MethodInfo[])list.ToArray(typeof(MethodInfo));
 
                 ob = new MethodObject(type, name, mlist);
                 ci.members[name] = ob;
@@ -388,13 +391,13 @@ namespace Python.Runtime
 
     internal class ClassInfo
     {
+        public Indexer indexer;
+        public Hashtable members;
+
         internal ClassInfo(Type t)
         {
             members = new Hashtable();
             indexer = null;
         }
-
-        public Hashtable members;
-        public Indexer indexer;
     }
 }

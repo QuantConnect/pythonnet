@@ -1,18 +1,18 @@
 using System;
-using System.Runtime.InteropServices;
 
 namespace Python.Runtime
 {
     /// <summary>
     /// Represents a Python dictionary object. See the documentation at
-    /// http://www.python.org/doc/current/api/dictObjects.html for details.
+    /// PY2: https://docs.python.org/2/c-api/dict.html
+    /// PY3: https://docs.python.org/3/c-api/dict.html
+    /// for details.
     /// </summary>
     public class PyDict : PyObject
     {
         /// <summary>
         /// PyDict Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyDict from an existing object reference. Note
         /// that the instance assumes ownership of the object reference.
@@ -26,11 +26,10 @@ namespace Python.Runtime
         /// <summary>
         /// PyDict Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new Python dictionary object.
         /// </remarks>
-        public PyDict() : base()
+        public PyDict()
         {
             obj = Runtime.PyDict_New();
             if (obj == IntPtr.Zero)
@@ -43,13 +42,12 @@ namespace Python.Runtime
         /// <summary>
         /// PyDict Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Copy constructor - obtain a PyDict from a generic PyObject. An
         /// ArgumentException will be thrown if the given object is not a
         /// Python dictionary object.
         /// </remarks>
-        public PyDict(PyObject o) : base()
+        public PyDict(PyObject o)
         {
             if (!IsDictType(o))
             {
@@ -63,7 +61,6 @@ namespace Python.Runtime
         /// <summary>
         /// IsDictType Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns true if the given object is a Python dictionary.
         /// </remarks>
@@ -76,34 +73,33 @@ namespace Python.Runtime
         /// <summary>
         /// HasKey Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns true if the object key appears in the dictionary.
         /// </remarks>
         public bool HasKey(PyObject key)
         {
-            return (Runtime.PyMapping_HasKey(obj, key.obj) != 0);
+            return Runtime.PyMapping_HasKey(obj, key.obj) != 0;
         }
 
 
         /// <summary>
         /// HasKey Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns true if the string key appears in the dictionary.
         /// </remarks>
         public bool HasKey(string key)
         {
-            using (PyString str = new PyString(key))
+            using (var str = new PyString(key))
+            {
                 return HasKey(str);
+            }
         }
 
 
         /// <summary>
         /// Keys Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns a sequence containing the keys of the dictionary.
         /// </remarks>
@@ -121,7 +117,6 @@ namespace Python.Runtime
         /// <summary>
         /// Values Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns a sequence containing the values of the dictionary.
         /// </remarks>
@@ -139,7 +134,6 @@ namespace Python.Runtime
         /// <summary>
         /// Items Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns a sequence containing the items of the dictionary.
         /// </remarks>
@@ -157,7 +151,6 @@ namespace Python.Runtime
         /// <summary>
         /// Copy Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns a copy of the dictionary.
         /// </remarks>
@@ -175,7 +168,6 @@ namespace Python.Runtime
         /// <summary>
         /// Update Method
         /// </summary>
-        ///
         /// <remarks>
         /// Update the dictionary from another dictionary.
         /// </remarks>
@@ -192,7 +184,6 @@ namespace Python.Runtime
         /// <summary>
         /// Clear Method
         /// </summary>
-        ///
         /// <remarks>
         /// Clears the dictionary.
         /// </remarks>

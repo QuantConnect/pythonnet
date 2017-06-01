@@ -1,60 +1,46 @@
-import sys, os, string, unittest, types
-import clr
+# -*- coding: utf-8 -*-
 
-clr.AddReference("Python.Test")
-import Python.Test as Test
+"""Test CLR class constructor support."""
+
 import System
 
 
-class ConstructorTests(unittest.TestCase):
-    """Test CLR class constructor support."""
+def test_enum_constructor():
+    """Test enum constructor args"""
+    from System import TypeCode
+    from Python.Test import EnumConstructorTest
 
-    def testEnumConstructor(self):
-        """Test enum constructor args"""
-        from System import TypeCode
-        from Python.Test import EnumConstructorTest
-
-        ob = EnumConstructorTest(TypeCode.Int32)
-        self.assertTrue(ob.value == TypeCode.Int32)
-
-    def testFlagsConstructor(self):
-        """Test flags constructor args"""
-        from Python.Test import FlagsConstructorTest
-        from System.IO import FileAccess
-
-        flags = FileAccess.Read | FileAccess.Write
-        ob = FlagsConstructorTest(flags)
-        self.assertTrue(ob.value == flags)
-
-    def testStructConstructor(self):
-        """Test struct constructor args"""
-        from System import Guid
-        from Python.Test import StructConstructorTest
-
-        guid = Guid.NewGuid()
-        ob = StructConstructorTest(guid)
-        self.assertTrue(ob.value == guid)
-
-    def testSubclassConstructor(self):
-        """Test subclass constructor args"""
-        from Python.Test import SubclassConstructorTest
-
-        class sub(System.Exception):
-            pass
-
-        instance = sub()
-        ob = SubclassConstructorTest(instance)
-        print(ob)
-        self.assertTrue(isinstance(ob.value, System.Exception))
+    ob = EnumConstructorTest(TypeCode.Int32)
+    assert ob.value == TypeCode.Int32
 
 
-def test_suite():
-    return unittest.makeSuite(ConstructorTests)
+def test_flags_constructor():
+    """Test flags constructor args"""
+    from Python.Test import FlagsConstructorTest
+    from System.IO import FileAccess
+
+    flags = FileAccess.Read | FileAccess.Write
+    ob = FlagsConstructorTest(flags)
+    assert ob.value == flags
 
 
-def main():
-    unittest.TextTestRunner().run(test_suite())
+def test_struct_constructor():
+    """Test struct constructor args"""
+    from System import Guid
+    from Python.Test import StructConstructorTest
+
+    guid = Guid.NewGuid()
+    ob = StructConstructorTest(guid)
+    assert ob.value == guid
 
 
-if __name__ == '__main__':
-    main()
+def test_subclass_constructor():
+    """Test subclass constructor args"""
+    from Python.Test import SubclassConstructorTest
+
+    class Sub(System.Exception):
+        pass
+
+    instance = Sub()
+    ob = SubclassConstructorTest(instance)
+    assert isinstance(ob.value, System.Exception)

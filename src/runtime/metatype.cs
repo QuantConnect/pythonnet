@@ -1,25 +1,21 @@
 using System;
 using System.Runtime.InteropServices;
-using System.Collections;
-using System.Reflection;
 
 namespace Python.Runtime
 {
-    //========================================================================
-    // The managed metatype. This object implements the type of all reflected
-    // types. It also provides support for single-inheritance from reflected
-    // managed types.
-    //========================================================================
-
+    /// <summary>
+    /// The managed metatype. This object implements the type of all reflected
+    /// types. It also provides support for single-inheritance from reflected
+    /// managed types.
+    /// </summary>
     internal class MetaType : ManagedType
     {
-        static IntPtr PyCLRMetaType;
+        private static IntPtr PyCLRMetaType;
 
 
-        //====================================================================
-        // Metatype initialization. This bootstraps the CLR metatype to life.
-        //====================================================================
-
+        /// <summary>
+        /// Metatype initialization. This bootstraps the CLR metatype to life.
+        /// </summary>
         public static IntPtr Initialize()
         {
             PyCLRMetaType = TypeManager.CreateMetaType(typeof(MetaType));
@@ -27,11 +23,10 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // Metatype __new__ implementation. This is called to create a new
-        // class / type when a reflected class is subclassed.
-        //====================================================================
-
+        /// <summary>
+        /// Metatype __new__ implementation. This is called to create a new
+        /// class / type when a reflected class is subclassed.
+        /// </summary>
         public static IntPtr tp_new(IntPtr tp, IntPtr args, IntPtr kw)
         {
             int len = Runtime.PyTuple_Size(args);
@@ -51,15 +46,13 @@ namespace Python.Runtime
 
             if (Runtime.PyTuple_Size(bases) != 1)
             {
-                return Exceptions.RaiseTypeError(
-                    "cannot use multiple inheritance with managed classes"
-                    );
+                return Exceptions.RaiseTypeError("cannot use multiple inheritance with managed classes");
             }
 
             IntPtr base_type = Runtime.PyTuple_GetItem(bases, 0);
             IntPtr mt = Runtime.PyObject_TYPE(base_type);
 
-            if (!((mt == PyCLRMetaType) || (mt == Runtime.PyTypeType)))
+            if (!(mt == PyCLRMetaType || mt == Runtime.PyTypeType))
             {
                 return Exceptions.RaiseTypeError("invalid metatype");
             }
@@ -67,23 +60,19 @@ namespace Python.Runtime
             // Ensure that the reflected type is appropriate for subclassing,
             // disallowing subclassing of delegates, enums and array types.
 
-            ClassBase cb = GetManagedObject(base_type) as ClassBase;
+            var cb = GetManagedObject(base_type) as ClassBase;
             if (cb != null)
             {
                 if (!cb.CanSubclass())
                 {
-                    return Exceptions.RaiseTypeError(
-                        "delegates, enums and array types cannot be subclassed"
-                        );
+                    return Exceptions.RaiseTypeError("delegates, enums and array types cannot be subclassed");
                 }
             }
 
             IntPtr slots = Runtime.PyDict_GetItemString(dict, "__slots__");
             if (slots != IntPtr.Zero)
             {
-                return Exceptions.RaiseTypeError(
-                    "subclasses of managed classes do not support __slots__"
-                    );
+                return Exceptions.RaiseTypeError("subclasses of managed classes do not support __slots__");
             }
 
             // If __assembly__ or __namespace__ are in the class dictionary then create
@@ -93,16 +82,17 @@ namespace Python.Runtime
             if (IntPtr.Zero != dict)
             {
                 Runtime.XIncref(dict);
-                using (PyDict clsDict = new PyDict(dict))
+                using (var clsDict = new PyDict(dict))
                 {
                     if (clsDict.HasKey("__assembly__") || clsDict.HasKey("__namespace__"))
+                    {
                         return TypeManager.CreateSubType(name, base_type, dict);
+                    }
                 }
             }
 
             // otherwise just create a basic type without reflecting back into the managed side.
-            IntPtr func = Marshal.ReadIntPtr(Runtime.PyTypeType,
-                TypeOffset.tp_new);
+            IntPtr func = Marshal.ReadIntPtr(Runtime.PyTypeType, TypeOffset.tp_new);
             IntPtr type = NativeCall.Call_3(func, tp, args, kw);
             if (type == IntPtr.Zero)
             {
@@ -148,12 +138,11 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // Metatype __call__ implementation. This is needed to ensure correct
-        // initialization (__init__ support), because the tp_call we inherit
-        // from PyType_Type won't call __init__ for metatypes it doesnt know.
-        //====================================================================
-
+        /// <summary>
+        /// Metatype __call__ implementation. This is needed to ensure correct
+        /// initialization (__init__ support), because the tp_call we inherit
+        /// from PyType_Type won't call __init__ for metatypes it doesn't know.
+        /// </summary>
         public static IntPtr tp_call(IntPtr tp, IntPtr args, IntPtr kw)
         {
             IntPtr func = Marshal.ReadIntPtr(tp, TypeOffset.tp_new);
@@ -199,14 +188,13 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // Type __setattr__ implementation for reflected types. Note that this
-        // is slightly different than the standard setattr implementation for
-        // the normal Python metatype (PyTypeType). We need to look first in
-        // the type object of a reflected type for a descriptor in order to
-        // support the right setattr behavior for static fields and properties.
-        //====================================================================
-
+        /// <summary>
+        /// Type __setattr__ implementation for reflected types. Note that this
+        /// is slightly different than the standard setattr implementation for
+        /// the normal Python metatype (PyTypeType). We need to look first in
+        /// the type object of a reflected type for a descriptor in order to
+        /// support the right setattr behavior for static fields and properties.
+        /// </summary>
         public static int tp_setattro(IntPtr tp, IntPtr name, IntPtr value)
         {
             IntPtr descr = Runtime._PyType_Lookup(tp, name);
@@ -218,36 +206,32 @@ namespace Python.Runtime
                 if (dt == Runtime.PyWrapperDescriptorType
                     || dt == Runtime.PyMethodType
                     || typeof(ExtensionType).IsInstanceOfType(GetManagedObject(descr))
-                    )
+                )
                 {
                     IntPtr fp = Marshal.ReadIntPtr(dt, TypeOffset.tp_descr_set);
                     if (fp != IntPtr.Zero)
                     {
                         return NativeCall.Impl.Int_Call_3(fp, descr, name, value);
                     }
-                    else
-                    {
-                        Exceptions.SetError(Exceptions.AttributeError,
-                            "attribute is read-only");
-                        return -1;
-                    }
+                    Exceptions.SetError(Exceptions.AttributeError, "attribute is read-only");
+                    return -1;
                 }
             }
 
-            var res = Runtime.PyObject_GenericSetAttr(tp, name, value);
+            int res = Runtime.PyObject_GenericSetAttr(tp, name, value);
             Runtime.PyType_Modified(tp);
 
             return res;
         }
 
-        //====================================================================
-        // The metatype has to implement [] semantics for generic types, so
-        // here we just delegate to the generic type def implementation. Its
-        // own mp_subscript
-        //====================================================================
+        /// <summary>
+        /// The metatype has to implement [] semantics for generic types, so
+        /// here we just delegate to the generic type def implementation. Its
+        /// own mp_subscript
+        /// </summary>
         public static IntPtr mp_subscript(IntPtr tp, IntPtr idx)
         {
-            ClassBase cb = GetManagedObject(tp) as ClassBase;
+            var cb = GetManagedObject(tp) as ClassBase;
             if (cb != null)
             {
                 return cb.type_subscript(idx);
@@ -255,16 +239,15 @@ namespace Python.Runtime
             return Exceptions.RaiseTypeError("unsubscriptable object");
         }
 
-        //====================================================================
-        // Dealloc implementation. This is called when a Python type generated
-        // by this metatype is no longer referenced from the Python runtime.
-        //====================================================================
-
+        /// <summary>
+        /// Dealloc implementation. This is called when a Python type generated
+        /// by this metatype is no longer referenced from the Python runtime.
+        /// </summary>
         public static void tp_dealloc(IntPtr tp)
         {
             // Fix this when we dont cheat on the handle for subclasses!
 
-            int flags = (int)Marshal.ReadIntPtr(tp, TypeOffset.tp_flags);
+            var flags = (int)Marshal.ReadIntPtr(tp, TypeOffset.tp_flags);
             if ((flags & TypeFlags.Subclass) == 0)
             {
                 IntPtr gc = Marshal.ReadIntPtr(tp, TypeOffset.magic());
@@ -281,13 +264,11 @@ namespace Python.Runtime
 
             op = Marshal.ReadIntPtr(Runtime.PyTypeType, TypeOffset.tp_dealloc);
             NativeCall.Void_Call_1(op, tp);
-
-            return;
         }
 
-        static IntPtr DoInstanceCheck(IntPtr tp, IntPtr args, bool checkType)
+        private static IntPtr DoInstanceCheck(IntPtr tp, IntPtr args, bool checkType)
         {
-            ClassBase cb = GetManagedObject(tp) as ClassBase;
+            var cb = GetManagedObject(tp) as ClassBase;
 
             if (cb == null)
             {
@@ -295,17 +276,23 @@ namespace Python.Runtime
                 return Runtime.PyFalse;
             }
 
-            using (PyList argsObj = new PyList(args))
+            using (var argsObj = new PyList(args))
             {
                 if (argsObj.Length() != 1)
+                {
                     return Exceptions.RaiseTypeError("Invalid parameter count");
+                }
 
                 PyObject arg = argsObj[0];
                 PyObject otherType;
                 if (checkType)
+                {
                     otherType = arg;
+                }
                 else
+                {
                     otherType = arg.GetPythonType();
+                }
 
                 if (Runtime.PyObject_TYPE(otherType.Handle) != PyCLRMetaType)
                 {
@@ -313,7 +300,7 @@ namespace Python.Runtime
                     return Runtime.PyFalse;
                 }
 
-                ClassBase otherCb = GetManagedObject(otherType.Handle) as ClassBase;
+                var otherCb = GetManagedObject(otherType.Handle) as ClassBase;
                 if (otherCb == null)
                 {
                     Runtime.XIncref(Runtime.PyFalse);

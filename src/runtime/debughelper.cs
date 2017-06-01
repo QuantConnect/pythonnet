@@ -1,8 +1,7 @@
 using System;
-using System.Collections;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Diagnostics;
 using System.Threading;
 
 namespace Python.Runtime
@@ -10,7 +9,7 @@ namespace Python.Runtime
     /// <summary>
     /// Debugging helper utilities.
     /// The methods are only executed when the DEBUG flag is set. Otherwise
-    /// they are automagically hidden by the compiler and silently surpressed.
+    /// they are automagically hidden by the compiler and silently suppressed.
     /// </summary>
     internal class DebugUtil
     {
@@ -20,19 +19,18 @@ namespace Python.Runtime
             string result = msg;
             result += " ";
 
-            for (int i = 0; i < args.Length; i++)
+            foreach (IntPtr t in args)
             {
-                if (args[i] == IntPtr.Zero)
+                if (t == IntPtr.Zero)
                 {
                     Console.WriteLine("null arg to print");
                 }
-                IntPtr ob = Runtime.PyObject_Repr(args[i]);
+                IntPtr ob = Runtime.PyObject_Repr(t);
                 result += Runtime.GetManagedString(ob);
                 Runtime.XDecref(ob);
                 result += " ";
             }
             Console.WriteLine(result);
-            return;
         }
 
         [Conditional("DEBUG")]
@@ -50,13 +48,13 @@ namespace Python.Runtime
             Console.WriteLine("Dump type: {0}", name);
 
             op = Marshal.ReadIntPtr(type, TypeOffset.ob_type);
-            DebugUtil.Print("  type: ", op);
+            Print("  type: ", op);
 
             op = Marshal.ReadIntPtr(type, TypeOffset.tp_base);
-            DebugUtil.Print("  base: ", op);
+            Print("  base: ", op);
 
             op = Marshal.ReadIntPtr(type, TypeOffset.tp_bases);
-            DebugUtil.Print("  bases: ", op);
+            Print("  bases: ", op);
 
             //op = Marshal.ReadIntPtr(type, TypeOffset.tp_mro);
             //DebugUtil.Print("  mro: ", op);
@@ -65,9 +63,9 @@ namespace Python.Runtime
             FieldInfo[] slots = typeof(TypeOffset).GetFields();
             int size = IntPtr.Size;
 
-            for (int i = 0; i < slots.Length; i++)
+            for (var i = 0; i < slots.Length; i++)
             {
-                int offset = i*size;
+                int offset = i * size;
                 name = slots[i].Name;
                 op = Marshal.ReadIntPtr(type, offset);
                 Console.WriteLine("  {0}: {1}", name, op);
@@ -83,7 +81,7 @@ namespace Python.Runtime
             }
             else
             {
-                DebugUtil.Print("  dict: ", op);
+                Print("  dict: ", op);
             }
         }
 
@@ -91,11 +89,11 @@ namespace Python.Runtime
         internal static void DumpInst(IntPtr ob)
         {
             IntPtr tp = Runtime.PyObject_TYPE(ob);
-            int sz = (int)Marshal.ReadIntPtr(tp, TypeOffset.tp_basicsize);
+            var sz = (int)Marshal.ReadIntPtr(tp, TypeOffset.tp_basicsize);
 
-            for (int i = 0; i < sz; i += IntPtr.Size)
+            for (var i = 0; i < sz; i += IntPtr.Size)
             {
-                IntPtr pp = new IntPtr(ob.ToInt64() + i);
+                var pp = new IntPtr(ob.ToInt64() + i);
                 IntPtr v = Marshal.ReadIntPtr(pp);
                 Console.WriteLine("offset {0}: {1}", i, v);
             }
@@ -107,7 +105,7 @@ namespace Python.Runtime
         [Conditional("DEBUG")]
         internal static void debug(string msg)
         {
-            StackTrace st = new StackTrace(1, true);
+            var st = new StackTrace(1, true);
             StackFrame sf = st.GetFrame(0);
             MethodBase mb = sf.GetMethod();
             Type mt = mb.DeclaringType;
@@ -116,7 +114,28 @@ namespace Python.Runtime
             string tid = t.GetHashCode().ToString();
             Console.WriteLine("thread {0} : {1}", tid, caller);
             Console.WriteLine("  {0}", msg);
-            return;
+        }
+
+        /// <summary>
+        /// Helper function to inspect/compare managed to native conversions.
+        /// Especially useful when debugging CustomMarshaler.
+        /// </summary>
+        /// <param name="bytes"></param>
+        [Conditional("DEBUG")]
+        public static void PrintHexBytes(byte[] bytes)
+        {
+            if ((bytes == null) || (bytes.Length == 0))
+            {
+                Console.WriteLine("<none>");
+            }
+            else
+            {
+                foreach (byte t in bytes)
+                {
+                    Console.Write("{0:X2} ", t);
+                }
+                Console.WriteLine();
+            }
         }
     }
 }

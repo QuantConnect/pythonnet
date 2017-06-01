@@ -1,14 +1,16 @@
-using System;
+﻿using System;
+using System.Collections;
 using System.Dynamic;
 using System.Linq.Expressions;
-using System.Collections;
 
 namespace Python.Runtime
 {
     /// <summary>
     /// Represents a generic Python object. The methods of this class are
     /// generally equivalent to the Python "abstract object API". See
-    /// http://www.python.org/doc/current/api/object.html for details.
+    /// PY2: https://docs.python.org/2/c-api/object.html
+    /// PY3: https://docs.python.org/3/c-api/object.html
+    /// for details.
     /// </summary>
     public class PyObject : DynamicObject, IDisposable
     {
@@ -18,7 +20,6 @@ namespace Python.Runtime
         /// <summary>
         /// PyObject Constructor
         /// </summary>
-        ///
         /// <remarks>
         /// Creates a new PyObject from an IntPtr object reference. Note that
         /// the PyObject instance assumes ownership of the object reference
@@ -49,7 +50,6 @@ namespace Python.Runtime
         /// <summary>
         /// Handle Property
         /// </summary>
-        ///
         /// <remarks>
         /// Gets the native handle of the underlying Python object. This
         /// value is generally for internal use by the PythonNet runtime.
@@ -63,7 +63,6 @@ namespace Python.Runtime
         /// <summary>
         /// FromManagedObject Method
         /// </summary>
-        ///
         /// <remarks>
         /// Given an arbitrary managed object, return a Python instance that
         /// reflects the managed object.
@@ -84,15 +83,14 @@ namespace Python.Runtime
         /// <summary>
         /// AsManagedObject Method
         /// </summary>
-        ///
         /// <remarks>
         /// Return a managed object of the given type, based on the
         /// value of the Python object.
         /// </remarks>
         public object AsManagedObject(Type t)
         {
-            Object result;
-            if (!Converter.ToManaged(this.obj, t, out result, false))
+            object result;
+            if (!Converter.ToManaged(obj, t, out result, false))
             {
                 throw new InvalidCastException("cannot convert object to target type");
             }
@@ -103,7 +101,6 @@ namespace Python.Runtime
         /// <summary>
         /// Dispose Method
         /// </summary>
-        ///
         /// <remarks>
         /// The Dispose method provides a way to explicitly release the
         /// Python object represented by a PyObject instance. It is a good
@@ -116,7 +113,7 @@ namespace Python.Runtime
         {
             if (!disposed)
             {
-                if (Runtime.Py_IsInitialized() > 0)
+                if (Runtime.Py_IsInitialized() > 0 && !Runtime.IsFinalizing)
                 {
                     IntPtr gs = PythonEngine.AcquireLock();
                     Runtime.XDecref(obj);
@@ -126,7 +123,7 @@ namespace Python.Runtime
                 disposed = true;
             }
         }
-        
+
         public void Dispose()
         {
             Dispose(true);
@@ -137,7 +134,6 @@ namespace Python.Runtime
         /// <summary>
         /// GetPythonType Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns the Python type of the object. This method is equivalent
         /// to the Python expression: type(object).
@@ -152,7 +148,6 @@ namespace Python.Runtime
         /// <summary>
         /// TypeCheck Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns true if the object o is of type typeOrClass or a subtype
         /// of typeOrClass.
@@ -166,34 +161,31 @@ namespace Python.Runtime
         /// <summary>
         /// HasAttr Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns true if the object has an attribute with the given name.
         /// </remarks>
         public bool HasAttr(string name)
         {
-            return (Runtime.PyObject_HasAttrString(obj, name) != 0);
+            return Runtime.PyObject_HasAttrString(obj, name) != 0;
         }
 
 
         /// <summary>
         /// HasAttr Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns true if the object has an attribute with the given name,
         /// where name is a PyObject wrapping a string or unicode object.
         /// </remarks>
         public bool HasAttr(PyObject name)
         {
-            return (Runtime.PyObject_HasAttr(obj, name.obj) != 0);
+            return Runtime.PyObject_HasAttr(obj, name.obj) != 0;
         }
 
 
         /// <summary>
         /// GetAttr Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns the named attribute of the Python object, or raises a
         /// PythonException if the attribute access fails.
@@ -212,7 +204,6 @@ namespace Python.Runtime
         /// <summary>
         /// GetAttr Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns the named attribute of the Python object, or the given
         /// default object if the attribute access fails.
@@ -232,7 +223,6 @@ namespace Python.Runtime
         /// <summary>
         /// GetAttr Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns the named attribute of the Python object or raises a
         /// PythonException if the attribute access fails. The name argument
@@ -252,7 +242,6 @@ namespace Python.Runtime
         /// <summary>
         /// GetAttr Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns the named attribute of the Python object, or the given
         /// default object if the attribute access fails. The name argument
@@ -273,7 +262,6 @@ namespace Python.Runtime
         /// <summary>
         /// SetAttr Method
         /// </summary>
-        ///
         /// <remarks>
         /// Set an attribute of the object with the given name and value. This
         /// method throws a PythonException if the attribute set fails.
@@ -291,7 +279,6 @@ namespace Python.Runtime
         /// <summary>
         /// SetAttr Method
         /// </summary>
-        ///
         /// <remarks>
         /// Set an attribute of the object with the given name and value,
         /// where the name is a Python string or unicode object. This method
@@ -310,7 +297,6 @@ namespace Python.Runtime
         /// <summary>
         /// DelAttr Method
         /// </summary>
-        ///
         /// <remarks>
         /// Delete the named attribute of the Python object. This method
         /// throws a PythonException if the attribute set fails.
@@ -328,7 +314,6 @@ namespace Python.Runtime
         /// <summary>
         /// DelAttr Method
         /// </summary>
-        ///
         /// <remarks>
         /// Delete the named attribute of the Python object, where name is a
         /// PyObject wrapping a Python string or unicode object. This method
@@ -347,7 +332,6 @@ namespace Python.Runtime
         /// <summary>
         /// GetItem Method
         /// </summary>
-        ///
         /// <remarks>
         /// For objects that support the Python sequence or mapping protocols,
         /// return the item at the given object index. This method raises a
@@ -367,7 +351,6 @@ namespace Python.Runtime
         /// <summary>
         /// GetItem Method
         /// </summary>
-        ///
         /// <remarks>
         /// For objects that support the Python sequence or mapping protocols,
         /// return the item at the given string index. This method raises a
@@ -375,7 +358,7 @@ namespace Python.Runtime
         /// </remarks>
         public virtual PyObject GetItem(string key)
         {
-            using (PyString pyKey = new PyString(key))
+            using (var pyKey = new PyString(key))
             {
                 return GetItem(pyKey);
             }
@@ -385,7 +368,6 @@ namespace Python.Runtime
         /// <summary>
         /// GetItem Method
         /// </summary>
-        ///
         /// <remarks>
         /// For objects that support the Python sequence or mapping protocols,
         /// return the item at the given numeric index. This method raises a
@@ -393,9 +375,9 @@ namespace Python.Runtime
         /// </remarks>
         public virtual PyObject GetItem(int index)
         {
-            using (PyInt key = new PyInt(index))
+            using (var key = new PyInt(index))
             {
-                return GetItem((PyObject)key);
+                return GetItem(key);
             }
         }
 
@@ -403,7 +385,6 @@ namespace Python.Runtime
         /// <summary>
         /// SetItem Method
         /// </summary>
-        ///
         /// <remarks>
         /// For objects that support the Python sequence or mapping protocols,
         /// set the item at the given object index to the given value. This
@@ -422,7 +403,6 @@ namespace Python.Runtime
         /// <summary>
         /// SetItem Method
         /// </summary>
-        ///
         /// <remarks>
         /// For objects that support the Python sequence or mapping protocols,
         /// set the item at the given string index to the given value. This
@@ -430,7 +410,7 @@ namespace Python.Runtime
         /// </remarks>
         public virtual void SetItem(string key, PyObject value)
         {
-            using (PyString pyKey = new PyString(key))
+            using (var pyKey = new PyString(key))
             {
                 SetItem(pyKey, value);
             }
@@ -440,7 +420,6 @@ namespace Python.Runtime
         /// <summary>
         /// SetItem Method
         /// </summary>
-        ///
         /// <remarks>
         /// For objects that support the Python sequence or mapping protocols,
         /// set the item at the given numeric index to the given value. This
@@ -448,7 +427,7 @@ namespace Python.Runtime
         /// </remarks>
         public virtual void SetItem(int index, PyObject value)
         {
-            using (PyInt pyindex = new PyInt(index))
+            using (var pyindex = new PyInt(index))
             {
                 SetItem(pyindex, value);
             }
@@ -458,7 +437,6 @@ namespace Python.Runtime
         /// <summary>
         /// DelItem Method
         /// </summary>
-        ///
         /// <remarks>
         /// For objects that support the Python sequence or mapping protocols,
         /// delete the item at the given object index. This method raises a
@@ -477,7 +455,6 @@ namespace Python.Runtime
         /// <summary>
         /// DelItem Method
         /// </summary>
-        ///
         /// <remarks>
         /// For objects that support the Python sequence or mapping protocols,
         /// delete the item at the given string index. This method raises a
@@ -485,7 +462,7 @@ namespace Python.Runtime
         /// </remarks>
         public virtual void DelItem(string key)
         {
-            using (PyString pyKey = new PyString(key))
+            using (var pyKey = new PyString(key))
             {
                 DelItem(pyKey);
             }
@@ -495,7 +472,6 @@ namespace Python.Runtime
         /// <summary>
         /// DelItem Method
         /// </summary>
-        ///
         /// <remarks>
         /// For objects that support the Python sequence or mapping protocols,
         /// delete the item at the given numeric index. This method raises a
@@ -503,7 +479,7 @@ namespace Python.Runtime
         /// </remarks>
         public virtual void DelItem(int index)
         {
-            using (PyInt pyindex = new PyInt(index))
+            using (var pyindex = new PyInt(index))
             {
                 DelItem(pyindex);
             }
@@ -513,7 +489,6 @@ namespace Python.Runtime
         /// <summary>
         /// Length Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns the length for objects that support the Python sequence
         /// protocol, or 0 if the object does not support the protocol.
@@ -533,7 +508,6 @@ namespace Python.Runtime
         /// <summary>
         /// String Indexer
         /// </summary>
-        ///
         /// <remarks>
         /// Provides a shorthand for the string versions of the GetItem and
         /// SetItem methods.
@@ -548,7 +522,6 @@ namespace Python.Runtime
         /// <summary>
         /// PyObject Indexer
         /// </summary>
-        ///
         /// <remarks>
         /// Provides a shorthand for the object versions of the GetItem and
         /// SetItem methods.
@@ -563,7 +536,6 @@ namespace Python.Runtime
         /// <summary>
         /// Numeric Indexer
         /// </summary>
-        ///
         /// <remarks>
         /// Provides a shorthand for the numeric versions of the GetItem and
         /// SetItem methods.
@@ -578,7 +550,6 @@ namespace Python.Runtime
         /// <summary>
         /// GetIterator Method
         /// </summary>
-        ///
         /// <remarks>
         /// Return a new (Python) iterator for the object. This is equivalent
         /// to the Python expression "iter(object)". A PythonException will be
@@ -597,7 +568,6 @@ namespace Python.Runtime
         /// <summary>
         /// GetEnumerator Method
         /// </summary>
-        ///
         /// <remarks>
         /// Return a new PyIter object for the object. This allows any iterable
         /// python object to be iterated over in C#. A PythonException will be
@@ -612,14 +582,13 @@ namespace Python.Runtime
         /// <summary>
         /// Invoke Method
         /// </summary>
-        ///
         /// <remarks>
         /// Invoke the callable object with the given arguments, passed as a
         /// PyObject[]. A PythonException is raised if the invokation fails.
         /// </remarks>
         public PyObject Invoke(params PyObject[] args)
         {
-            PyTuple t = new PyTuple(args);
+            var t = new PyTuple(args);
             IntPtr r = Runtime.PyObject_Call(obj, t.obj, IntPtr.Zero);
             t.Dispose();
             if (r == IntPtr.Zero)
@@ -633,7 +602,6 @@ namespace Python.Runtime
         /// <summary>
         /// Invoke Method
         /// </summary>
-        ///
         /// <remarks>
         /// Invoke the callable object with the given arguments, passed as a
         /// Python tuple. A PythonException is raised if the invokation fails.
@@ -652,14 +620,13 @@ namespace Python.Runtime
         /// <summary>
         /// Invoke Method
         /// </summary>
-        ///
         /// <remarks>
         /// Invoke the callable object with the given positional and keyword
         /// arguments. A PythonException is raised if the invokation fails.
         /// </remarks>
         public PyObject Invoke(PyObject[] args, PyDict kw)
         {
-            PyTuple t = new PyTuple(args);
+            var t = new PyTuple(args);
             IntPtr r = Runtime.PyObject_Call(obj, t.obj, kw != null ? kw.obj : IntPtr.Zero);
             t.Dispose();
             if (r == IntPtr.Zero)
@@ -673,7 +640,6 @@ namespace Python.Runtime
         /// <summary>
         /// Invoke Method
         /// </summary>
-        ///
         /// <remarks>
         /// Invoke the callable object with the given positional and keyword
         /// arguments. A PythonException is raised if the invokation fails.
@@ -692,7 +658,6 @@ namespace Python.Runtime
         /// <summary>
         /// InvokeMethod Method
         /// </summary>
-        ///
         /// <remarks>
         /// Invoke the named method of the object with the given arguments.
         /// A PythonException is raised if the invokation is unsuccessful.
@@ -709,7 +674,6 @@ namespace Python.Runtime
         /// <summary>
         /// InvokeMethod Method
         /// </summary>
-        ///
         /// <remarks>
         /// Invoke the named method of the object with the given arguments.
         /// A PythonException is raised if the invokation is unsuccessful.
@@ -726,7 +690,6 @@ namespace Python.Runtime
         /// <summary>
         /// InvokeMethod Method
         /// </summary>
-        ///
         /// <remarks>
         /// Invoke the named method of the object with the given arguments
         /// and keyword arguments. Keyword args are passed as a PyDict object.
@@ -744,7 +707,6 @@ namespace Python.Runtime
         /// <summary>
         /// InvokeMethod Method
         /// </summary>
-        ///
         /// <remarks>
         /// Invoke the named method of the object with the given arguments
         /// and keyword arguments. Keyword args are passed as a PyDict object.
@@ -762,7 +724,6 @@ namespace Python.Runtime
         /// <summary>
         /// IsInstance Method
         /// </summary>
-        ///
         /// <remarks>
         /// Return true if the object is an instance of the given Python type
         /// or class. This method always succeeds.
@@ -775,14 +736,13 @@ namespace Python.Runtime
                 Runtime.PyErr_Clear();
                 return false;
             }
-            return (r != 0);
+            return r != 0;
         }
 
 
         /// <summary>
         /// IsSubclass Method
         /// </summary>
-        ///
         /// <remarks>
         /// Return true if the object is identical to or derived from the
         /// given Python type or class. This method always succeeds.
@@ -795,28 +755,26 @@ namespace Python.Runtime
                 Runtime.PyErr_Clear();
                 return false;
             }
-            return (r != 0);
+            return r != 0;
         }
 
 
         /// <summary>
         /// IsCallable Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns true if the object is a callable object. This method
         /// always succeeds.
         /// </remarks>
         public bool IsCallable()
         {
-            return (Runtime.PyCallable_Check(obj) != 0);
+            return Runtime.PyCallable_Check(obj) != 0;
         }
 
 
         /// <summary>
         /// IsIterable Method
         /// </summary>
-        ///
         /// <remarks>
         /// Returns true if the object is iterable object. This method
         /// always succeeds.
@@ -830,21 +788,19 @@ namespace Python.Runtime
         /// <summary>
         /// IsTrue Method
         /// </summary>
-        ///
         /// <remarks>
         /// Return true if the object is true according to Python semantics.
         /// This method always succeeds.
         /// </remarks>
         public bool IsTrue()
         {
-            return (Runtime.PyObject_IsTrue(obj) != 0);
+            return Runtime.PyObject_IsTrue(obj) != 0;
         }
 
 
         /// <summary>
         /// Dir Method
         /// </summary>
-        ///
         /// <remarks>
         /// Return a list of the names of the attributes of the object. This
         /// is equivalent to the Python expression "dir(object)".
@@ -863,7 +819,6 @@ namespace Python.Runtime
         /// <summary>
         /// Repr Method
         /// </summary>
-        ///
         /// <remarks>
         /// Return a string representation of the object. This method is
         /// the managed equivalent of the Python expression "repr(object)".
@@ -880,7 +835,6 @@ namespace Python.Runtime
         /// <summary>
         /// ToString Method
         /// </summary>
-        ///
         /// <remarks>
         /// Return the string representation of the object. This method is
         /// the managed equivalent of the Python expression "str(object)".
@@ -897,7 +851,6 @@ namespace Python.Runtime
         /// <summary>
         /// Equals Method
         /// </summary>
-        ///
         /// <remarks>
         /// Return true if this object is equal to the given object. This
         /// method is based on Python equality semantics.
@@ -917,14 +870,13 @@ namespace Python.Runtime
             {
                 throw new PythonException();
             }
-            return (r == 0);
+            return r == 0;
         }
 
 
         /// <summary>
         /// GetHashCode Method
         /// </summary>
-        ///
         /// <remarks>
         /// Return a hashcode based on the Python object. This returns the
         /// hash as computed by Python, equivalent to the Python expression
@@ -935,59 +887,118 @@ namespace Python.Runtime
             return Runtime.PyObject_Hash(obj).ToInt32();
         }
 
+
+        public long Refcount
+        {
+            get
+            {
+                return Runtime.Refcount(obj);
+            }
+        }
+
+
         public override bool TryGetMember(GetMemberBinder binder, out object result)
         {
-            if (this.HasAttr(binder.Name))
-            {
-                result = CheckNone(this.GetAttr(binder.Name));
-                return true;
-            }
-            else
-                return base.TryGetMember(binder, out result);
+            result = CheckNone(this.GetAttr(binder.Name));
+            return true;
         }
 
         public override bool TrySetMember(SetMemberBinder binder, object value)
         {
-            if (this.HasAttr(binder.Name))
+            IntPtr ptr = Converter.ToPython(value, value?.GetType());
+            int r = Runtime.PyObject_SetAttrString(obj, binder.Name, ptr);
+            if (r < 0)
             {
-                this.SetAttr(binder.Name, (PyObject)value);
-                return true;
+                throw new PythonException();
             }
-            else
-                return base.TrySetMember(binder, value);
+            Runtime.XDecref(ptr);
+            return true;
+        }
+
+        private void GetArgs(object[] inargs, CallInfo callInfo, out PyTuple args, out PyDict kwargs)
+        {
+            if (callInfo == null || callInfo.ArgumentNames.Count == 0)
+            {
+                GetArgs(inargs, out args, out kwargs);
+                return;
+            }
+
+            // Support for .net named arguments
+            var namedArgumentCount = callInfo.ArgumentNames.Count;
+            var regularArgumentCount = callInfo.ArgumentCount - namedArgumentCount;
+
+            var argTuple = Runtime.PyTuple_New(regularArgumentCount);
+            for (int i = 0; i < regularArgumentCount; ++i)
+            {
+                AddArgument(argTuple, i, inargs[i]);
+            }
+            args = new PyTuple(argTuple);
+
+            var namedArgs = new object[namedArgumentCount * 2];
+            for (int i = 0; i < namedArgumentCount; ++i)
+            {
+                namedArgs[i * 2] = callInfo.ArgumentNames[i];
+                namedArgs[i * 2 + 1] = inargs[regularArgumentCount + i];
+            }
+            kwargs = Py.kw(namedArgs);
         }
 
         private void GetArgs(object[] inargs, out PyTuple args, out PyDict kwargs)
         {
             int arg_count;
-            for (arg_count = 0; arg_count < inargs.Length && !(inargs[arg_count] is Py.KeywordArguments); ++arg_count) ;
-            IntPtr argtuple = Runtime.PyTuple_New(arg_count);
-            for (int i = 0; i < arg_count; i++)
+            for (arg_count = 0; arg_count < inargs.Length && !(inargs[arg_count] is Py.KeywordArguments); ++arg_count)
             {
-                IntPtr ptr;
-                if (inargs[i] is PyObject)
-                {
-                    ptr = ((PyObject)inargs[i]).Handle;
-                    Runtime.XIncref(ptr);
-                }
-                else
-                {
-                    ptr = Converter.ToPython(inargs[i], inargs[i]?.GetType());
-                }
-                if (Runtime.PyTuple_SetItem(argtuple, i, ptr) < 0)
-                    throw new PythonException();
+                ;
+            }
+            IntPtr argtuple = Runtime.PyTuple_New(arg_count);
+            for (var i = 0; i < arg_count; i++)
+            {
+                AddArgument(argtuple, i, inargs[i]);
             }
             args = new PyTuple(argtuple);
+
             kwargs = null;
             for (int i = arg_count; i < inargs.Length; i++)
             {
                 if (!(inargs[i] is Py.KeywordArguments))
+                {
                     throw new ArgumentException("Keyword arguments must come after normal arguments.");
+                }
                 if (kwargs == null)
+                {
                     kwargs = (Py.KeywordArguments)inargs[i];
+                }
                 else
+                {
                     kwargs.Update((Py.KeywordArguments)inargs[i]);
+                }
             }
+        }
+
+        private static void AddArgument(IntPtr argtuple, int i, object target)
+        {
+            IntPtr ptr = GetPythonObject(target);
+
+            if (Runtime.PyTuple_SetItem(argtuple, i, ptr) < 0)
+            {
+                throw new PythonException();
+            }
+        }
+
+        private static IntPtr GetPythonObject(object target)
+        {
+            IntPtr ptr;
+            if (target is PyObject)
+            {
+                ptr = ((PyObject)target).Handle;
+                Runtime.XIncref(ptr);
+            }
+            else
+            {
+                ptr = Converter.ToPython(target, target?.GetType());
+            }
+
+            return ptr;
         }
 
         public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
@@ -998,20 +1009,26 @@ namespace Python.Runtime
                 PyDict kwargs = null;
                 try
                 {
-                    GetArgs(args, out pyargs, out kwargs);
+                    GetArgs(args, binder.CallInfo, out pyargs, out kwargs);
                     result = CheckNone(InvokeMethod(binder.Name, pyargs, kwargs));
                 }
                 finally
                 {
                     if (null != pyargs)
+                    {
                         pyargs.Dispose();
+                    }
                     if (null != kwargs)
+                    {
                         kwargs.Dispose();
+                    }
                 }
                 return true;
             }
             else
+            {
                 return base.TryInvokeMember(binder, args, out result);
+            }
         }
 
         public override bool TryInvoke(InvokeBinder binder, object[] args, out object result)
@@ -1022,20 +1039,26 @@ namespace Python.Runtime
                 PyDict kwargs = null;
                 try
                 {
-                    GetArgs(args, out pyargs, out kwargs);
+                    GetArgs(args, binder.CallInfo, out pyargs, out kwargs);
                     result = CheckNone(Invoke(pyargs, kwargs));
                 }
                 finally
                 {
                     if (null != pyargs)
+                    {
                         pyargs.Dispose();
+                    }
                     if (null != kwargs)
+                    {
                         kwargs.Dispose();
+                    }
                 }
                 return true;
             }
             else
+            {
                 return base.TryInvoke(binder, args, out result);
+            }
         }
 
         public override bool TryConvert(ConvertBinder binder, out object result)
@@ -1043,11 +1066,13 @@ namespace Python.Runtime
             return Converter.ToManaged(this.obj, binder.Type, out result, false);
         }
 
-        public override bool TryBinaryOperation(BinaryOperationBinder binder, Object arg, out Object result)
+        public override bool TryBinaryOperation(BinaryOperationBinder binder, object arg, out object result)
         {
             IntPtr res;
             if (!(arg is PyObject))
+            {
                 arg = arg.ToPython();
+            }
 
             switch (binder.Operation)
             {
@@ -1152,7 +1177,7 @@ namespace Python.Runtime
             return pyObj;
         }
 
-        public override bool TryUnaryOperation(UnaryOperationBinder binder, out Object result)
+        public override bool TryUnaryOperation(UnaryOperationBinder binder, out object result)
         {
             int r;
             IntPtr res;

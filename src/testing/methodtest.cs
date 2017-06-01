@@ -1,13 +1,11 @@
 using System;
 using System.IO;
-using System.Collections.Generic;
 
 namespace Python.Test
 {
-    //========================================================================
-    // Supports units tests for method access.
-    //========================================================================
-
+    /// <summary>
+    /// Supports units tests for method access.
+    /// </summary>
     public class MethodTest
     {
         public MethodTest()
@@ -55,10 +53,9 @@ namespace Python.Test
         }
 
 
-        //===================================================================
-        // Methods to support specific argument conversion unit tests
-        //===================================================================
-
+        /// <summary>
+        /// Methods to support specific argument conversion unit tests
+        /// </summary>
         public TypeCode TestEnumConversion(TypeCode v)
         {
             return v;
@@ -104,8 +101,7 @@ namespace Python.Test
             return args;
         }
 
-        public static int[] TestTwoArgWithParams(string s, string x,
-            params int[] args)
+        public static int[] TestTwoArgWithParams(string s, string x, params int[] args)
         {
             return args;
         }
@@ -118,6 +114,71 @@ namespace Python.Test
         public static int[] TestOverloadedParams(int v, int[] args)
         {
             return args;
+        }
+
+        public static string TestOverloadedNoObject(int i)
+        {
+            return "Got int";
+        }
+
+        public static string TestOverloadedObject(int i)
+        {
+            return "Got int";
+        }
+
+        public static string TestOverloadedObject(object o)
+        {
+            return "Got object";
+        }
+
+        public static string TestOverloadedObjectTwo(int a, int b)
+        {
+            return "Got int-int";
+        }
+
+        public static string TestOverloadedObjectTwo(string a, string b)
+        {
+            return "Got string-string";
+        }
+
+        public static string TestOverloadedObjectTwo(string a, int b)
+        {
+            return "Got string-int";
+        }
+
+        public static string TestOverloadedObjectTwo(string a, object b)
+        {
+            return "Got string-object";
+        }
+
+        public static string TestOverloadedObjectTwo(int a, object b)
+        {
+            return "Got int-object";
+        }
+
+        public static string TestOverloadedObjectTwo(object a, int b)
+        {
+            return "Got object-int";
+        }
+
+        public static string TestOverloadedObjectTwo(object a, object b)
+        {
+            return "Got object-object";
+        }
+
+        public static string TestOverloadedObjectTwo(int a, string b)
+        {
+            return "Got int-string";
+        }
+
+        public static string TestOverloadedObjectThree(object a, int b)
+        {
+            return "Got object-int";
+        }
+
+        public static string TestOverloadedObjectThree(int a, object b)
+        {
+            return "Got int-object";
         }
 
         public static bool TestStringOutParams(string s, out string s1)
@@ -156,13 +217,13 @@ namespace Python.Test
 
         public static bool TestObjectOutParams(object o, out object o1)
         {
-            o1 = new System.Exception("test");
+            o1 = new Exception("test");
             return true;
         }
 
         public static bool TestObjectRefParams(object o, ref object o1)
         {
-            o1 = new System.Exception("test");
+            o1 = new Exception("test");
             return true;
         }
 
@@ -386,218 +447,182 @@ namespace Python.Test
             return v;
         }
 
-        public static GenericWrapper<bool> Overloaded(
-            GenericWrapper<bool> v)
+        public static GenericWrapper<bool> Overloaded(GenericWrapper<bool> v)
         {
             return v;
         }
 
-        public static GenericWrapper<byte> Overloaded(
-            GenericWrapper<byte> v)
+        public static GenericWrapper<byte> Overloaded(GenericWrapper<byte> v)
         {
             return v;
         }
 
-        public static GenericWrapper<sbyte> Overloaded(
-            GenericWrapper<sbyte> v)
+        public static GenericWrapper<sbyte> Overloaded(GenericWrapper<sbyte> v)
         {
             return v;
         }
 
-        public static GenericWrapper<char> Overloaded(
-            GenericWrapper<char> v)
+        public static GenericWrapper<char> Overloaded(GenericWrapper<char> v)
         {
             return v;
         }
 
-        public static GenericWrapper<short> Overloaded(
-            GenericWrapper<short> v)
+        public static GenericWrapper<short> Overloaded(GenericWrapper<short> v)
         {
             return v;
         }
 
-        public static GenericWrapper<int> Overloaded(
-            GenericWrapper<int> v)
+        public static GenericWrapper<int> Overloaded(GenericWrapper<int> v)
         {
             return v;
         }
 
-        public static GenericWrapper<long> Overloaded(
-            GenericWrapper<long> v)
+        public static GenericWrapper<long> Overloaded(GenericWrapper<long> v)
         {
             return v;
         }
 
-        public static GenericWrapper<ushort> Overloaded(
-            GenericWrapper<ushort> v)
+        public static GenericWrapper<ushort> Overloaded(GenericWrapper<ushort> v)
         {
             return v;
         }
 
-        public static GenericWrapper<uint> Overloaded(
-            GenericWrapper<uint> v)
+        public static GenericWrapper<uint> Overloaded(GenericWrapper<uint> v)
         {
             return v;
         }
 
-        public static GenericWrapper<ulong> Overloaded(
-            GenericWrapper<ulong> v)
+        public static GenericWrapper<ulong> Overloaded(GenericWrapper<ulong> v)
         {
             return v;
         }
 
-        public static GenericWrapper<float> Overloaded(
-            GenericWrapper<float> v)
+        public static GenericWrapper<float> Overloaded(GenericWrapper<float> v)
         {
             return v;
         }
 
-        public static GenericWrapper<double> Overloaded(
-            GenericWrapper<double> v)
+        public static GenericWrapper<double> Overloaded(GenericWrapper<double> v)
         {
             return v;
         }
 
-        public static GenericWrapper<decimal> Overloaded(
-            GenericWrapper<decimal> v)
+        public static GenericWrapper<decimal> Overloaded(GenericWrapper<decimal> v)
         {
             return v;
         }
 
-        public static GenericWrapper<string> Overloaded(
-            GenericWrapper<string> v)
+        public static GenericWrapper<string> Overloaded(GenericWrapper<string> v)
         {
             return v;
         }
 
-        public static GenericWrapper<ShortEnum> Overloaded(
-            GenericWrapper<ShortEnum> v)
+        public static GenericWrapper<ShortEnum> Overloaded(GenericWrapper<ShortEnum> v)
         {
             return v;
         }
 
-        public static GenericWrapper<object> Overloaded(
-            GenericWrapper<object> v)
+        public static GenericWrapper<object> Overloaded(GenericWrapper<object> v)
         {
             return v;
         }
 
-        public static GenericWrapper<InterfaceTest> Overloaded(
-            GenericWrapper<InterfaceTest> v)
+        public static GenericWrapper<InterfaceTest> Overloaded(GenericWrapper<InterfaceTest> v)
         {
             return v;
         }
 
-        public static GenericWrapper<ISayHello1> Overloaded(
-            GenericWrapper<ISayHello1> v)
+        public static GenericWrapper<ISayHello1> Overloaded(GenericWrapper<ISayHello1> v)
         {
             return v;
         }
 
-        public static GenericWrapper<bool>[] Overloaded(
-            GenericWrapper<bool>[] v)
+        public static GenericWrapper<bool>[] Overloaded(GenericWrapper<bool>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<byte>[] Overloaded(
-            GenericWrapper<byte>[] v)
+        public static GenericWrapper<byte>[] Overloaded(GenericWrapper<byte>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<sbyte>[] Overloaded(
-            GenericWrapper<sbyte>[] v)
+        public static GenericWrapper<sbyte>[] Overloaded(GenericWrapper<sbyte>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<char>[] Overloaded(
-            GenericWrapper<char>[] v)
+        public static GenericWrapper<char>[] Overloaded(GenericWrapper<char>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<short>[] Overloaded(
-            GenericWrapper<short>[] v)
+        public static GenericWrapper<short>[] Overloaded(GenericWrapper<short>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<int>[] Overloaded(
-            GenericWrapper<int>[] v)
+        public static GenericWrapper<int>[] Overloaded(GenericWrapper<int>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<long>[] Overloaded(
-            GenericWrapper<long>[] v)
+        public static GenericWrapper<long>[] Overloaded(GenericWrapper<long>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<ushort>[] Overloaded(
-            GenericWrapper<ushort>[] v)
+        public static GenericWrapper<ushort>[] Overloaded(GenericWrapper<ushort>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<uint>[] Overloaded(
-            GenericWrapper<uint>[] v)
+        public static GenericWrapper<uint>[] Overloaded(GenericWrapper<uint>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<ulong>[] Overloaded(
-            GenericWrapper<ulong>[] v)
+        public static GenericWrapper<ulong>[] Overloaded(GenericWrapper<ulong>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<float>[] Overloaded(
-            GenericWrapper<float>[] v)
+        public static GenericWrapper<float>[] Overloaded(GenericWrapper<float>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<double>[] Overloaded(
-            GenericWrapper<double>[] v)
+        public static GenericWrapper<double>[] Overloaded(GenericWrapper<double>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<decimal>[] Overloaded(
-            GenericWrapper<decimal>[] v)
+        public static GenericWrapper<decimal>[] Overloaded(GenericWrapper<decimal>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<string>[] Overloaded(
-            GenericWrapper<string>[] v)
+        public static GenericWrapper<string>[] Overloaded(GenericWrapper<string>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<ShortEnum>[] Overloaded(
-            GenericWrapper<ShortEnum>[] v)
+        public static GenericWrapper<ShortEnum>[] Overloaded(GenericWrapper<ShortEnum>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<object>[] Overloaded(
-            GenericWrapper<object>[] v)
+        public static GenericWrapper<object>[] Overloaded(GenericWrapper<object>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<InterfaceTest>[] Overloaded(
-            GenericWrapper<InterfaceTest>[] v)
+        public static GenericWrapper<InterfaceTest>[] Overloaded(GenericWrapper<InterfaceTest>[] v)
         {
             return v;
         }
 
-        public static GenericWrapper<ISayHello1>[] Overloaded(
-            GenericWrapper<ISayHello1>[] v)
+        public static GenericWrapper<ISayHello1>[] Overloaded(GenericWrapper<ISayHello1>[] v)
         {
             return v;
         }
@@ -615,6 +640,16 @@ namespace Python.Test
         public static int Overloaded(int i, string s)
         {
             return i;
+        }
+
+        public static string CaseSensitive()
+        {
+            return "CaseSensitive";
+        }
+
+        public static string Casesensitive()
+        {
+            return "Casesensitive";
         }
     }
 

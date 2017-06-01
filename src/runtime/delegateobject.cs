@@ -1,6 +1,4 @@
 using System;
-using System.Reflection;
-using System.Runtime.InteropServices;
 
 namespace Python.Runtime
 {
@@ -12,7 +10,7 @@ namespace Python.Runtime
     /// </summary>
     internal class DelegateObject : ClassBase
     {
-        MethodBinder binder;
+        private MethodBinder binder;
 
         internal DelegateObject(Type tp) : base(tp)
         {
@@ -20,17 +18,16 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // Given a PyObject pointer to an instance of a delegate type, return
-        // the true managed delegate the Python object represents (or null).
-        //====================================================================
-
+        /// <summary>
+        /// Given a PyObject pointer to an instance of a delegate type, return
+        /// the true managed delegate the Python object represents (or null).
+        /// </summary>
         private static Delegate GetTrueDelegate(IntPtr op)
         {
-            CLRObject o = GetManagedObject(op) as CLRObject;
+            var o = GetManagedObject(op) as CLRObject;
             if (o != null)
             {
-                Delegate d = o.inst as Delegate;
+                var d = o.inst as Delegate;
                 return d;
             }
             return null;
@@ -43,22 +40,20 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // DelegateObject __new__ implementation. The result of this is a new
-        // PyObject whose type is DelegateObject and whose ob_data is a handle
-        // to an actual delegate instance. The method wrapped by the actual
-        // delegate instance belongs to an object generated to relay the call
-        // to the Python callable passed in.
-        //====================================================================
-
+        /// <summary>
+        /// DelegateObject __new__ implementation. The result of this is a new
+        /// PyObject whose type is DelegateObject and whose ob_data is a handle
+        /// to an actual delegate instance. The method wrapped by the actual
+        /// delegate instance belongs to an object generated to relay the call
+        /// to the Python callable passed in.
+        /// </summary>
         public static IntPtr tp_new(IntPtr tp, IntPtr args, IntPtr kw)
         {
-            DelegateObject self = (DelegateObject)GetManagedObject(tp);
+            var self = (DelegateObject)GetManagedObject(tp);
 
             if (Runtime.PyTuple_Size(args) != 1)
             {
-                string message = "class takes exactly one argument";
-                return Exceptions.RaiseTypeError(message);
+                return Exceptions.RaiseTypeError("class takes exactly one argument");
             }
 
             IntPtr method = Runtime.PyTuple_GetItem(args, 0);
@@ -73,23 +68,22 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // Implements __call__ for reflected delegate types.
-        //====================================================================
-
+        /// <summary>
+        /// Implements __call__ for reflected delegate types.
+        /// </summary>
         public static IntPtr tp_call(IntPtr ob, IntPtr args, IntPtr kw)
         {
-            // todo: add fast type check!
+            // TODO: add fast type check!
             IntPtr pytype = Runtime.PyObject_TYPE(ob);
-            DelegateObject self = (DelegateObject)GetManagedObject(pytype);
-            CLRObject o = GetManagedObject(ob) as CLRObject;
+            var self = (DelegateObject)GetManagedObject(pytype);
+            var o = GetManagedObject(ob) as CLRObject;
 
             if (o == null)
             {
                 return Exceptions.RaiseTypeError("invalid argument");
             }
 
-            Delegate d = o.inst as Delegate;
+            var d = o.inst as Delegate;
 
             if (d == null)
             {
@@ -99,11 +93,12 @@ namespace Python.Runtime
         }
 
 
-        //====================================================================
-        // Implements __cmp__ for reflected delegate types.
-        //====================================================================
-#if (PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
-        public static new IntPtr tp_richcompare(IntPtr ob, IntPtr other, int op) {
+        /// <summary>
+        /// Implements __cmp__ for reflected delegate types.
+        /// </summary>
+#if PYTHON3 // TODO: Doesn't PY2 implement tp_richcompare too?
+        public new static IntPtr tp_richcompare(IntPtr ob, IntPtr other, int op)
+        {
             if (op != Runtime.Py_EQ && op != Runtime.Py_NE)
             {
                 Runtime.XIncref(Runtime.PyNotImplemented);
@@ -131,16 +126,12 @@ namespace Python.Runtime
             Runtime.XIncref(pyfalse);
             return pyfalse;
         }
-#else
-        public static new int tp_compare(IntPtr ob, IntPtr other)
+#elif PYTHON2
+        public static int tp_compare(IntPtr ob, IntPtr other)
         {
             Delegate d1 = GetTrueDelegate(ob);
             Delegate d2 = GetTrueDelegate(other);
-            if (d1 == d2)
-            {
-                return 0;
-            }
-            return -1;
+            return d1 == d2 ? 0 : -1;
         }
 #endif
     }

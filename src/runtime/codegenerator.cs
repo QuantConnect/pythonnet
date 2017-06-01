@@ -1,10 +1,7 @@
 using System;
-using System.Threading;
-using System.Runtime.InteropServices;
-using System.Runtime.CompilerServices;
-using System.Collections;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Threading;
 
 namespace Python.Runtime
 {
@@ -16,36 +13,33 @@ namespace Python.Runtime
     /// </summary>
     internal class CodeGenerator
     {
-        AssemblyBuilder aBuilder;
-        ModuleBuilder mBuilder;
+        private AssemblyBuilder aBuilder;
+        private ModuleBuilder mBuilder;
 
         internal CodeGenerator()
         {
-            AssemblyName aname = new AssemblyName();
-            aname.Name = "__CodeGenerator_Assembly";
-            AssemblyBuilderAccess aa = AssemblyBuilderAccess.Run;
+            var aname = new AssemblyName { Name = "__CodeGenerator_Assembly" };
+            var aa = AssemblyBuilderAccess.Run;
 
             aBuilder = Thread.GetDomain().DefineDynamicAssembly(aname, aa);
             mBuilder = aBuilder.DefineDynamicModule("__CodeGenerator_Module");
         }
 
-        //====================================================================
-        // DefineType is a shortcut utility to get a new TypeBuilder.
-        //====================================================================
-
+        /// <summary>
+        /// DefineType is a shortcut utility to get a new TypeBuilder.
+        /// </summary>
         internal TypeBuilder DefineType(string name)
         {
-            TypeAttributes attrs = TypeAttributes.Public;
+            var attrs = TypeAttributes.Public;
             return mBuilder.DefineType(name, attrs);
         }
 
-        //====================================================================
-        // DefineType is a shortcut utility to get a new TypeBuilder.
-        //====================================================================
-
+        /// <summary>
+        /// DefineType is a shortcut utility to get a new TypeBuilder.
+        /// </summary>
         internal TypeBuilder DefineType(string name, Type basetype)
         {
-            TypeAttributes attrs = TypeAttributes.Public;
+            var attrs = TypeAttributes.Public;
             return mBuilder.DefineType(name, attrs, basetype);
         }
     }

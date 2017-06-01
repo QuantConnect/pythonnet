@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 
 namespace Python.Runtime
 {
@@ -15,27 +14,22 @@ namespace Python.Runtime
         {
         }
 
-        //====================================================================
-        // Implements __new__ for reflected generic types.
-        //====================================================================
-
+        /// <summary>
+        /// Implements __new__ for reflected generic types.
+        /// </summary>
         public static IntPtr tp_new(IntPtr tp, IntPtr args, IntPtr kw)
         {
-            Exceptions.SetError(Exceptions.TypeError,
-                "cannot instantiate an open generic type"
-                );
+            Exceptions.SetError(Exceptions.TypeError, "cannot instantiate an open generic type");
             return IntPtr.Zero;
         }
 
 
-        //====================================================================
-        // Implements __call__ for reflected generic types.
-        //====================================================================
-
+        /// <summary>
+        /// Implements __call__ for reflected generic types.
+        /// </summary>
         public static IntPtr tp_call(IntPtr ob, IntPtr args, IntPtr kw)
         {
-            Exceptions.SetError(Exceptions.TypeError,
-                "object is not callable");
+            Exceptions.SetError(Exceptions.TypeError, "object is not callable");
             return IntPtr.Zero;
         }
     }

@@ -1,0 +1,35 @@
+{
+  "maxReviewers": 5,
+  "numFilesToCheck": 10,
+  "message": "@pullRequester, thanks! @reviewers, please review this.",
+  "alwaysNotifyForPaths": [
+    {
+      "name": "ghuser",
+      "files": ["src/js/**/*.js"],
+      "skipTeamPrs": false
+    }
+  ],
+  "fallbackNotifyForPaths": [
+    {
+      "name": "ghuser",
+      "files": ["src/js/**/*.js"],
+      "skipTeamPrs": false
+    }
+  ],
+  "findPotentialReviewers": true,
+  "fileBlacklist": ["*.md"],
+  "userBlacklist": [],
+  "userBlacklistForPR": [],
+  "requiredOrgs": [],
+  "actions": ["opened"],
+  "skipAlreadyAssignedPR": false,
+  "skipAlreadyMentionedPR": false,
+  "assignToReviewer": false,
+  "createReviewRequest": false,
+  "createComment": true,
+  "skipTitle": "",
+  "withLabel": "",
+  "delayed": false,
+  "delayedUntil": "3d",
+  "skipCollaboratorPR": false
+}
