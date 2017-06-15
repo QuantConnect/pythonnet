@@ -27,6 +27,7 @@
 -   Joe Frayne ([@jfrayne](https://github.com/jfrayne))
 -   John Burnett ([@johnburnett](https://github.com/johnburnett))
 -   Luke Stratman ([@lstratman](https://github.com/lstratman))
+-   Konstantin Posudevskiy ([@konstantin-posudevskiy](https://github.com/konstantin-posudevskiy))
 -   Matthias Dittrich ([@matthid](https://github.com/matthid))
 -   Patrick Stewart ([@patstew](https://github.com/patstew))
 -   Raphael Nestler ([@rnestler](https://github.com/rnestler))
@@ -43,3 +44,5 @@
 -   ([@rico-chet](https://github.com/rico-chet))
 -   ([@rmadsen-ks](https://github.com/rmadsen-ks))
 -   ([@stonebig](https://github.com/stonebig))
+-   ([@testrunner123](https://github.com/testrunner123))
+
