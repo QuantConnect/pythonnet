@@ -178,7 +178,7 @@ class BuildExtPythonnet(build_ext.build_ext):
                     enable_shared = False
 
             if not enable_shared:
-                pass#defines.append("PYTHON_WITHOUT_ENABLE_SHARED")
+                defines.append("PYTHON_WITHOUT_ENABLE_SHARED")
 
         if hasattr(sys, "abiflags"):
             if "d" in sys.abiflags:
