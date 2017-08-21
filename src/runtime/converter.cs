@@ -33,6 +33,7 @@ namespace Python.Runtime
         static IntPtr decimalCtor;
         static IntPtr dateTimeCtor;
         static IntPtr timeSpanCtor;
+        static IntPtr tzInfoCtor;
 
         static Converter()
         {
@@ -63,6 +64,22 @@ namespace Python.Runtime
 
             timeSpanCtor = Runtime.PyObject_GetAttrString(dateTimeMod, "timedelta");
             if (timeSpanCtor == null) throw new PythonException();
+
+            IntPtr tzInfoMod = PythonEngine.ModuleFromString("custom_tzinfo",
+                    "from datetime import timedelta, tzinfo\n" +
+                    "class GMT(tzinfo):\n" +
+                    "    def __init__(self, hours, minutes):\n" +
+                    "        self.hours = hours\n" +
+                    "        self.minutes = minutes\n" +
+                    "    def utcoffset(self, dt):\n" +
+                    "        return timedelta(hours=self.hours, minutes=self.minutes)\n" +
+                    "    def tzname(self, dt):\n" +
+                    "        return \"GMT {0:00}:{1:00}\".format(self.hours, self.minutes)\n" +
+                    "    def dst (self, dt):\n" +
+                    "        return timedelta(0)\n").Handle;
+
+            tzInfoCtor = Runtime.PyObject_GetAttrString(tzInfoMod, "GMT");
+            if (tzInfoCtor == null) throw new PythonException();
         }
 
 
@@ -260,8 +277,7 @@ namespace Python.Runtime
 
                 case TypeCode.DateTime:
                     var datetime = (DateTime)value;
-                    var offset = DateTimeOffset.Now.Offset;
-
+                        
                     IntPtr dateTimeArgs = Runtime.PyTuple_New(8);
                     Runtime.PyTuple_SetItem(dateTimeArgs, 0, Runtime.PyInt_FromInt32(datetime.Year));
                     Runtime.PyTuple_SetItem(dateTimeArgs, 1, Runtime.PyInt_FromInt32(datetime.Month));
@@ -270,12 +286,10 @@ namespace Python.Runtime
                     Runtime.PyTuple_SetItem(dateTimeArgs, 4, Runtime.PyInt_FromInt32(datetime.Minute));
                     Runtime.PyTuple_SetItem(dateTimeArgs, 5, Runtime.PyInt_FromInt32(datetime.Second));
                     Runtime.PyTuple_SetItem(dateTimeArgs, 6, Runtime.PyInt_FromInt32(datetime.Millisecond));
-                    Runtime.PyTuple_SetItem(dateTimeArgs, 7,
-                        datetime.Kind == DateTimeKind.Local ? TzInfo(offset.Hours, offset.Minutes) :
-                        datetime.Kind == DateTimeKind.Utc ? TzInfo() : Runtime.PyNone);
-
+                    Runtime.PyTuple_SetItem(dateTimeArgs, 7, TzInfo(datetime.Kind));
+                        
                     return Runtime.PyObject_CallObject(dateTimeCtor, dateTimeArgs);
-
+                    
                 default:
                     if (value is IEnumerable)
                     {
@@ -297,35 +311,17 @@ namespace Python.Runtime
             }
         }
 
-        static IntPtr TzInfo(int hours = 0, int minutes = 0)
+        static IntPtr TzInfo(DateTimeKind kind)
         {
-            string code = string.Format(
-                    "from datetime import timedelta, tzinfo\n" +
-                    "class GMT{0:00}{1:00}(tzinfo):\n" +
-                    "    def utcoffset(self, dt):\n" +
-                    "        return timedelta(hours={0:00}, minutes={1:00})\n" +
-                    "    def tzname(self, dt):\n" +
-                    "        return \"GMT {0:00}:{1:00}\"\n" +
-                    "    def dst (self, dt):\n" +
-                    "        return timedelta(0)\n" +
-                    "tz=GMT{0:00}{1:00}()",
-
-                    hours, minutes);
-
-            IntPtr gs = PythonEngine.AcquireLock();
-            try
-            {
-                var mod = PythonEngine.ModuleFromString("custom_tzinfo", code);
-                return mod == null ? Runtime.PyNone : mod.GetAttr("tz").Handle;
-            }
-            catch (Exception)
+            if (kind == DateTimeKind.Unspecified)
             {
                 return Runtime.PyNone;
             }
-            finally
-            {
-                PythonEngine.ReleaseLock(gs);
-            }
+            var offset = kind == DateTimeKind.Local ? DateTimeOffset.Now.Offset : TimeSpan.Zero;
+            IntPtr tzInfoArgs = Runtime.PyTuple_New(2);
+            Runtime.PyTuple_SetItem(tzInfoArgs, 0, Runtime.PyFloat_FromDouble(offset.Hours));
+            Runtime.PyTuple_SetItem(tzInfoArgs, 1, Runtime.PyFloat_FromDouble(offset.Minutes));
+            return Runtime.PyObject_CallObject(tzInfoCtor, tzInfoArgs);
         }
 
         /// <summary>
