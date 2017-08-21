@@ -122,7 +122,6 @@ namespace Python.Runtime
 
             if (op == int64Type && Runtime.IsPython2)
                 return Runtime.PyLongType;
-
             if (op == int64Type)
                 return Runtime.PyIntType;
 
@@ -277,7 +276,7 @@ namespace Python.Runtime
 
                 case TypeCode.DateTime:
                     var datetime = (DateTime)value;
-                        
+                
                     IntPtr dateTimeArgs = Runtime.PyTuple_New(8);
                     Runtime.PyTuple_SetItem(dateTimeArgs, 0, Runtime.PyInt_FromInt32(datetime.Year));
                     Runtime.PyTuple_SetItem(dateTimeArgs, 1, Runtime.PyInt_FromInt32(datetime.Month));
