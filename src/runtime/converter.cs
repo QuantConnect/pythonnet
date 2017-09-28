@@ -515,6 +515,12 @@ namespace Python.Runtime
                 return false;
             }
 
+            var underlyingType = Nullable.GetUnderlyingType(obType);
+            if (underlyingType != null)
+            {
+                return ToManagedValue(value, underlyingType, out result, setError);
+            }
+
             return ToPrimitive(value, obType, out result, setError);
         }
 
@@ -974,7 +980,7 @@ namespace Python.Runtime
             int size = Runtime.PySequence_Size(value);
             result = null;
 
-            if (size < 0)
+            if (size < 0 || elementType.IsGenericType)
             {
                 if (setError)
                 {
