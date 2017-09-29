@@ -28,6 +28,7 @@ This document follows the conventions laid out in [Keep a CHANGELOG][].
 -   Fixed conversion of 'float' and 'double' values (#486)
 -   Fixed 'clrmethod' for python 2 (#492)
 -   Fixed double calling of constructor when deriving from .NET class (#495)
+-   Fixed missing information on 'No method matches given arguments' by adding the method name
 
 
 ## [2.3.0][] - 2017-03-11
