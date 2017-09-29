@@ -12,6 +12,7 @@
 
 ## Contributors
 
+-   Alexandre Catarino([@AlexCatarino](https://github.com/AlexCatarino))
 -   Arvid JB ([@ArvidJB](https://github.com/ArvidJB))
 -   Bradley Friedman ([@leith-bartrich](https://github.com/leith-bartrich))
 -   Christian Heimes ([@tiran](https://github.com/tiran))
