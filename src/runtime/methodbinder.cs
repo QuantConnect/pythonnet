@@ -186,9 +186,16 @@ namespace Python.Runtime
                 val += ArgPrecedence(pi[i].ParameterType);
             }
 
+            var info = mi as MethodInfo;
+            if (info != null)
+            {
+                val += ArgPrecedence(info.ReturnType);
+                val += mi.DeclaringType == mi.ReflectedType ? 0 : 3000;
+            }
+            
             return val;
         }
-
+        
         /// <summary>
         /// Return a precedence value for a particular Type object.
         /// </summary>
@@ -198,6 +205,11 @@ namespace Python.Runtime
             if (t == objectType)
             {
                 return 3000;
+            }
+
+            if (t.IsAssignableFrom(typeof(PyObject)))
+            {
+                return -1;
             }
 
             TypeCode tc = Type.GetTypeCode(t);
