@@ -186,6 +186,13 @@ namespace Python.Runtime
                 val += ArgPrecedence(pi[i].ParameterType);
             }
 
+            var info = mi as MethodInfo;
+            if (info != null)
+            {
+                val += ArgPrecedence(info.ReturnType);
+                val += mi.DeclaringType == mi.ReflectedType ? 0 : 3000;
+            }
+
             return val;
         }
 
@@ -198,6 +205,11 @@ namespace Python.Runtime
             if (t == objectType)
             {
                 return 3000;
+            }
+
+            if (t.IsAssignableFrom(typeof(PyObject)))
+            {
+                return -1;
             }
 
             TypeCode tc = Type.GetTypeCode(t);
@@ -520,7 +532,7 @@ namespace Python.Runtime
 
             if (binding == null)
             {
-                Exceptions.SetError(Exceptions.TypeError, "No method matches given arguments");
+                Exceptions.SetError(Exceptions.TypeError, $"No method matches given arguments for {methodinfo[0].Name}");
                 return IntPtr.Zero;
             }
 
