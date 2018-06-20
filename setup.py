@@ -271,7 +271,11 @@ class BuildExtPythonnet(build_ext.build_ext):
     def _get_manifest(self, build_dir):
         if DEVTOOLS != "MsDev" and DEVTOOLS != "MsDev15":
             return
-        mt = self._find_msbuild_tool("mt.exe", use_windows_sdk=True)
+        try:
+            mt = self._find_msbuild_tool("mt.exe", use_windows_sdk=True)
+        except RuntimeError as e:
+            print(f'Cannot create manifest. Reason: {e}')
+            return
         manifest = os.path.abspath(os.path.join(build_dir, "app.manifest"))
         cmd = [mt, '-inputresource:"{0}"'.format(sys.executable),
                '-out:"{0}"'.format(manifest)]
