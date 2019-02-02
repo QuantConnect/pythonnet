@@ -1202,7 +1202,7 @@ namespace Python.Runtime
         internal static extern IntPtr PyNumber_Multiply(IntPtr o1, IntPtr o2);
 
         [DllImport(_PythonDll, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern IntPtr PyNumber_Divide(IntPtr o1, IntPtr o2);
+        internal static extern IntPtr PyNumber_TrueDivide(IntPtr o1, IntPtr o2);
 
         [DllImport(_PythonDll, CallingConvention = CallingConvention.Cdecl)]
         internal static extern IntPtr PyNumber_And(IntPtr o1, IntPtr o2);
@@ -1235,7 +1235,7 @@ namespace Python.Runtime
         internal static extern IntPtr PyNumber_InPlaceMultiply(IntPtr o1, IntPtr o2);
 
         [DllImport(_PythonDll, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern IntPtr PyNumber_InPlaceDivide(IntPtr o1, IntPtr o2);
+        internal static extern IntPtr PyNumber_InPlaceTrueDivide(IntPtr o1, IntPtr o2);
 
         [DllImport(_PythonDll, CallingConvention = CallingConvention.Cdecl)]
         internal static extern IntPtr PyNumber_InPlaceAnd(IntPtr o1, IntPtr o2);
