@@ -43,6 +43,7 @@ This document follows the conventions laid out in [Keep a CHANGELOG][].
 -   Refactored MethodBinder.Bind in preparation to make it extensible (#829)
 -   When calling C# from Python, enable passing argument of any type to a parameter of C# type `object` by wrapping it into `PyObject` instance. ([#881][i881])
 -   Look for installed Windows 10 sdk's during installation instead of relying on specific versions.
+-   improved performance of calls from Python to C#
 
 ### Fixed
 
