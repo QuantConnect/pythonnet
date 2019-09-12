@@ -8,6 +8,28 @@ This document follows the conventions laid out in [Keep a CHANGELOG][].
 ## [unreleased][]
 
 ### Added
+
+-   Added automatic NuGet package generation in appveyor and local builds
+
+### Changed
+
+-   Added argument types information to "No method matches given arguments" message
+-   Moved wheel import in setup.py inside of a try/except to prevent pip collection failures
+-   Removes PyLong_GetMax and PyClass_New when targetting Python3
+-   Added support for converting python iterators to C# arrays
+-   Changed usage of obselete function GetDelegateForFunctionPointer(IntPtr, Type) to GetDelegateForFunctionPointer<TDelegate>(IntPtr)
+-   Added support for kwarg parameters when calling .NET methods from Python
+
+### Fixed
+
+- Fixed runtime that fails loading when using pythonnet in an environment
+  together with Nuitka
+- Fixes bug where delegates get casts (dotnetcore)
+
+## [2.4.0][]
+
+### Added
+
 -   Added support for embedding python into dotnet core 2.0 (NetStandard 2.0)
 -   Added new build system (pythonnet.15.sln) based on dotnetcore-sdk/xplat(crossplatform msbuild).
     Currently there two side-by-side build systems that produces the same output (net40) from the same sources.
