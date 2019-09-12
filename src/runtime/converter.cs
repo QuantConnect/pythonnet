@@ -166,7 +166,17 @@ class GMT(tzinfo):
                 result = Runtime.PyNone;
                 Runtime.XIncref(result);
                 return result;
-            } 
+            }
+
+            if (Type.GetTypeCode(type) == TypeCode.Object && value.GetType() != typeof(object))
+            {
+                var encoded = PyObjectConversions.TryEncode(value, type);
+                if (encoded != null)
+                {
+                    Runtime.XIncref(encoded.Handle);
+                    return encoded.Handle;
+                }
+            }
 
             var list = value as IList;
             if (list != null && !(value is INotifyPropertyChanged) && value.GetType().IsGenericType)
@@ -558,17 +568,30 @@ class GMT(tzinfo):
             {
                 if (ToManagedValue(value, opImplicit.ReturnType, out result, setError))
                 {
-                    opImplicit = obType.GetMethod("op_Implicit", new[] { result.GetType() });
+                    opImplicit = obType.GetMethod("op_Implicit", new[] {result.GetType()});
                     if (opImplicit != null)
                     {
-                        result = opImplicit.Invoke(null, new[] { result });
+                        result = opImplicit.Invoke(null, new[] {result});
                     }
+
                     return opImplicit != null;
+                }
+            }
+
+            TypeCode typeCode = Type.GetTypeCode(obType);
+            if (typeCode == TypeCode.Object)
+            {
+                IntPtr pyType = Runtime.PyObject_TYPE(value);
+                if (PyObjectConversions.TryDecode(value, pyType, obType, out result))
+                {
+                    return true;
                 }
             }
 
             return ToPrimitive(value, obType, out result, setError);
         }
+
+        internal delegate bool TryConvertFromPythonDelegate(IntPtr pyObj, out object result);
 
         /// <summary>
         /// Convert a Python value to an instance of a primitive managed type.
