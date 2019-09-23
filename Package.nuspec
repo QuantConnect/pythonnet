@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>QuantConnect.pythonnet</id>
+    <version>1.0.5.30</version>
+    <authors>QuantConnect Python Team</authors>
+    <owners>QuantConnect Corp.</owners>
+    <licenseUrl>http://www.QuantConnect.com</licenseUrl>
+    <projectUrl>http://www.QuantConnect.com</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>QuantConnect PythonNET package</description>
+    <releaseNotes>QuantConnect PythonNET package</releaseNotes>
+    <copyright>Copyright 2020</copyright>
+    <tags>QuantConnect PythonNET</tags>
+  </metadata>
+  <files>
+    <file src="nPython.exe" target="build" />
+    <file src="QuantConnect.pythonnet.targets" target="build" />
+    <file src="linux/Python.Runtime.dll" target="lib/linux/" />
+    <file src="osx/Python.Runtime.dll" target="lib/osx/" />
+    <file src="win/Python.Runtime.dll" target="lib/win/" />
+    <file src="win/clr.pyd" target="lib/win/" />
+    <file src="linux/jupyter/clr.cpython-36m-x86_64-linux-gnu.so" target="lib/linux/jupyter/" />
+    <file src="linux/jupyter/Python.Runtime.dll" target="lib/linux/jupyter/" />
+    <file src="osx/jupyter/clr.cpython-36m-darwin.so" target="lib/osx/jupyter/" />
+    <file src="osx/jupyter/Python.Runtime.dll" target="lib/osx/jupyter/" />
+  </files>
+</package>

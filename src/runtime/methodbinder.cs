@@ -15,19 +15,18 @@ namespace Python.Runtime
     /// </summary>
     internal class MethodBinder
     {
-        public ArrayList list;
-        public MethodBase[] methods;
+        private List<MethodInformation> list;
         public bool init = false;
         public bool allow_threads = true;
 
         internal MethodBinder()
         {
-            list = new ArrayList();
+            list = new List<MethodInformation>();
         }
 
         internal MethodBinder(MethodInfo mi)
         {
-            list = new ArrayList { mi };
+            list = new List<MethodInformation> { new MethodInformation(mi, mi.GetParameters()) };
         }
 
         public int Count
@@ -37,7 +36,9 @@ namespace Python.Runtime
 
         internal void AddMethod(MethodBase m)
         {
-            list.Add(m);
+            // we added a new method so we have to re sort the method list
+            init = false;
+            list.Add(new MethodInformation(m, m.GetParameters()));
         }
 
         /// <summary>
@@ -151,22 +152,20 @@ namespace Python.Runtime
             return null;
         }
 
-
         /// <summary>
         /// Return the array of MethodInfo for this method. The result array
         /// is arranged in order of precedence (done lazily to avoid doing it
         /// at all for methods that are never called).
         /// </summary>
-        internal MethodBase[] GetMethods()
+        internal List<MethodInformation> GetMethods()
         {
             if (!init)
             {
                 // I'm sure this could be made more efficient.
                 list.Sort(new MethodSorter());
-                methods = (MethodBase[])list.ToArray(typeof(MethodBase));
                 init = true;
             }
-            return methods;
+            return list;
         }
 
         /// <summary>
@@ -177,9 +176,10 @@ namespace Python.Runtime
         /// Based from Jython `org.python.core.ReflectedArgs.precedence`
         /// See: https://github.com/jythontools/jython/blob/master/src/org/python/core/ReflectedArgs.java#L192
         /// </remarks>
-        internal static int GetPrecedence(MethodBase mi)
+        private static int GetPrecedence(MethodInformation methodInformation)
         {
-            ParameterInfo[] pi = mi.GetParameters();
+            ParameterInfo[] pi = methodInformation.ParameterInfo;
+            var mi = methodInformation.MethodBase;
             int val = mi.IsStatic ? 3000 : 0;
             int num = pi.Length;
 
@@ -293,12 +293,11 @@ namespace Python.Runtime
         internal Binding Bind(IntPtr inst, IntPtr args, IntPtr kw, MethodBase info, MethodInfo[] methodinfo)
         {
             // loop to find match, return invoker w/ or /wo error
-            MethodBase[] _methods = null;
 
             var kwargDict = new Dictionary<string, IntPtr>();
             if (kw != IntPtr.Zero)
             {
-                var pynkwargs = (int)Runtime.PyDict_Size(kw);
+                var pynkwargs = (int) Runtime.PyDict_Size(kw);
                 IntPtr keylist = Runtime.PyDict_Keys(kw);
                 IntPtr valueList = Runtime.PyDict_Values(kw);
                 for (int i = 0; i < pynkwargs; ++i)
@@ -306,41 +305,47 @@ namespace Python.Runtime
                     var keyStr = Runtime.GetManagedString(Runtime.PyList_GetItem(keylist, i));
                     kwargDict[keyStr] = Runtime.PyList_GetItem(valueList, i);
                 }
+
                 Runtime.XDecref(keylist);
                 Runtime.XDecref(valueList);
             }
 
-            var pynargs = (int)Runtime.PyTuple_Size(args);
+            var pynargs = (int) Runtime.PyTuple_Size(args);
+            object arg;
             var isGeneric = false;
-            if (info != null)
-            {
-                _methods = new MethodBase[1];
-                _methods.SetValue(info, 0);
-            }
-            else
-            {
-                _methods = GetMethods();
-            }
+            ArrayList defaultArgList;
+            Type clrtype;
+            Binding bindingUsingImplicitConversion = null;
+
+            var methods = info == null
+                ? GetMethods()
+                : new List<MethodInformation>(1) {new MethodInformation(info, info.GetParameters())};
 
             // TODO: Clean up
-            foreach (MethodBase mi in _methods)
+            foreach (var methodInformation in methods)
             {
+                var mi = methodInformation.MethodBase;
+                var pi = methodInformation.ParameterInfo;
+
                 if (mi.IsGenericMethod)
                 {
                     isGeneric = true;
                 }
-                ParameterInfo[] pi = mi.GetParameters();
-                ArrayList defaultArgList;
+
                 bool paramsArray;
 
                 if (!MatchesArgumentCount(pynargs, pi, kwargDict, out paramsArray, out defaultArgList))
                 {
                     continue;
                 }
-                var outs = 0;
+
+                int outs;
+                bool usedImplicitConversion;
+
                 var margs = TryConvertArguments(pi, paramsArray, args, pynargs, kwargDict, defaultArgList,
-                    needsResolution: _methods.Length > 1,
-                    outs: out outs);
+                    needsResolution: methods.Count > 1,
+                    outs: out outs,
+                    usedImplicitConversion: out usedImplicitConversion);
 
                 if (margs == null)
                 {
@@ -363,11 +368,34 @@ namespace Python.Runtime
                     {
                         return null;
                     }
+
                     target = co.inst;
                 }
 
-                return new Binding(mi, target, margs, outs);
+                var binding = new Binding(mi, target, margs, outs);
+                if (usedImplicitConversion)
+                {
+                    // lets just keep the first binding using implicit conversion
+                    // this is to respect method order/precedence
+                    if (bindingUsingImplicitConversion == null)
+                    {
+                        // in this case we will not return the binding yet in case there is a match
+                        // which does not use implicit conversions, which will return directly
+                        bindingUsingImplicitConversion = binding;
+                    }
+                }
+                else
+                {
+                    return binding;
+                }
             }
+
+            // if we generated a binding using implicit conversion return it
+            if (bindingUsingImplicitConversion != null)
+            {
+                return bindingUsingImplicitConversion;
+            }
+
             // We weren't able to find a matching method but at least one
             // is a generic method and info is null. That happens when a generic
             // method was not called using the [] syntax. Let's introspect the
@@ -399,9 +427,11 @@ namespace Python.Runtime
             Dictionary<string, IntPtr> kwargDict,
             ArrayList defaultArgList,
             bool needsResolution,
-            out int outs)
+            out int outs,
+            out bool usedImplicitConversion)
         {
             outs = 0;
+            usedImplicitConversion = false;
             var margs = new object[pi.Length];
             int arrayStart = paramsArray ? pi.Length - 1 : -1;
 
@@ -435,7 +465,7 @@ namespace Python.Runtime
                 }
 
                 bool isOut;
-                if (!TryConvertArgument(op, parameter.ParameterType, needsResolution, out margs[paramIndex], out isOut))
+                if (!TryConvertArgument(op, parameter.ParameterType, needsResolution, out margs[paramIndex], out isOut, out usedImplicitConversion))
                 {
                     return null;
                 }
@@ -458,11 +488,12 @@ namespace Python.Runtime
         }
 
         static bool TryConvertArgument(IntPtr op, Type parameterType, bool needsResolution,
-                                       out object arg, out bool isOut)
+                                       out object arg, out bool isOut, out bool usedImplicitConversion)
         {
             arg = null;
             isOut = false;
-            var clrtype = TryComputeClrArgumentType(parameterType, op, needsResolution: needsResolution);
+            usedImplicitConversion = false;
+            var clrtype = TryComputeClrArgumentType(parameterType, op, needsResolution: needsResolution, out usedImplicitConversion);
             if (clrtype == null)
             {
                 return false;
@@ -478,11 +509,12 @@ namespace Python.Runtime
             return true;
         }
 
-        static Type TryComputeClrArgumentType(Type parameterType, IntPtr argument, bool needsResolution)
+        static Type TryComputeClrArgumentType(Type parameterType, IntPtr argument, bool needsResolution, out bool usedImplicitConversion)
         {
             // this logic below handles cases when multiple overloading methods
             // are ambiguous, hence comparison between Python and CLR types
             // is necessary
+            usedImplicitConversion = false;
             Type clrtype = null;
             IntPtr pyoptype;
             if (needsResolution)
@@ -544,7 +576,7 @@ namespace Python.Runtime
                         var opImplicit = parameterType.GetMethod("op_Implicit", new[] { clrtype });
                         if (opImplicit != null)
                         {
-                            typematch = opImplicit.ReturnType == parameterType;
+                            usedImplicitConversion = typematch = opImplicit.ReturnType == parameterType;
                             clrtype = parameterType;
                         }
                     }
@@ -747,43 +779,51 @@ namespace Python.Runtime
 
             return Converter.ToPython(result, mi.ReturnType);
         }
-    }
 
 
-    /// <summary>
-    /// Utility class to sort method info by parameter type precedence.
-    /// </summary>
-    internal class MethodSorter : IComparer
-    {
-        int IComparer.Compare(object m1, object m2)
+        /// <summary>
+        /// Utility class to store the information about a <see cref="MethodBase"/>
+        /// </summary>
+        internal class MethodInformation
         {
-            var me1 = (MethodBase)m1;
-            var me2 = (MethodBase)m2;
-            if (me1.DeclaringType != me2.DeclaringType)
-            {
-                // m2's type derives from m1's type, favor m2
-                if (me1.DeclaringType.IsAssignableFrom(me2.DeclaringType))
-                    return 1;
+            public MethodBase MethodBase { get; }
+            public ParameterInfo[] ParameterInfo { get; }
 
-                // m1's type derives from m2's type, favor m1
-                if (me2.DeclaringType.IsAssignableFrom(me1.DeclaringType))
+            public MethodInformation(MethodBase methodBase, ParameterInfo[] parameterInfo)
+            {
+                MethodBase = methodBase;
+                ParameterInfo = parameterInfo;
+            }
+
+            public override string ToString()
+            {
+                return MethodBase.ToString();
+            }
+        }
+
+        /// <summary>
+        /// Utility class to sort method info by parameter type precedence.
+        /// </summary>
+        private class MethodSorter : IComparer<MethodInformation>
+        {
+            public int Compare(MethodInformation x, MethodInformation y)
+            {
+                int p1 = GetPrecedence(x);
+                int p2 = GetPrecedence(y);
+                if (p1 < p2)
+                {
                     return -1;
-            }
+                }
 
-            int p1 = MethodBinder.GetPrecedence((MethodBase)m1);
-            int p2 = MethodBinder.GetPrecedence((MethodBase)m2);
-            if (p1 < p2)
-            {
-                return -1;
+                if (p1 > p2)
+                {
+                    return 1;
+                }
+
+                return 0;
             }
-            if (p1 > p2)
-            {
-                return 1;
-            }
-            return 0;
         }
     }
-
 
     /// <summary>
     /// A Binding is a utility instance that bundles together a MethodInfo
