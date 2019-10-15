@@ -166,21 +166,22 @@ class GMT(tzinfo):
                 result = Runtime.PyNone;
                 Runtime.XIncref(result);
                 return result;
-            }
+            } 
 
-			if (value is IList && !(value is INotifyPropertyChanged) && value.GetType().IsGenericType)
-			{
-                using (var resultlist = new PyList())
+            var list = value as IList;
+            if (list != null && !(value is INotifyPropertyChanged) && value.GetType().IsGenericType)
+            {
+                using (var resultList = new PyList())
                 {
-                    foreach (object o in (IEnumerable)value)
+                    for (var i = 0; i < list.Count; i++)
                     {
-                        using (var p = new PyObject(ToPython(o, o?.GetType())))
+                        using (var p = list[i].ToPython())
                         {
-                            resultlist.Append(p);
+                            resultList.Append(p);
                         }
                     }
-                    Runtime.XIncref(resultlist.Handle);
-                    return resultlist.Handle;
+                    Runtime.XIncref(resultList.Handle);
+                    return resultList.Handle;
                 }
             }
 
@@ -384,6 +385,15 @@ class GMT(tzinfo):
                 return true;
             }
 
+            if (obType.IsGenericType && Runtime.PyObject_TYPE(value) == Runtime.PyListType)
+            {
+                var typeDefinition = obType.GetGenericTypeDefinition();
+                if (typeDefinition == typeof(List<>))
+                {
+                    return ToList(value, obType, out result, setError);
+                }
+            }
+
             // Common case: if the Python value is a wrapped managed object
             // instance, just return the wrapped object.
             ManagedType mt = ManagedType.GetManagedObject(value);
@@ -399,17 +409,16 @@ class GMT(tzinfo):
                         result = tmp;
                         return true;
                     }
-                    else
+
+                    var type = tmp.GetType();
+                    // check implicit conversions that receive tmp type and return obType
+                    var conversionMethod = type.GetMethod("op_Implicit", new[] { type });
+                    if (conversionMethod != null && conversionMethod.ReturnType == obType)
                     {
-                        var type = tmp.GetType();
-                        // check implicit conversions that receive tmp type and return obType
-                        var conversionMethod = type.GetMethod("op_Implicit", new[] { type });
-                        if (conversionMethod != null && conversionMethod.ReturnType == obType)
-                        {
-                            result = conversionMethod.Invoke(null, new[] { tmp });
-                            return true;
-                        }
+                        result = conversionMethod.Invoke(null, new[] { tmp });
+                        return true;
                     }
+
                     Exceptions.SetError(Exceptions.TypeError, $"value cannot be converted to {obType}");
                     return false;
                 }
@@ -875,12 +884,13 @@ class GMT(tzinfo):
                         }
                         goto type_error;
                     }
-                    
+
                     uint ui;
-                    try 
+                    try
                     {
                         ui = Convert.ToUInt32(Runtime.PyLong_AsUnsignedLong(op));
-                    } catch (OverflowException)
+                    }
+                    catch (OverflowException)
                     {
                         // Probably wasn't an overflow in python but was in C# (e.g. if cpython
                         // longs are 64 bit then 0xFFFFFFFF + 1 will not overflow in 
@@ -888,7 +898,6 @@ class GMT(tzinfo):
                         Runtime.XDecref(op);
                         goto overflow;
                     }
-                    
 
                     if (Exceptions.ErrorOccurred())
                     {
@@ -1026,15 +1035,11 @@ class GMT(tzinfo):
         /// </summary>
         private static bool ToArray(IntPtr value, Type obType, out object result, bool setError)
         {
-            Type elementType = obType.GetElementType();
             result = null;
-
-            bool IsSeqObj = Runtime.PySequence_Check(value);
-            var len = IsSeqObj ? Runtime.PySequence_Size(value) : -1;
-
             IntPtr IterObject = Runtime.PyObject_GetIter(value);
 
-            if(IterObject==IntPtr.Zero) {
+            if (IterObject == IntPtr.Zero)
+            {
                 if (setError)
                 {
                     SetConversionError(value, obType);
@@ -1042,17 +1047,26 @@ class GMT(tzinfo):
                 return false;
             }
 
-            Array items;
-
+            Type elementType = obType.GetElementType();
             var listType = typeof(List<>);
             var constructedListType = listType.MakeGenericType(elementType);
-            IList list = IsSeqObj ? (IList) Activator.CreateInstance(constructedListType, new Object[] {(int) len}) : 
-                                        (IList) Activator.CreateInstance(constructedListType);
+
+            IList list;
+            if (Runtime.PySequence_Check(value))
+            {
+                var len = Runtime.PySequence_Size(value);
+                list = (IList) Activator.CreateInstance(constructedListType, len);
+            }
+            else
+            {
+                list = (IList) Activator.CreateInstance(constructedListType);
+            }
+
             IntPtr item;
 
             while ((item = Runtime.PyIter_Next(IterObject)) != IntPtr.Zero)
             {
-                object obj = null;
+                object obj;
 
                 if (!Converter.ToManaged(item, elementType, out obj, true))
                 {
@@ -1065,13 +1079,68 @@ class GMT(tzinfo):
             }
             Runtime.XDecref(IterObject);
 
-            items = Array.CreateInstance(elementType, list.Count);
+            var items = Array.CreateInstance(elementType, list.Count);
             list.CopyTo(items, 0);
-            
+
             result = items;
             return true;
         }
 
+        /// <summary>
+        /// Convert a Python value to a correctly typed managed list instance.
+        /// The Python value must support the Python sequence protocol and the
+        /// items in the sequence must be convertible to the target list type.
+        /// </summary>
+        private static bool ToList(IntPtr value, Type obType, out object result, bool setError)
+        {
+            var elementType = obType.GetGenericArguments()[0];
+            var size = Runtime.PySequence_Size(value);
+
+            result = Activator.CreateInstance(obType, args: size);
+            var resultList = (IList)result;
+            return ApplyActionToPySequence(value, obType, setError, size, elementType, o => resultList.Add(o));
+        }
+
+        private static bool ApplyActionToPySequence(IntPtr value,
+            Type obType,
+            bool setError,
+            long size,
+            Type elementType,
+            Action<object> action)
+        {
+            if (size < 0)
+            {
+                if (setError)
+                {
+                    SetConversionError(value, obType);
+                }
+                return false;
+            }
+
+            for (var i = 0; i < size; i++)
+            {
+                object obj;
+                IntPtr item = Runtime.PySequence_GetItem(value, i);
+                if (item == IntPtr.Zero)
+                {
+                    if (setError)
+                    {
+                        SetConversionError(value, obType);
+                        return false;
+                    }
+                }
+
+                if (!Converter.ToManaged(item, elementType, out obj, true))
+                {
+                    Runtime.XDecref(item);
+                    return false;
+                }
+
+                action(obj);
+                Runtime.XDecref(item);
+            }
+            return true;
+        }
 
         /// <summary>
         /// Convert a Python value to a correctly typed managed enum instance.
