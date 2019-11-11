@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -7,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Python.Runtime
 {
@@ -25,18 +25,15 @@ namespace Python.Runtime
         //    than it can end up referring to assemblies that are already unloaded (default behavior after unload appDomain - 
         //     unless LoaderOptimization.MultiDomain is used);
         //    So for multidomain support it is better to have the dict. recreated for each app-domain initialization
-        private static ConcurrentDictionary<string, ConcurrentDictionary<Assembly, string>> namespaces =
-            new ConcurrentDictionary<string, ConcurrentDictionary<Assembly, string>>();
-        //private static Dictionary<string, Dictionary<string, string>> generics;
-        private static AssemblyLoadEventHandler lhandler;
-        private static ResolveEventHandler rhandler;
+        private static ConcurrentDictionary<string, ConcurrentDictionary<Assembly, byte>> namespaces;
+        private static ConcurrentDictionary<string, Assembly> assembliesNamesCache;
+        private static ConcurrentDictionary<string, Type> lookupTypeCache;
+        private static ConcurrentQueue<Assembly> assemblies;
+        private static int pendingAssemblies;
 
         // updated only under GIL?
-        private static Dictionary<string, int> probed = new Dictionary<string, int>(32);
-
-        // modified from event handlers below, potentially triggered from different .NET threads
-        private static ConcurrentQueue<Assembly> assemblies;
-        internal static List<string> pypath;
+        private static Dictionary<string, int> probed;
+        private static List<string> pypath;
 
         private AssemblyManager()
         {
@@ -49,32 +46,43 @@ namespace Python.Runtime
         /// </summary>
         internal static void Initialize()
         {
+            namespaces = new ConcurrentDictionary<string, ConcurrentDictionary<Assembly, byte>>();
+            assembliesNamesCache = new ConcurrentDictionary<string, Assembly>();
+            lookupTypeCache = new ConcurrentDictionary<string, Type>();
+            probed = new Dictionary<string, int>(32);
+
             assemblies = new ConcurrentQueue<Assembly>();
             pypath = new List<string>(16);
 
             AppDomain domain = AppDomain.CurrentDomain;
 
-            lhandler = new AssemblyLoadEventHandler(AssemblyLoadHandler);
-            domain.AssemblyLoad += lhandler;
+            domain.AssemblyLoad += AssemblyLoadHandler;
+            domain.AssemblyResolve += ResolveHandler;
 
-            rhandler = new ResolveEventHandler(ResolveHandler);
-            domain.AssemblyResolve += rhandler;
-
-            Assembly[] items = domain.GetAssemblies();
-            foreach (Assembly a in items)
+            foreach (var assembly in domain.GetAssemblies())
             {
                 try
                 {
-                    ScanAssembly(a);
-                    assemblies.Enqueue(a);
+                    LaunchAssemblyLoader(assembly);
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine("Error scanning assembly {0}. {1}", a, ex);
+                    Debug.WriteLine($"Error scanning assembly {assembly}. {ex}");
                 }
             }
-        }
 
+            var safeCount = 0;
+            // lets wait until all assemblies are loaded
+            do
+            {
+                if (safeCount++ > 200)
+                {
+                    throw new TimeoutException("Timeout while waiting for assemblies to load");
+                }
+
+                Thread.Sleep(50);
+            } while (pendingAssemblies > 0);
+        }
 
         /// <summary>
         /// Cleanup resources upon shutdown of the Python runtime.
@@ -82,8 +90,8 @@ namespace Python.Runtime
         internal static void Shutdown()
         {
             AppDomain domain = AppDomain.CurrentDomain;
-            domain.AssemblyLoad -= lhandler;
-            domain.AssemblyResolve -= rhandler;
+            domain.AssemblyLoad -= AssemblyLoadHandler;
+            domain.AssemblyResolve -= ResolveHandler;
         }
 
 
@@ -94,13 +102,41 @@ namespace Python.Runtime
         /// so that we can know about assemblies that get loaded after the
         /// Python runtime is initialized.
         /// </summary>
+        /// <remarks>Scanning assemblies here caused internal hangs when calling
+        /// <see cref="Assembly.GetTypes"/></remarks>
         private static void AssemblyLoadHandler(object ob, AssemblyLoadEventArgs args)
         {
             Assembly assembly = args.LoadedAssembly;
-            assemblies.Enqueue(assembly);
-            ScanAssembly(assembly);
+            LaunchAssemblyLoader(assembly);
         }
 
+        /// <summary>
+        /// Launches a new task that will load the provided assembly
+        /// </summary>
+        private static void LaunchAssemblyLoader(Assembly assembly)
+        {
+            if (assembly != null)
+            {
+                Interlocked.Increment(ref pendingAssemblies);
+                Task.Factory.StartNew(() =>
+                {
+                    try
+                    {
+                        if (assembliesNamesCache.TryAdd(assembly.GetName().Name, assembly))
+                        {
+                            assemblies.Enqueue(assembly);
+                            ScanAssembly(assembly);
+                        }
+                    }
+                    catch
+                    {
+                        // pass
+                    }
+
+                    Interlocked.Decrement(ref pendingAssemblies);
+                });
+            }
+        }
 
         /// <summary>
         /// Event handler for assembly resolve events. This is needed because
@@ -112,12 +148,12 @@ namespace Python.Runtime
         private static Assembly ResolveHandler(object ob, ResolveEventArgs args)
         {
             string name = args.Name.ToLower();
-            foreach (Assembly a in assemblies)
+            foreach (var assembly in assemblies)
             {
-                string full = a.FullName.ToLower();
+                var full = assembly.FullName.ToLower();
                 if (full.StartsWith(name))
                 {
-                    return a;
+                    return assembly;
                 }
             }
             return LoadAssemblyPath(args.Name);
@@ -138,23 +174,27 @@ namespace Python.Runtime
         internal static void UpdatePath()
         {
             IntPtr list = Runtime.PySys_GetObject("path");
+
             var count = Runtime.PyList_Size(list);
+            var sep = Path.DirectorySeparatorChar;
+
             if (count != pypath.Count)
             {
                 pypath.Clear();
                 probed.Clear();
+                // add first the current path
+                pypath.Add("");
                 for (var i = 0; i < count; i++)
                 {
                     IntPtr item = Runtime.PyList_GetItem(list, i);
                     string path = Runtime.GetManagedString(item);
                     if (path != null)
                     {
-                        pypath.Add(path);
+                        pypath.Add(path == string.Empty ? path : path + sep);
                     }
                 }
             }
         }
-
 
         /// <summary>
         /// Given an assembly name, try to find this assembly file using the
@@ -163,30 +203,17 @@ namespace Python.Runtime
         /// </summary>
         public static string FindAssembly(string name)
         {
-            char sep = Path.DirectorySeparatorChar;
-
-            foreach (string head in pypath)
+            foreach (var head in pypath)
             {
-                string path;
-                if (head == null || head.Length == 0)
+                var dll = $"{head}{name}.dll";
+                if (File.Exists(dll))
                 {
-                    path = name;
+                    return dll;
                 }
-                else
+                var executable = $"{head}{name}.exe";
+                if (File.Exists(executable))
                 {
-                    path = head + sep + name;
-                }
-
-                string temp = path + ".dll";
-                if (File.Exists(temp))
-                {
-                    return temp;
-                }
-
-                temp = path + ".exe";
-                if (File.Exists(temp))
-                {
-                    return temp;
+                    return executable;
                 }
             }
             return null;
@@ -206,10 +233,7 @@ namespace Python.Runtime
             }
             catch (Exception)
             {
-                //if (!(e is System.IO.FileNotFoundException))
-                //{
-                //    throw;
-                //}
+                // ignored
             }
             return assembly;
         }
@@ -220,7 +244,7 @@ namespace Python.Runtime
         /// </summary>
         public static Assembly LoadAssemblyPath(string name)
         {
-            string path = FindAssembly(name);
+            var path = FindAssembly(name);
             Assembly assembly = null;
             if (path != null)
             {
@@ -230,6 +254,7 @@ namespace Python.Runtime
                 }
                 catch (Exception)
                 {
+                    // ignored
                 }
             }
             return assembly;
@@ -257,6 +282,7 @@ namespace Python.Runtime
                     }
                     catch (Exception)
                     {
+                        // ignored
                     }
                 }
             }
@@ -268,14 +294,8 @@ namespace Python.Runtime
         /// </summary>
         public static Assembly FindLoadedAssembly(string name)
         {
-            foreach (Assembly a in assemblies)
-            {
-                if (a.GetName().Name == name)
-                {
-                    return a;
-                }
-            }
-            return null;
+            Assembly result;
+            return assembliesNamesCache.TryGetValue(name, out result) ? result : null;
         }
 
         /// <summary>
@@ -312,10 +332,6 @@ namespace Python.Runtime
                     {
                         a = LoadAssemblyPath(s);
                     }
-                    if (a == null)
-                    {
-                        a = LoadAssembly(s);
-                    }
                     if (a != null && !assembliesSet.Contains(a))
                     {
                         loaded = true;
@@ -349,7 +365,8 @@ namespace Python.Runtime
             // A couple of things we want to do here: first, we want to
             // gather a list of all of the namespaces contributed to by
             // the assembly.
-            foreach (Type t in GetTypes(assembly))
+            Type[] types = assembly.GetTypes();
+            foreach (Type t in types)
             {
                 string ns = t.Namespace ?? "";
                 if (!namespaces.ContainsKey(ns))
@@ -359,13 +376,13 @@ namespace Python.Runtime
                     for (var n = 0; n < names.Length; n++)
                     {
                         s = n == 0 ? names[0] : s + "." + names[n];
-                        namespaces.TryAdd(s, new ConcurrentDictionary<Assembly, string>());
+                        namespaces.TryAdd(s, new ConcurrentDictionary<Assembly, byte>());
                     }
                 }
 
                 if (ns != null)
                 {
-                    namespaces[ns].TryAdd(assembly, string.Empty);
+                    namespaces[ns].TryAdd(assembly, 1);
                 }
 
                 if (ns != null && t.IsGenericTypeDefinition)
@@ -454,11 +471,17 @@ namespace Python.Runtime
         /// </summary>
         public static Type LookupType(string qname)
         {
+            Type type;
+            if (lookupTypeCache.TryGetValue(qname, out type))
+            {
+                return type;
+            }
             foreach (Assembly assembly in assemblies)
             {
-                Type type = assembly.GetType(qname);
+                type = assembly.GetType(qname);
                 if (type != null)
                 {
+                    lookupTypeCache[qname] = type;
                     return type;
                 }
             }

@@ -31,32 +31,33 @@ namespace Python.Runtime
         /// </summary>
         internal static void Register(Type t)
         {
-            if (null == t.Namespace || null == t.Name)
+            lock (mapping)
             {
-                return;
-            }
+                if (null == t.Namespace || null == t.Name)
+                {
+                    return;
+                }
 
-            Dictionary<string, List<string>> nsmap = null;
-            mapping.TryGetValue(t.Namespace, out nsmap);
-            if (nsmap == null)
-            {
-                nsmap = new Dictionary<string, List<string>>();
-                mapping[t.Namespace] = nsmap;
+                Dictionary<string, List<string>> nsmap;
+                if (!mapping.TryGetValue(t.Namespace, out nsmap))
+                {
+                    nsmap = new Dictionary<string, List<string>>();
+                    mapping[t.Namespace] = nsmap;
+                }
+                string basename = t.Name;
+                int tick = basename.IndexOf("`");
+                if (tick > -1)
+                {
+                    basename = basename.Substring(0, tick);
+                }
+                List<string> gnames;
+                if (!nsmap.TryGetValue(basename, out gnames))
+                {
+                    gnames = new List<string>();
+                    nsmap[basename] = gnames;
+                }
+                gnames.Add(t.Name);
             }
-            string basename = t.Name;
-            int tick = basename.IndexOf("`");
-            if (tick > -1)
-            {
-                basename = basename.Substring(0, tick);
-            }
-            List<string> gnames = null;
-            nsmap.TryGetValue(basename, out gnames);
-            if (gnames == null)
-            {
-                gnames = new List<string>();
-                nsmap[basename] = gnames;
-            }
-            gnames.Add(t.Name);
         }
 
         /// <summary>
@@ -64,18 +65,20 @@ namespace Python.Runtime
         /// </summary>
         public static List<string> GetGenericBaseNames(string ns)
         {
-            Dictionary<string, List<string>> nsmap = null;
-            mapping.TryGetValue(ns, out nsmap);
-            if (nsmap == null)
+            lock (mapping)
             {
-                return null;
+                Dictionary<string, List<string>> nsmap;
+                if (!mapping.TryGetValue(ns, out nsmap))
+                {
+                    return null;
+                }
+                var names = new List<string>();
+                foreach (string key in nsmap.Keys)
+                {
+                    names.Add(key);
+                }
+                return names;
             }
-            var names = new List<string>();
-            foreach (string key in nsmap.Keys)
-            {
-                names.Add(key);
-            }
-            return names;
         }
 
         /// <summary>
@@ -105,38 +108,38 @@ namespace Python.Runtime
 
         public static List<Type> GenericsByName(string ns, string basename)
         {
-            Dictionary<string, List<string>> nsmap = null;
-            mapping.TryGetValue(ns, out nsmap);
-            if (nsmap == null)
+            lock (mapping)
             {
-                return null;
-            }
-
-            int tick = basename.IndexOf("`");
-            if (tick > -1)
-            {
-                basename = basename.Substring(0, tick);
-            }
-
-            List<string> names = null;
-            nsmap.TryGetValue(basename, out names);
-            if (names == null)
-            {
-                return null;
-            }
-
-            var result = new List<Type>();
-            foreach (string name in names)
-            {
-                string qname = ns + "." + name;
-                Type o = AssemblyManager.LookupType(qname);
-                if (o != null)
+                Dictionary<string, List<string>> nsmap;
+                if (!mapping.TryGetValue(ns, out nsmap))
                 {
-                    result.Add(o);
+                    return null;
                 }
-            }
 
-            return result;
+                int tick = basename.IndexOf("`");
+                if (tick > -1)
+                {
+                    basename = basename.Substring(0, tick);
+                }
+
+                List<string> names;
+                if (!nsmap.TryGetValue(basename, out names))
+                {
+                    return null;
+                }
+
+                var result = new List<Type>();
+                foreach (string name in names)
+                {
+                    string qname = ns + "." + name;
+                    Type o = AssemblyManager.LookupType(qname);
+                    if (o != null)
+                    {
+                        result.Add(o);
+                    }
+                }
+                return result;
+            }
         }
 
         /// <summary>
@@ -144,17 +147,19 @@ namespace Python.Runtime
         /// </summary>
         public static string GenericNameForBaseName(string ns, string name)
         {
-            Dictionary<string, List<string>> nsmap = null;
-            mapping.TryGetValue(ns, out nsmap);
-            if (nsmap == null)
+            lock (mapping)
             {
-                return null;
-            }
-            List<string> gnames = null;
-            nsmap.TryGetValue(name, out gnames);
-            if (gnames?.Count > 0)
-            {
-                return gnames[0];
+                Dictionary<string, List<string>> nsmap;
+                if (!mapping.TryGetValue(ns, out nsmap))
+                {
+                    return null;
+                }
+                List<string> gnames = null;
+                nsmap.TryGetValue(name, out gnames);
+                if (gnames?.Count > 0)
+                {
+                    return gnames[0];
+                }
             }
             return null;
         }
