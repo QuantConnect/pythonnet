@@ -34,6 +34,7 @@ namespace Python.Runtime
         // updated only under GIL?
         private static Dictionary<string, int> probed;
         private static List<string> pypath;
+        private static Dictionary<string, HashSet<string>> filesInPath;
 
         private AssemblyManager()
         {
@@ -53,6 +54,7 @@ namespace Python.Runtime
 
             assemblies = new ConcurrentQueue<Assembly>();
             pypath = new List<string>(16);
+            filesInPath = new Dictionary<string, HashSet<string>>();
 
             AppDomain domain = AppDomain.CurrentDomain;
 
@@ -193,6 +195,44 @@ namespace Python.Runtime
                         pypath.Add(path == string.Empty ? path : path + sep);
                     }
                 }
+
+                // for performance we will search for all files in each directory in the path once
+                Parallel.ForEach(pypath.Where(s =>
+                {
+                    try
+                    {
+                        lock (filesInPath)
+                        {
+                            // only search in directory if it exists and we haven't already analyzed it
+                            return Directory.Exists(s) && !filesInPath.ContainsKey(s);
+                        }
+                    }
+                    catch
+                    {
+                        // just in case, file operations can throw
+                    }
+                    return false;
+                }), path =>
+                {
+                    var container = new HashSet<string>();
+                    try
+                    {
+                        foreach (var file in Directory.EnumerateFiles(path)
+                            .Where(file => file.EndsWith(".dll") || file.EndsWith(".exe")))
+                        {
+                            container.Add(Path.GetFileName(file));
+                        }
+                    }
+                    catch
+                    {
+                        // just in case, file operations can throw
+                    }
+
+                    lock (filesInPath)
+                    {
+                        filesInPath[path] = container;
+                    }
+                });
             }
         }
 
@@ -203,17 +243,17 @@ namespace Python.Runtime
         /// </summary>
         public static string FindAssembly(string name)
         {
-            foreach (var head in pypath)
+            foreach (var kvp in filesInPath)
             {
-                var dll = $"{head}{name}.dll";
-                if (File.Exists(dll))
+                var dll = $"{name}.dll";
+                if (kvp.Value.Contains(dll))
                 {
-                    return dll;
+                    return kvp.Key + dll;
                 }
-                var executable = $"{head}{name}.exe";
-                if (File.Exists(executable))
+                var executable = $"{name}.exe";
+                if (kvp.Value.Contains(executable))
                 {
-                    return executable;
+                    return kvp.Key + executable;
                 }
             }
             return null;
