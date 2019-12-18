@@ -293,6 +293,11 @@ namespace Python.Runtime
         internal static bool _SuppressDocs = false;
         internal static bool _SuppressOverloads = false;
 
+        static CLRModule()
+        {
+            Reset();
+        }
+
         public CLRModule() : base("clr")
         {
             _namespace = string.Empty;
