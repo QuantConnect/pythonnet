@@ -3,8 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Python.Runtime
 {
@@ -294,9 +292,6 @@ namespace Python.Runtime
 
         internal Binding Bind(IntPtr inst, IntPtr args, IntPtr kw, MethodBase info, MethodInfo[] methodinfo)
         {
-            // loop to find match, return invoker w/ or /wo error
-            MethodBase[] _methods = null;
-
             var kwargDict = new Dictionary<string, IntPtr>();
             if (kw != IntPtr.Zero)
             {
@@ -314,10 +309,7 @@ namespace Python.Runtime
 
             var pynargs = (int)Runtime.PyTuple_Size(args);
             var isGeneric = false;
-            ArrayList defaultArgList;
-            Type clrtype;
             Binding bindingUsingImplicitConversion = null;
-
             var methods = info == null ? GetMethods()
                 : new List<MethodInformation>(1) { new MethodInformation(info, info.GetParameters()) };
 
@@ -331,26 +323,18 @@ namespace Python.Runtime
                 {
                     isGeneric = true;
                 }
-                int clrnargs = pi.Length;
-                int arrayStart;
-
-                if (CheckMethodArgumentsMatch(clrnargs,
-                    pynargs,
-                    pi,
-                    out arrayStart,
-                    out defaultArgList))
-                {
-                    var outs = 0;
-                    var margs = new object[clrnargs];
-                    var usedImplicitConversion = false;
+                ArrayList defaultArgList;
+                bool paramsArray;
                 if (!MatchesArgumentCount(pynargs, pi, kwargDict, out paramsArray, out defaultArgList))
                 {
                     continue;
                 }
                 var outs = 0;
+                var usedImplicitConversion = false;
                 var margs = TryConvertArguments(pi, paramsArray, args, pynargs, kwargDict, defaultArgList,
-                    needsResolution: _methods.Length > 1,
-                    outs: out outs);
+                    needsResolution: methods.Count > 1,
+                    outs: out outs,
+                    usedImplicitConversion: out usedImplicitConversion);
 
                 if (margs == null)
                 {
@@ -376,8 +360,30 @@ namespace Python.Runtime
                     target = co.inst;
                 }
 
-                return new Binding(mi, target, margs, outs);
+                var binding = new Binding(mi, target, margs, outs);
+                if (usedImplicitConversion)
+                {
+                    // lets just keep the first binding using implicit conversion
+                    // this is to respect method order/precedence
+                    if (bindingUsingImplicitConversion == null)
+                    {
+                        // in this case we will not return the binding yet in case there is a match
+                        // which does not use implicit conversions, which will return directly
+                        bindingUsingImplicitConversion = binding;
+                    }
+                }
+                else
+                {
+                    return binding;
+                }
             }
+
+            // if we generated a binding using implicit conversion return it
+            if (bindingUsingImplicitConversion != null)
+            {
+                return bindingUsingImplicitConversion;
+            }
+
             // We weren't able to find a matching method but at least one
             // is a generic method and info is null. That happens when a generic
             // method was not called using the [] syntax. Let's introspect the
@@ -409,9 +415,11 @@ namespace Python.Runtime
             Dictionary<string, IntPtr> kwargDict,
             ArrayList defaultArgList,
             bool needsResolution,
-            out int outs)
+            out int outs,
+            out bool usedImplicitConversion)
         {
             outs = 0;
+            usedImplicitConversion = false;
             var margs = new object[pi.Length];
             int arrayStart = paramsArray ? pi.Length - 1 : -1;
 
@@ -445,10 +453,13 @@ namespace Python.Runtime
                 }
 
                 bool isOut;
-                if (!TryConvertArgument(op, parameter.ParameterType, needsResolution, out margs[paramIndex], out isOut))
+                bool usedImplicitConversionForArgument; 
+                if (!TryConvertArgument(op, parameter.ParameterType, needsResolution, out margs[paramIndex], out isOut, out usedImplicitConversionForArgument))
                 {
                     return null;
                 }
+
+                usedImplicitConversion |= usedImplicitConversionForArgument;
 
                 if (arrayStart == paramIndex)
                 {
@@ -457,225 +468,145 @@ namespace Python.Runtime
                     // returns only a borrow reference.
                     Runtime.XDecref(op);
                 }
-                    for (var n = 0; n < clrnargs; n++)
-                    {
-                        IntPtr op;
-                        if (n < pynargs)
-                        {
-                            if (arrayStart == n)
-                            {
-                                // map remaining Python arguments to a tuple since
-                                // the managed function accepts it - hopefully :]
-                                op = Runtime.PyTuple_GetSlice(args, arrayStart, pynargs);
-                            }
-                            else
-                            {
-                                op = Runtime.PyTuple_GetItem(args, n);
-                            }
-
-                            // this logic below handles cases when multiple overloading methods
-                            // are ambiguous, hence comparison between Python and CLR types
-                            // is necessary
-                            clrtype = null;
-                            IntPtr pyoptype;
-                            if (methods.Count > 1)
-                            {
-                                pyoptype = IntPtr.Zero;
-                                pyoptype = Runtime.PyObject_Type(op);
-                                Exceptions.Clear();
-                                if (pyoptype != IntPtr.Zero)
-                                {
-                                    clrtype = Converter.GetTypeByAlias(pyoptype);
-                                }
-                                Runtime.XDecref(pyoptype);
-                            }
-
-
-                            if (clrtype != null)
-                            {
-                                var typematch = false;
-                                if ((pi[n].ParameterType != typeof(object)) && (pi[n].ParameterType != clrtype))
-                                {
-                                    IntPtr pytype = Converter.GetPythonTypeByAlias(pi[n].ParameterType);
-                                    pyoptype = Runtime.PyObject_Type(op);
-                                    Exceptions.Clear();
-                                    if (pyoptype != IntPtr.Zero)
-                                    {
-                                        if (pytype != pyoptype)
-                                        {
-                                            typematch = false;
-                                        }
-                                        else
-                                        {
-                                            typematch = true;
-                                            clrtype = pi[n].ParameterType;
-                                        }
-                                    }
-                                    if (!typematch)
-                                    {
-                                        // this takes care of nullables
-                                        var underlyingType = Nullable.GetUnderlyingType(pi[n].ParameterType);
-                                        if (underlyingType == null)
-                                        {
-                                            underlyingType = pi[n].ParameterType;
-                                        }
-                                        // this takes care of enum values
-                                        TypeCode argtypecode = Type.GetTypeCode(underlyingType);
-                                        TypeCode paramtypecode = Type.GetTypeCode(clrtype);
-                                        if (argtypecode == paramtypecode)
-                                        {
-                                            typematch = true;
-                                            clrtype = pi[n].ParameterType;
-                                        }
-                                        // accepts non-decimal numbers in decimal parameters 
-                                        if (underlyingType == typeof(decimal))
-                                        {
-                                            clrtype = pi[n].ParameterType;
-                                            typematch = Converter.ToManaged(op, clrtype, out arg, false);
-                                        }
-                                        // this takes care of implicit conversions
-                                        var opImplicit = pi[n].ParameterType.GetMethod("op_Implicit", new[] { clrtype });
-                                        if (opImplicit != null)
-                                        {
-                                            usedImplicitConversion = typematch = opImplicit.ReturnType == pi[n].ParameterType;
-                                            clrtype = pi[n].ParameterType;
-                                        }
-                                    }
-                                    Runtime.XDecref(pyoptype);
-                                    if (!typematch)
-                                    {
-                                        margs = null;
-                                        break;
-                                    }
-                                }
-                                else
-                                {
-                                    typematch = true;
-                                    clrtype = pi[n].ParameterType;
-                                }
-                            }
-                            else
-                            {
-                                clrtype = pi[n].ParameterType;
-                            }
-
-                            if (pi[n].IsOut || clrtype.IsByRef)
-                            {
-                                outs++;
-                            }
-
-                            if (!Converter.ToManaged(op, clrtype, out arg, false))
-                            {
-                                Exceptions.Clear();
-                                margs = null;
-                                break;
-                            }
-                            if (arrayStart == n)
-                            {
-                                // GetSlice() creates a new reference but GetItem()
-                                // returns only a borrow reference.
-                                Runtime.XDecref(op);
-                            }
-                            margs[n] = arg;
-                        }
-                        else
-                        {
-                            if (defaultArgList != null)
-                            {
-                                margs[n] = defaultArgList[n - pynargs];
-                            }
-                        }
-                    }
-
-                    if (margs == null)
-                    {
-                        continue;
-                    }
-
-                    object target = null;
-                    if (!mi.IsStatic && inst != IntPtr.Zero)
-                    {
-                        //CLRObject co = (CLRObject)ManagedType.GetManagedObject(inst);
-                        // InvalidCastException: Unable to cast object of type
-                        // 'Python.Runtime.ClassObject' to type 'Python.Runtime.CLRObject'
-                        var co = ManagedType.GetManagedObject(inst) as CLRObject;
-
-                        // Sanity check: this ensures a graceful exit if someone does
-                        // something intentionally wrong like call a non-static method
-                        // on the class rather than on an instance of the class.
-                        // XXX maybe better to do this before all the other rigmarole.
-                        if (co == null)
-                        {
-                            return null;
-                        }
-                        target = co.inst;
-                    }
-
-                    var binding = new Binding(mi, target, margs, outs);
-                    if (usedImplicitConversion)
-                    {
-                        // lets just keep the first binding using implicit conversion
-                        // this is to respect method order/precedence
-                        if (bindingUsingImplicitConversion == null)
-                        {
-                            // in this case we will not return the binding yet in case there is a match
-                            // which does not use implicit conversions, which will return directly
-                            bindingUsingImplicitConversion = binding;
-                        }
-                    }
-                    else
-                    {
-                        return binding;
-                    }
+                if (parameter.IsOut || isOut)
+                {
+                    outs++;
                 }
             }
 
-            // if we generated a binding using implicit conversion return it
-            if (bindingUsingImplicitConversion != null)
-            {
-                return bindingUsingImplicitConversion;
-            }
-
-            // We weren't able to find a matching method but at least one
-            // is a generic method and info is null. That happens when a generic
-            // method was not called using the [] syntax. Let's introspect the
-            // type of the arguments and use it to construct the correct method.
-            if (isGeneric && info == null && methodinfo != null)
-            {
-                Type[] types = Runtime.PythonArgsToTypeArray(args, true);
-                MethodInfo mi = MatchParameters(methodinfo, types);
-                return Bind(inst, args, kw, mi, null);
-            }
-            return null;
+            return margs;
         }
 
-        /// <summary>
-        /// This helper method will perform an initial check to determine if we found a matching
-        /// method based on its parameters count and type <see cref="Bind(IntPtr,IntPtr,IntPtr,MethodBase,MethodInfo[])"/>
-        /// </summary>
-        private bool CheckMethodArgumentsMatch(int clrnargs,
-            int pynargs,
-            ParameterInfo[] parameterInfo,
-            out int arrayStart,
+        static bool TryConvertArgument(IntPtr op, Type parameterType, bool needsResolution,
+            out object arg, out bool isOut, out bool usedImplicitConversion)
+        {
+            arg = null;
+            isOut = false;
+            usedImplicitConversion = false;
+            var clrtype = TryComputeClrArgumentType(parameterType, op, needsResolution: needsResolution,
+                usedImplicitConversion: out usedImplicitConversion);
+            if (clrtype == null)
+            {
+                return false;
+            }
+
+            if (!Converter.ToManaged(op, clrtype, out arg, false))
+            {
+                Exceptions.Clear();
+                return false;
+            }
+
+            isOut = clrtype.IsByRef;
+            return true;
+        }
+
+        static Type TryComputeClrArgumentType(Type parameterType, IntPtr argument, bool needsResolution,
+            out bool usedImplicitConversion)
+        {
+            // this logic below handles cases when multiple overloading methods
+            // are ambiguous, hence comparison between Python and CLR types
+            // is necessary
+            Type clrtype = null;
+            IntPtr pyoptype;
+            usedImplicitConversion = false;
+            if (needsResolution)
+            {
+                // HACK: each overload should be weighted in some way instead
+                pyoptype = Runtime.PyObject_Type(argument);
+                Exceptions.Clear();
+                if (pyoptype != IntPtr.Zero)
+                {
+                    clrtype = Converter.GetTypeByAlias(pyoptype);
+                }
+                Runtime.XDecref(pyoptype);
+            }
+
+
+            if (clrtype != null)
+            {
+                var typematch = false;
+                if ((parameterType != typeof(object)) && (parameterType != clrtype))
+                {
+                    IntPtr pytype = Converter.GetPythonTypeByAlias(parameterType);
+                    pyoptype = Runtime.PyObject_Type(argument);
+                    Exceptions.Clear();
+                    if (pyoptype != IntPtr.Zero)
+                    {
+                        if (pytype != pyoptype)
+                        {
+                            typematch = false;
+                        }
+                        else
+                        {
+                            typematch = true;
+                            clrtype = parameterType;
+                        }
+                    }
+                    if (!typematch)
+                    {
+                        // this takes care of nullables
+                        var underlyingType = Nullable.GetUnderlyingType(parameterType);
+                        if (underlyingType == null)
+                        {
+                            underlyingType = parameterType;
+                        }
+                        // this takes care of enum values
+                        TypeCode argtypecode = Type.GetTypeCode(underlyingType);
+                        TypeCode paramtypecode = Type.GetTypeCode(clrtype);
+                        if (argtypecode == paramtypecode)
+                        {
+                            typematch = true;
+                            clrtype = parameterType;
+                        }
+                        // accepts non-decimal numbers in decimal parameters 
+                        if (underlyingType == typeof(decimal))
+                        {
+                            object arg;
+                            clrtype = parameterType;
+                            typematch = Converter.ToManaged(argument, clrtype, out arg, false);
+                        }
+                        // this takes care of implicit conversions
+                        var opImplicit = parameterType.GetMethod("op_Implicit", new[] {clrtype});
+                        if (opImplicit != null)
+                        {
+                            usedImplicitConversion = typematch = opImplicit.ReturnType == parameterType;
+                            clrtype = parameterType;
+                        }
+                    }
+                    Runtime.XDecref(pyoptype);
+                    if (!typematch)
+                    {
+                        return null;
+                    }
+                }
+                else
+                {
+                    typematch = true;
+                    clrtype = parameterType;
+                }
+            }
+            else
+            {
+                clrtype = parameterType;
+            }
+
+            return clrtype;
+        }
+
         static bool MatchesArgumentCount(int positionalArgumentCount, ParameterInfo[] parameters,
             Dictionary<string, IntPtr> kwargDict,
             out bool paramsArray,
             out ArrayList defaultArgList)
         {
-            arrayStart = -1;
             defaultArgList = null;
-
             var match = false;
             paramsArray = false;
 
             if (positionalArgumentCount == parameters.Length)
-            if (pynargs == clrnargs)
             {
                 match = true;
             }
             else if (positionalArgumentCount < parameters.Length)
-            }
-            else if (pynargs < clrnargs)
             {
                 // every parameter past 'positionalArgumentCount' must have either
                 // a corresponding keyword argument or a default parameter
@@ -700,29 +631,16 @@ namespace Python.Runtime
                     }
                     else
                     {
-                for (var v = pynargs; v < clrnargs && match; v++)
-                {
-                    if (parameterInfo[v].DefaultValue == DBNull.Value)
-                    {
                         match = false;
                     }
                 }
             }
             else if (positionalArgumentCount > parameters.Length && parameters.Length > 0 &&
-                       Attribute.IsDefined(parameters[parameters.Length - 1], typeof(ParamArrayAttribute)))
-                    }
-                    else
-                    {
-                        defaultArgList.Add(parameterInfo[v].DefaultValue);
-                    }
-                }
-            }
-            else if (pynargs > clrnargs && clrnargs > 0 &&
-                     Attribute.IsDefined(parameterInfo[clrnargs - 1], typeof(ParamArrayAttribute)))
+                     Attribute.IsDefined(parameters[parameters.Length - 1], typeof(ParamArrayAttribute)))
             {
                 // This is a `foo(params object[] bar)` style method
                 match = true;
-                arrayStart = clrnargs - 1;
+                paramsArray = true;
             }
 
             return match;
@@ -746,12 +664,44 @@ namespace Python.Runtime
 
             if (binding == null)
             {
-                var value = "No method matches given arguments";
+                var value = new StringBuilder("No method matches given arguments");
                 if (methodinfo != null && methodinfo.Length > 0)
                 {
-                    value += $" for {methodinfo[0].Name}";
+                    value.Append($" for {methodinfo[0].Name}");
                 }
-                Exceptions.SetError(Exceptions.TypeError, value);
+
+                long argCount = Runtime.PyTuple_Size(args);
+                value.Append(": (");
+                for (var argIndex = 0; argIndex < argCount; argIndex++)
+                {
+                    var arg = Runtime.PyTuple_GetItem(args, argIndex);
+                    if (arg != IntPtr.Zero)
+                    {
+                        var type = Runtime.PyObject_Type(arg);
+                        if (type != IntPtr.Zero)
+                        {
+                            try
+                            {
+                                var description = Runtime.PyObject_Unicode(type);
+                                if (description != IntPtr.Zero)
+                                {
+                                    value.Append(Runtime.GetManagedString(description));
+                                    Runtime.XDecref(description);
+                                }
+                            }
+                            finally
+                            {
+                                Runtime.XDecref(type);
+                            }
+                        }
+                    }
+
+                    if (argIndex + 1 < argCount)
+                        value.Append(", ");
+                }
+
+                value.Append(')');
+                Exceptions.SetError(Exceptions.TypeError, value.ToString());
                 return IntPtr.Zero;
             }
 
@@ -872,38 +822,46 @@ namespace Python.Runtime
                 return 0;
             }
         }
-    }
 
 
-    /// <summary>
-    /// A Binding is a utility instance that bundles together a MethodInfo
-    /// representing a method to call, a (possibly null) target instance for
-    /// the call, and the arguments for the call (all as managed values).
-    /// </summary>
-    internal class Binding
-    {
-        public MethodBase info;
-        public object[] args;
-        public object inst;
-        public int outs;
-
-        internal Binding(MethodBase info, object inst, object[] args, int outs)
+        /// <summary>
+        /// A Binding is a utility instance that bundles together a MethodInfo
+        /// representing a method to call, a (possibly null) target instance for
+        /// the call, and the arguments for the call (all as managed values).
+        /// </summary>
+        internal class Binding
         {
-            this.info = info;
-            this.inst = inst;
-            this.args = args;
-            this.outs = outs;
+            public MethodBase info;
+            public object[] args;
+            public object inst;
+            public int outs;
+
+            internal Binding(MethodBase info, object inst, object[] args, int outs)
+            {
+                this.info = info;
+                this.inst = inst;
+                this.args = args;
+                this.outs = outs;
+            }
         }
     }
-
 
     static internal class ParameterInfoExtensions
     {
         public static object GetDefaultValue(this ParameterInfo parameterInfo)
         {
+            bool hasDefaultValue;
+
             // parameterInfo.HasDefaultValue is preferable but doesn't exist in .NET 4.0
-            bool hasDefaultValue = (parameterInfo.Attributes & ParameterAttributes.HasDefault) ==
-                ParameterAttributes.HasDefault;
+            try
+            {
+                hasDefaultValue = parameterInfo.HasDefaultValue;
+            }
+            catch
+            {
+                hasDefaultValue = (parameterInfo.Attributes & ParameterAttributes.HasDefault) ==
+                                  ParameterAttributes.HasDefault;
+            }
 
             if (hasDefaultValue)
             {
