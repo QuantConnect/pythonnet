@@ -292,10 +292,12 @@ namespace Python.Runtime
 
         internal Binding Bind(IntPtr inst, IntPtr args, IntPtr kw, MethodBase info, MethodInfo[] methodinfo)
         {
-            var kwargDict = new Dictionary<string, IntPtr>();
+            Dictionary<string, IntPtr> kwargDict = null;
+
             if (kw != IntPtr.Zero)
             {
                 var pynkwargs = (int)Runtime.PyDict_Size(kw);
+                kwargDict = new Dictionary<string, IntPtr>(pynkwargs);
                 IntPtr keylist = Runtime.PyDict_Keys(kw);
                 IntPtr valueList = Runtime.PyDict_Values(kw);
                 for (int i = 0; i < pynkwargs; ++i)
@@ -409,6 +411,7 @@ namespace Python.Runtime
         /// <param name="defaultArgList">A list of default values for omitted parameters</param>
         /// <param name="needsResolution"><c>true</c>, if overloading resolution is required</param>
         /// <param name="outs">Returns number of output parameters</param>
+        /// <param name="usedImplicitConversion">Returns true if the type of one of the parameters can be implicitly converted into another type</param>
         /// <returns>An array of .NET arguments, that can be passed to a method.</returns>
         static object[] TryConvertArguments(ParameterInfo[] pi, bool paramsArray,
             IntPtr args, int pyArgCount,
@@ -426,7 +429,7 @@ namespace Python.Runtime
             for (int paramIndex = 0; paramIndex < pi.Length; paramIndex++)
             {
                 var parameter = pi[paramIndex];
-                bool hasNamedParam = kwargDict.ContainsKey(parameter.Name);
+                bool hasNamedParam =  kwargDict != null && kwargDict.ContainsKey(parameter.Name);
 
                 if (paramIndex >= pyArgCount && !hasNamedParam)
                 {
@@ -482,7 +485,6 @@ namespace Python.Runtime
         {
             arg = null;
             isOut = false;
-            usedImplicitConversion = false;
             var clrtype = TryComputeClrArgumentType(parameterType, op, needsResolution: needsResolution,
                 usedImplicitConversion: out usedImplicitConversion);
             if (clrtype == null)
@@ -599,22 +601,20 @@ namespace Python.Runtime
             out ArrayList defaultArgList)
         {
             defaultArgList = null;
-            var match = false;
             paramsArray = false;
 
             if (positionalArgumentCount == parameters.Length)
             {
-                match = true;
+                return true;
             }
-            else if (positionalArgumentCount < parameters.Length)
+            if (positionalArgumentCount < parameters.Length)
             {
                 // every parameter past 'positionalArgumentCount' must have either
                 // a corresponding keyword argument or a default parameter
-                match = true;
                 defaultArgList = new ArrayList();
                 for (var v = positionalArgumentCount; v < parameters.Length; v++)
                 {
-                    if (kwargDict.ContainsKey(parameters[v].Name))
+                    if (kwargDict != null && kwargDict.ContainsKey(parameters[v].Name))
                     {
                         // we have a keyword argument for this parameter,
                         // no need to check for a default parameter, but put a null
@@ -631,19 +631,20 @@ namespace Python.Runtime
                     }
                     else
                     {
-                        match = false;
+                        return false;
                     }
                 }
+                return true;
             }
-            else if (positionalArgumentCount > parameters.Length && parameters.Length > 0 &&
-                     Attribute.IsDefined(parameters[parameters.Length - 1], typeof(ParamArrayAttribute)))
+            if (positionalArgumentCount > parameters.Length && parameters.Length > 0 &&
+                Attribute.IsDefined(parameters[parameters.Length - 1], typeof(ParamArrayAttribute)))
             {
                 // This is a `foo(params object[] bar)` style method
-                match = true;
                 paramsArray = true;
+                return true;
             }
 
-            return match;
+            return false;
         }
 
         internal virtual IntPtr Invoke(IntPtr inst, IntPtr args, IntPtr kw)
