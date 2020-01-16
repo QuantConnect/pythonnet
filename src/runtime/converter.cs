@@ -497,6 +497,13 @@ class GMT(tzinfo):
                     return ToPrimitive(value, doubleType, out result, setError);
                 }
 
+                // give custom codecs a chance to take over conversion of sequences
+                IntPtr pyType = Runtime.PyObject_TYPE(value);
+                if (PyObjectConversions.TryDecode(value, pyType, obType, out result))
+                {
+                    return true;
+                }
+
                 if (Runtime.PySequence_Check(value))
                 {
                     return ToArray(value, typeof(object[]), out result, setError);
