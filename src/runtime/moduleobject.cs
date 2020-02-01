@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -94,13 +95,9 @@ namespace Python.Runtime
             // Look for a type in the current namespace. Note that this
             // includes types, delegates, enums, interfaces and structs.
             // Only public namespace members are exposed to Python.
-            type = AssemblyManager.LookupType(qname);
+            type = AssemblyManager.LookupTypes(qname).FirstOrDefault(t => t.IsPublic);
             if (type != null)
             {
-                if (!type.IsPublic)
-                {
-                    return null;
-                }
                 c = ClassManager.GetClass(type);
                 StoreAttribute(name, c);
                 return c;
@@ -120,13 +117,9 @@ namespace Python.Runtime
                     return m;
                 }
 
-                type = AssemblyManager.LookupType(qname);
+                type = AssemblyManager.LookupTypes(qname).FirstOrDefault(t => t.IsPublic);
                 if (type != null)
                 {
-                    if (!type.IsPublic)
-                    {
-                        return null;
-                    }
                     c = ClassManager.GetClass(type);
                     StoreAttribute(name, c);
                     return c;
