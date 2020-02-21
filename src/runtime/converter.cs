@@ -175,7 +175,6 @@ class GMT(tzinfo):
                 if (encoded != null) {
                     result = encoded.Handle;
                     Runtime.XIncref(result);
-                    encoded.Dispose();
                     return result;
                 }
             }
