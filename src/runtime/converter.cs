@@ -171,10 +171,12 @@ class GMT(tzinfo):
             if (Type.GetTypeCode(type) == TypeCode.Object && value.GetType() != typeof(object))
             {
                 var encoded = PyObjectConversions.TryEncode(value, type);
-                if (encoded != null)
-                {
-                    Runtime.XIncref(encoded.Handle);
-                    return encoded.Handle;
+
+                if (encoded != null) {
+                    result = encoded.Handle;
+                    Runtime.XIncref(result);
+                    encoded.Dispose();
+                    return result;
                 }
             }
 
