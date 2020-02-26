@@ -188,7 +188,7 @@ namespace Python.Runtime
                 pypath.Add("");
                 for (var i = 0; i < count; i++)
                 {
-                    IntPtr item = Runtime.PyList_GetItem(list, i);
+                    BorrowedReference item = Runtime.PyList_GetItem(list, i);
                     string path = Runtime.GetManagedString(item);
                     if (path != null)
                     {
