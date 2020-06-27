@@ -288,7 +288,8 @@ namespace Python.Runtime
             IntPtr decimalMod = PyImport_ImportModule("decimal");
             IntPtr decimalCtor = PyObject_GetAttrString(decimalMod, "Decimal");
             op = PyObject_CallObject(decimalCtor, IntPtr.Zero);
-            SetPyMember(ref PyDecimalType, PyObject_Type(op));
+            SetPyMember(ref PyDecimalType, PyObject_Type(op),
+                () => PyDecimalType = IntPtr.Zero);
             XDecref(op);
             XDecref(decimalMod);
             XDecref(decimalCtor);
