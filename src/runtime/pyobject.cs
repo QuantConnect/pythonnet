@@ -205,24 +205,6 @@ namespace Python.Runtime
         }
 
         /// <summary>
-        /// Unsafe Dispose Method.
-        /// To be used when already owning the GIL lock. <see cref="Dispose()"/>
-        /// </summary>
-        public void UnsafeDispose()
-        {
-            if (!disposed)
-            {
-                if (!Runtime.IsFinalizing)
-                {
-                    Runtime.XDecref(obj);
-                    obj = IntPtr.Zero;
-                }
-                disposed = true;
-            }
-            GC.SuppressFinalize(this);
-        }
-
-        /// <summary>
         /// GetPythonType Method
         /// </summary>
         /// <remarks>
@@ -234,7 +216,6 @@ namespace Python.Runtime
             IntPtr tp = Runtime.PyObject_Type(obj);
             return new PyObject(tp);
         }
-
 
         /// <summary>
         /// TypeCheck Method
