@@ -323,15 +323,16 @@ namespace Python.Runtime
 
         private readonly struct MatchedMethod
         {
-            public MatchedMethod(int kwargsMatched, int defaultsNeeded, object[] margs, int outs, MethodBase mb)
+            public MatchedMethod(int kwargsMatched, int defaultsNeeded, object[] margs, int outs, MethodBase mb, bool usedImplicitConversion)
             {
                 KwargsMatched = kwargsMatched;
                 DefaultsNeeded = defaultsNeeded;
                 ManagedArgs = margs;
                 Outs = outs;
                 Method = mb;
+                UsedImplicitConversion = usedImplicitConversion;
             }
-
+            public bool UsedImplicitConversion { get; }
             public int KwargsMatched { get; }
             public int DefaultsNeeded { get; }
             public object[] ManagedArgs { get; }
@@ -398,9 +399,12 @@ namespace Python.Runtime
             var argMatchedMethods = new List<MatchedMethod>(_methods.Length);
             var mismatchedMethods = new List<MismatchedMethod>();
 
+            var anyUsedImplicitConversion = false;
+
             // TODO: Clean up
             foreach (MethodBase mi in _methods)
             {
+                var usedImplicitConversion = false;
                 if (mi.IsGenericMethod)
                 {
                     isGeneric = true;
@@ -435,7 +439,7 @@ namespace Python.Runtime
                 int outs;
                 var margs = TryConvertArguments(pi, paramsArray, args, pynargs, kwargDict, defaultArgList,
                     needsResolution: _methods.Length > 1,  // If there's more than one possible match.
-                    outs: out outs);
+                    outs: out outs, out usedImplicitConversion);
                 if (margs == null)
                 {
                     mismatchedMethods.Add(new MismatchedMethod(new PythonException(), mi));
@@ -467,11 +471,16 @@ namespace Python.Runtime
                 }
 
 
-                var matchedMethod = new MatchedMethod(kwargsMatched, defaultsNeeded, margs, outs, mi);
+                var matchedMethod = new MatchedMethod(kwargsMatched, defaultsNeeded, margs, outs, mi, usedImplicitConversion);
                 argMatchedMethods.Add(matchedMethod);
+                anyUsedImplicitConversion |= usedImplicitConversion;
             }
             if (argMatchedMethods.Count > 0)
             {
+                if (anyUsedImplicitConversion)
+                {
+                    argMatchedMethods.Sort((method, matchedMethod) => matchedMethod.UsedImplicitConversion ? 0 : 1);
+                }
                 var bestKwargMatchCount = argMatchedMethods.Max(x => x.KwargsMatched);
                 var fewestDefaultsRequired = argMatchedMethods.Where(x => x.KwargsMatched == bestKwargMatchCount).Min(x => x.DefaultsNeeded);
 
@@ -613,8 +622,10 @@ namespace Python.Runtime
             Dictionary<string, IntPtr> kwargDict,
             ArrayList defaultArgList,
             bool needsResolution,
-            out int outs)
+            out int outs,
+            out bool usedImplicitConversion)
         {
+            usedImplicitConversion = false;
             outs = 0;
             var margs = new object[pi.Length];
             int arrayStart = paramsArray ? pi.Length - 1 : -1;
@@ -653,7 +664,7 @@ namespace Python.Runtime
                 }
 
                 bool isOut;
-                if (!TryConvertArgument(op, parameter.ParameterType, needsResolution, out margs[paramIndex], out isOut))
+                if (!TryConvertArgument(op, parameter.ParameterType, needsResolution, out margs[paramIndex], out isOut, out usedImplicitConversion))
                 {
                     return null;
                 }
@@ -686,11 +697,11 @@ namespace Python.Runtime
         /// <param name="isOut">Whether the CLR type is passed by reference.</param>
         /// <returns>true on success</returns>
         static bool TryConvertArgument(IntPtr op, Type parameterType, bool needsResolution,
-                                       out object arg, out bool isOut)
+                                       out object arg, out bool isOut, out bool usedImplicitConversion)
         {
             arg = null;
             isOut = false;
-            var clrtype = TryComputeClrArgumentType(parameterType, op, needsResolution: needsResolution);
+            var clrtype = TryComputeClrArgumentType(parameterType, op, needsResolution: needsResolution, out usedImplicitConversion);
             if (clrtype == null)
             {
                 return false;
@@ -712,8 +723,9 @@ namespace Python.Runtime
         /// <param name="argument">Pointer to the Python argument object.</param>
         /// <param name="needsResolution">If true, there are multiple overloading methods that need resolution.</param>
         /// <returns>null if conversion is not possible</returns>
-        static Type TryComputeClrArgumentType(Type parameterType, IntPtr argument, bool needsResolution)
+        static Type TryComputeClrArgumentType(Type parameterType, IntPtr argument, bool needsResolution, out bool usedImplicitConversion)
         {
+            usedImplicitConversion = false;
             // this logic below handles cases when multiple overloading methods
             // are ambiguous, hence comparison between Python and CLR types
             // is necessary
@@ -736,6 +748,7 @@ namespace Python.Runtime
                 {
                     IntPtr pytype = Converter.GetPythonTypeByAlias(parameterType);
                     pyoptype = Runtime.PyObject_Type(argument);
+                    Exceptions.Clear();
                     var typematch = false;
                     if (pyoptype != IntPtr.Zero)
                     {
@@ -758,6 +771,14 @@ namespace Python.Runtime
                             parameterType = underlyingType;
                         }
 
+                        // this takes care of implicit conversions
+                        var opImplicit = parameterType.GetMethod("op_Implicit", new[] { clrtype });
+                        if (opImplicit != null)
+                        {
+                            usedImplicitConversion = typematch = opImplicit.ReturnType == parameterType;
+                            clrtype = parameterType;
+                        }
+
                         // this takes care of enum values
                         TypeCode parameterTypeCode = Type.GetTypeCode(parameterType);
                         TypeCode clrTypeCode = Type.GetTypeCode(clrtype);
@@ -769,14 +790,6 @@ namespace Python.Runtime
                         else
                         {
                             Exceptions.RaiseTypeError($"Expected {parameterTypeCode}, got {clrTypeCode}");
-                        }
-
-                        // this takes care of implicit conversions
-                        var opImplicit = parameterType.GetMethod("op_Implicit", new[] { clrtype });
-                        if (opImplicit != null)
-                        {
-                            typematch = opImplicit.ReturnType == parameterType;
-                            clrtype = parameterType;
                         }
                     }
                     Runtime.XDecref(pyoptype);
