@@ -6,6 +6,10 @@
 *.pdb
 *.deps.json
 
+# Ignore package builds
+*.nupkg
+*.snupkg
+
 ### JetBrains ###
 .idea/
 

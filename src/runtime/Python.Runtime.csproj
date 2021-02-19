@@ -5,7 +5,6 @@
     <LangVersion>9.0</LangVersion>
     <RootNamespace>Python.Runtime</RootNamespace>
     <AssemblyName>Python.Runtime</AssemblyName>
-
     <PackageId>pythonnet</PackageId>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <RepositoryUrl>https://github.com/pythonnet/pythonnet</RepositoryUrl>
@@ -15,19 +14,30 @@
     <PackageProjectUrl>https://pythonnet.github.io/</PackageProjectUrl>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <Description>Python and CLR (.NET and Mono) cross-platform language interop</Description>
-
     <DebugSymbols>true</DebugSymbols>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-
     <AssemblyOriginatorKeyFile>..\pythonnet.snk</AssemblyOriginatorKeyFile>
     <SignAssembly>true</SignAssembly>
-
     <NoWarn>1591;NU1701</NoWarn>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);CustomContentTarget</TargetsForTfmSpecificContentInPackage>
     <IsPackable>true</IsPackable>
+    <PackageOutputPath>$(SolutionDir)</PackageOutputPath>
   </PropertyGroup>
+
+  <Target Name="CustomContentTarget" AfterTargets="build">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="../../clr.py">
+        <PackagePath>contentFiles/any/any/</PackagePath>
+        <PackageCopyToOutput>true</PackageCopyToOutput>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="../../pythonnet/**">
+        <PackagePath>contentFiles/any/any/pythonnet</PackagePath>
+        <PackageCopyToOutput>true</PackageCopyToOutput>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
 
   <PropertyGroup>
     <OutputPath>..\..\pythonnet\runtime</OutputPath>
