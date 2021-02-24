@@ -5,7 +5,8 @@
     <LangVersion>9.0</LangVersion>
     <RootNamespace>Python.Runtime</RootNamespace>
     <AssemblyName>Python.Runtime</AssemblyName>
-    <PackageId>pythonnet</PackageId>
+    <PackageId>QuantConnect.pythonnet</PackageId>
+    <Version>2.0.0</Version>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <RepositoryUrl>https://github.com/pythonnet/pythonnet</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -34,6 +35,10 @@
       </TfmSpecificPackageFile>
       <TfmSpecificPackageFile Include="../../pythonnet/**">
         <PackagePath>contentFiles/any/any/pythonnet</PackagePath>
+        <PackageCopyToOutput>true</PackageCopyToOutput>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="../console/bin/x64/Debug/net472/nPython.exe">
+        <PackagePath>contentFiles/any/any/</PackagePath>
         <PackageCopyToOutput>true</PackageCopyToOutput>
       </TfmSpecificPackageFile>
     </ItemGroup>
