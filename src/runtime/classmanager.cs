@@ -31,7 +31,10 @@ namespace Python.Runtime
                                                              BindingFlags.Public |
                                                              BindingFlags.NonPublic;
 
-        private static Dictionary<MaybeType, ClassBase> cache;
+        // TODO: Issue #1407
+        // Using Type instead of MaybeType because of performance reduction
+        // by implicitly converting Types to MaybeTypes to access cache
+        private static Dictionary<Type, ClassBase> cache;
         private static readonly Type dtype;
 
         private ClassManager()
@@ -49,7 +52,7 @@ namespace Python.Runtime
 
         public static void Reset()
         {
-            cache = new Dictionary<MaybeType, ClassBase>(128);
+            cache = new Dictionary<Type, ClassBase>(128);
         }
 
         internal static void DisposePythonWrappersForClrTypes()
@@ -100,7 +103,7 @@ namespace Python.Runtime
             storage.AddValue("cache", cache);
             foreach (var cls in cache)
             {
-                if (!cls.Key.Valid)
+                if (cls.Key == null)
                 {
                     // Don't serialize an invalid class
                     continue;
@@ -141,19 +144,19 @@ namespace Python.Runtime
 
         internal static Dictionary<ManagedType, InterDomainContext> RestoreRuntimeData(RuntimeDataStorage storage)
         {
-            cache = storage.GetValue<Dictionary<MaybeType, ClassBase>>("cache");
-            var invalidClasses = new List<KeyValuePair<MaybeType, ClassBase>>();
+            cache = storage.GetValue<Dictionary<Type, ClassBase>>("cache");
+            var invalidClasses = new List<KeyValuePair<Type, ClassBase>>();
             var contexts = storage.GetValue <Dictionary<IntPtr, InterDomainContext>>("contexts");
             var loadedObjs = new Dictionary<ManagedType, InterDomainContext>();
             foreach (var pair in cache)
             {
-                if (!pair.Key.Valid)
+                if (pair.Key == null)
                 {
                     invalidClasses.Add(pair);
                     continue;
                 }
                 // re-init the class
-                InitClassBase(pair.Key.Value, pair.Value);
+                InitClassBase(pair.Key, pair.Value);
                 // We modified the Type object, notify it we did.
                 Runtime.PyType_Modified(pair.Value.tpHandle);
                 var context = contexts[pair.Value.pyHandle];
