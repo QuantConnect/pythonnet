@@ -37,7 +37,7 @@
         <PackagePath>contentFiles/any/any/pythonnet</PackagePath>
         <PackageCopyToOutput>true</PackageCopyToOutput>
       </TfmSpecificPackageFile>
-      <TfmSpecificPackageFile Include="../console/bin/x64/Debug/net472/nPython.exe">
+      <TfmSpecificPackageFile Include="../console/bin/x64/$(Configuration)/net472/nPython.exe">
         <PackagePath>contentFiles/any/any/</PackagePath>
         <PackageCopyToOutput>true</PackageCopyToOutput>
       </TfmSpecificPackageFile>
