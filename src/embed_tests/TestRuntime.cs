@@ -112,5 +112,76 @@ namespace Python.EmbeddingTest
 
             Runtime.Runtime.Py_Finalize();
         }
+
+
+        private static string testModule = @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class PythonModule():
+    def TestA(self):
+        insight = TestRuntime.Insight()
+        TestRuntime.EmitInsights(TestRuntime.Group(insight))
+    def TestB(self):
+        insight = TestRuntime.Insight()
+        return TestRuntime.Group(insight)";
+
+        [Test]
+        public void QCTestA()
+        {
+            PythonEngine.Initialize();
+            dynamic module = PythonEngine.ModuleFromString("module", testModule).GetAttr("PythonModule").Invoke();
+            module.TestA();
+            PythonEngine.Shutdown();
+        }
+
+        [Test]
+        public void QCTestB()
+        {
+            PythonEngine.Initialize();
+            dynamic module = PythonEngine.ModuleFromString("module", testModule).GetAttr("PythonModule").Invoke();
+            dynamic ob = module.TestB();
+            PythonEngine.Shutdown();
+        }
+
+
+        /// <summary>
+        /// Manually emit insights from an algorithm.
+        /// This is typically invoked before calls to submit orders in algorithms written against
+        /// QCAlgorithm that have been ported into the algorithm framework.
+        /// </summary>
+        /// <param name="insights">The array of insights to be emitted</param>
+        public void EmitInsights(params Insight[] insights)
+        {
+            foreach (var insight in insights)
+            {
+                Console.WriteLine(insight.info);
+            }
+        }
+
+        /// <summary>
+        /// Creates a new, unique group id and sets it on each insight
+        /// </summary>
+        /// <param name="insights">The insights to be grouped</param>
+        public static Insight[] Group(params Insight[] insights)
+        {
+            if (insights == null)
+            {
+                throw new ArgumentNullException(nameof(insights));
+            }
+
+            return insights;
+        }
+
+        public class Insight
+        {
+            public string info;
+
+            public Insight()
+            {
+                info = "yes";
+            }
+        }
     }
 }
