@@ -630,8 +630,9 @@ namespace Python.Runtime
                 }
                 else
                 {
+                    // It's a single item, grab it and set it as op
                     isNewReference = true;
-                    op = Runtime.PyTuple_GetSlice(args, arrayStart, pyArgCount);
+                    op = Runtime.PyTuple_GetItem(args, arrayStart);
                 }
             }
             else
