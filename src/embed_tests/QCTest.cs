@@ -9,23 +9,42 @@ namespace Python.EmbeddingTest
 {
     class QCTests
     {
-        [Test]
-        /// Test case for issue
-        /// https://quantconnect.slack.com/archives/G51920EN4/p1615418516028900
-        public void ParamTest()
-        {
-            string testModule = @"
+        private static dynamic module;
+        private static string testModule = @"
 from clr import AddReference
 AddReference(""System"")
 AddReference(""Python.EmbeddingTest"")
 from Python.EmbeddingTest import Algo, Insight
 class PythonModule(Algo):
     def TestA(self):
-        self.EmitInsights(Insight.Group(Insight()))";
+        try:
+            self.EmitInsights(Insight.Group(Insight()))
+            return True
+        except:
+            return False
+";
+
+        [OneTimeSetUp]
+        public void Setup()
+        {
             PythonEngine.Initialize();
-            dynamic module = PythonEngine.ModuleFromString("module", testModule).GetAttr("PythonModule").Invoke();
-            module.TestA();
+            module = PythonEngine.ModuleFromString("module", testModule).GetAttr("PythonModule").Invoke();
+        }
+
+        [OneTimeTearDown]
+        public void TearDown()
+        {
             PythonEngine.Shutdown();
+        }
+
+        [Test]
+        /// Test case for issue with params
+        /// Highlights case where params argument is a CLR object wrapped in Python
+        /// https://quantconnect.slack.com/archives/G51920EN4/p1615418516028900
+        public void ParamTest()
+        {
+            var output = (bool)module.TestA();
+            Assert.IsTrue(output);
         }
     }
 
