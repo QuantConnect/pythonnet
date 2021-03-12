@@ -382,8 +382,7 @@ def test_uint64_conversion():
     ob.UInt64Field = System.UInt64(0)
     assert ob.UInt64Field == 0
 
-    # TODO: Why does this not throw any errors???
-    # Value stays 0 and no exception.
+    # Implicitly converts float 0.5 -> int 0
     #with pytest.raises(TypeError):
         #ConversionTest().UInt64Field = 0.5
 

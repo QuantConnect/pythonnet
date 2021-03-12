@@ -68,8 +68,8 @@ def test_explicit_cast_to_interface():
     assert hasattr(i2, 'SayHello')
     assert not hasattr(i2, 'HelloProperty')
 
-# TODO: Not sure why this test works in trunk if there is no function with that name
-# Seems like it is a specific handling with interface that creates such functions?
+# TODO: This set of tests is broken because of a specific revert that was done
+# Reference this commit for more https://github.com/QuantConnect/pythonnet/commit/76213abc4196d871c8b079f30a464e4cdc7defe3
 @pytest.mark.skip(reason="There is no InterfaceTest.GetISayHello1")
 def test_interface_object_returned_through_method():
     """Test interface type is used if method return type is interface"""
