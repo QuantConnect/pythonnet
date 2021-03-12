@@ -35,6 +35,7 @@ namespace Python.PythonTestsRunner
             // Add the test that you want to debug here.
             yield return new[] { "test_enum", "test_enum_standard_attrs" };
             yield return new[] { "test_generic", "test_missing_generic_type" };
+            yield return new[] { "test_method", "test_value_params_args" };
         }
 
         /// <summary>
