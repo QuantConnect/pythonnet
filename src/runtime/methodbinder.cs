@@ -620,13 +620,10 @@ namespace Python.Runtime
             // and then if it is a sequence itself.
             if ((pyArgCount - arrayStart) == 1)
             {
-                // we only have one argument left, so we need to check it
-                // to see if it is a sequence or a single item
-                IntPtr item = Runtime.PyTuple_GetItem(args, arrayStart);
-
+                // Ee only have one argument left, so we need to check to see if it is a sequence or a single item
                 // We also need to check if this object is possibly a wrapped C# Enumerable Object
-                var mobj = CLRObject.GetManagedObject(item) as CLRObject;
-                if (!Runtime.PyString_Check(item) && (Runtime.PySequence_Check(item) || mobj?.inst is IEnumerable))
+                IntPtr item = Runtime.PyTuple_GetItem(args, arrayStart);
+                if (!Runtime.PyString_Check(item) && (Runtime.PySequence_Check(item) || (ManagedType.GetManagedObject(item) as CLRObject)?.inst is IEnumerable))
                 {
                     // it's a sequence (and not a string), so we use it as the op
                     op = item;
