@@ -141,5 +141,5 @@ def test_enum_conversion():
     with pytest.raises(OverflowError):
         Test.FieldTest().EnumField = 100000
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         Test.FieldTest().EnumField = "str"
