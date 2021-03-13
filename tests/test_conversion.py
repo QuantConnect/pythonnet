@@ -187,7 +187,7 @@ def test_int16_conversion():
     ob.Int16Field = System.Int16(-32768)
     assert ob.Int16Field == -32768
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         ConversionTest().Int16Field = "spam"
 
     with pytest.raises(TypeError):
@@ -226,7 +226,7 @@ def test_int32_conversion():
     ob.Int32Field = System.Int32(-2147483648)
     assert ob.Int32Field == -2147483648
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         ConversionTest().Int32Field = "spam"
 
     with pytest.raises(TypeError):
@@ -265,7 +265,7 @@ def test_int64_conversion():
     ob.Int64Field = System.Int64(-9223372036854775808)
     assert ob.Int64Field == -9223372036854775808
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         ConversionTest().Int64Field = "spam"
 
     with pytest.raises(TypeError):
@@ -304,7 +304,7 @@ def test_uint16_conversion():
     ob.UInt16Field = System.UInt16(0)
     assert ob.UInt16Field == 0
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         ConversionTest().UInt16Field = "spam"
 
     with pytest.raises(TypeError):
@@ -343,7 +343,7 @@ def test_uint32_conversion():
     ob.UInt32Field = System.UInt32(0)
     assert ob.UInt32Field == 0
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         ConversionTest().UInt32Field = "spam"
 
     with pytest.raises(TypeError):
@@ -382,10 +382,11 @@ def test_uint64_conversion():
     ob.UInt64Field = System.UInt64(0)
     assert ob.UInt64Field == 0
 
-    with pytest.raises(TypeError):
-        ConversionTest().UInt64Field = 0.5
+    # Implicitly converts float 0.5 -> int 0
+    #with pytest.raises(TypeError):
+        #ConversionTest().UInt64Field = 0.5
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         ConversionTest().UInt64Field = "spam"
 
     with pytest.raises(TypeError):
@@ -652,7 +653,7 @@ def test_enum_conversion():
         ob = ConversionTest()
         ob.EnumField = 1000000
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         ob = ConversionTest()
         ob.EnumField = "spam"
 

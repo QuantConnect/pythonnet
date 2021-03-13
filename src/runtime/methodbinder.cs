@@ -371,13 +371,12 @@ namespace Python.Runtime
                     kwArgDict,
                     pi,
                     out bool paramsArray,
-                    out int arrayStart,
                     out ArrayList defaultArgList))
                 {
                     var outs = 0;
                     var margs = new object[clrArgCount];
                     
-                    arrayStart = paramsArray ? pi.Length - 1 : -1;
+                    int paramsArrayIndex = paramsArray ? pi.Length - 1 : -1; // -1 indicates no paramsArray
                     var usedImplicitConversion = false;
 
                     // Conversion loop for each parameter
@@ -392,7 +391,7 @@ namespace Python.Runtime
                         bool isNewReference = false;
 
                         // Check if we are going to use default
-                        if (paramIndex >= pyArgCount && !(hasNamedParam || (paramsArray && paramIndex == arrayStart)))
+                        if (paramIndex >= pyArgCount && !(hasNamedParam || (paramsArray && paramIndex == paramsArrayIndex)))
                         {
                             if (defaultArgList != null)
                             {
@@ -405,9 +404,10 @@ namespace Python.Runtime
                         // At this point, if op is IntPtr.Zero we don't have a KWArg and are not using default
                         if (op == IntPtr.Zero)
                         {
-                            if (arrayStart == paramIndex)
+                            // If we have reached the paramIndex
+                            if (paramsArrayIndex == paramIndex)
                             {
-                                op = HandleParamsArray(args, arrayStart, pyArgCount, out isNewReference);
+                                op = HandleParamsArray(args, paramsArrayIndex, pyArgCount, out isNewReference);
                             }
                             else
                             {
@@ -620,22 +620,24 @@ namespace Python.Runtime
             // and then if it is a sequence itself.
             if ((pyArgCount - arrayStart) == 1)
             {
-                // we only have one argument left, so we need to check it
-                // to see if it is a sequence or a single item
+                // Ee only have one argument left, so we need to check to see if it is a sequence or a single item
+                // We also need to check if this object is possibly a wrapped C# Enumerable Object
                 IntPtr item = Runtime.PyTuple_GetItem(args, arrayStart);
-                if (!Runtime.PyString_Check(item) && Runtime.PySequence_Check(item))
+                if (!Runtime.PyString_Check(item) && (Runtime.PySequence_Check(item) || (ManagedType.GetManagedObject(item) as CLRObject)?.inst is IEnumerable))
                 {
                     // it's a sequence (and not a string), so we use it as the op
                     op = item;
                 }
                 else
                 {
+                    // Its a single value that needs to be converted into the params array
                     isNewReference = true;
                     op = Runtime.PyTuple_GetSlice(args, arrayStart, pyArgCount);
                 }
             }
             else
             {
+                // Its a set of individual values, so we grab them as a tuple to be converted into the params array
                 isNewReference = true;
                 op = Runtime.PyTuple_GetSlice(args, arrayStart, pyArgCount);
             }
@@ -651,15 +653,13 @@ namespace Python.Runtime
             Dictionary<string, IntPtr> kwargDict,
             ParameterInfo[] parameterInfo,
             out bool paramsArray,
-            out int arrayStart,
             out ArrayList defaultArgList)
         {
             var match = false;
 
             // Prepare our outputs
-            arrayStart = -1;
             defaultArgList = null;
-            paramsArray = parameterInfo.Length > 0 ? Attribute.IsDefined(parameterInfo[parameterInfo.Length - 1], typeof(ParamArrayAttribute)) : false;
+            paramsArray = parameterInfo.Length > 0 && Attribute.IsDefined(parameterInfo[parameterInfo.Length - 1], typeof(ParamArrayAttribute));
 
             // First if we have anys kwargs, look at the function for matching args
             if (kwargDict != null && kwargDict.Count > 0)
@@ -717,18 +717,17 @@ namespace Python.Runtime
                     }
                     else if (!paramsArray)
                     {
+                        // If there is no KWArg or Default value, then this isn't a match
                         match = false;
                     }
                 }
             }
-            else if (pyArgCount > clrArgCount && clrArgCount > 0 &&
-                     Attribute.IsDefined(parameterInfo[clrArgCount - 1], typeof(ParamArrayAttribute)))
+            else if (pyArgCount > clrArgCount && clrArgCount > 0 && paramsArray)
             {
                 // This is a `foo(params object[] bar)` style method
+                // We will handle the params later
                 match = true;
-                arrayStart = clrArgCount - 1;
             }
-
             return match;
         }
 
