@@ -1,6 +1,8 @@
 using System;
 using System.Reflection;
 
+using FastMember;
+
 namespace Python.Runtime
 {
     using MaybeFieldInfo = MaybeMemberInfo<FieldInfo>;
@@ -12,9 +14,12 @@ namespace Python.Runtime
     {
         private MaybeFieldInfo info;
 
-        public FieldObject(FieldInfo info)
+        private TypeAccessor _typeAccessor;
+
+        public FieldObject(FieldInfo info, TypeAccessor typeAccessor)
         {
             this.info = info;
+            _typeAccessor = typeAccessor;
         }
 
         /// <summary>
@@ -67,7 +72,7 @@ namespace Python.Runtime
                     Exceptions.SetError(Exceptions.TypeError, "instance is not a clr object");
                     return IntPtr.Zero;
                 }
-                result = info.GetValue(co.inst);
+                result = self._typeAccessor[co.inst, info.Name];
                 return Converter.ToPython(result, info.FieldType);
             }
             catch (Exception e)
@@ -137,7 +142,7 @@ namespace Python.Runtime
                         Exceptions.SetError(Exceptions.TypeError, "instance is not a clr object");
                         return -1;
                     }
-                    info.SetValue(co.inst, newval);
+                    self._typeAccessor[co.inst, info.Name] = newval;
                 }
                 else
                 {

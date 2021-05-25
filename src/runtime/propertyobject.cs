@@ -2,6 +2,8 @@ using System;
 using System.Reflection;
 using System.Security.Permissions;
 
+using FastMember;
+
 namespace Python.Runtime
 {
     using MaybeMethodInfo = MaybeMethodBase<MethodInfo>;
@@ -15,12 +17,15 @@ namespace Python.Runtime
         private MaybeMethodInfo getter;
         private MaybeMethodInfo setter;
 
+        private readonly TypeAccessor _typeAccessor;
+
         [StrongNameIdentityPermission(SecurityAction.Assert)]
-        public PropertyObject(PropertyInfo md)
+        public PropertyObject(PropertyInfo md, TypeAccessor typeAccessor)
         {
             getter = md.GetGetMethod(true);
             setter = md.GetSetMethod(true);
             info = md;
+            _typeAccessor = typeAccessor;
         }
 
 
@@ -74,7 +79,7 @@ namespace Python.Runtime
 
             try
             {
-                result = info.GetValue(co.inst, null);
+                result = self._typeAccessor[co.inst, info.Name];
                 return Converter.ToPython(result, info.PropertyType);
             }
             catch (Exception e)
@@ -146,7 +151,7 @@ namespace Python.Runtime
                         Exceptions.RaiseTypeError("invalid target");
                         return -1;
                     }
-                    info.SetValue(co.inst, newval, null);
+                    self._typeAccessor[co.inst, info.Name] = newval;
                 }
                 else
                 {
