@@ -14,12 +14,9 @@ namespace Python.Runtime
     {
         private MaybeFieldInfo info;
 
-        private TypeAccessor _typeAccessor;
-
-        public FieldObject(FieldInfo info, TypeAccessor typeAccessor)
+        public FieldObject(FieldInfo info)
         {
             this.info = info;
-            _typeAccessor = typeAccessor;
         }
 
         /// <summary>
@@ -72,7 +69,18 @@ namespace Python.Runtime
                     Exceptions.SetError(Exceptions.TypeError, "instance is not a clr object");
                     return IntPtr.Zero;
                 }
-                result = self._typeAccessor[co.inst, info.Name];
+
+                // FastMember's TypeAccessor increases performance, but only works on public fields
+                var typeAccessor = info.IsPublic ? TypeAccessorManager.GetTypeAccessor(co.inst.GetType()) : null;
+                if (typeAccessor != null)
+                {
+                    result = typeAccessor[co.inst, info.Name];
+                }
+                else
+                {
+                    result = info.GetValue(co.inst);
+                }
+
                 return Converter.ToPython(result, info.FieldType);
             }
             catch (Exception e)
@@ -142,7 +150,17 @@ namespace Python.Runtime
                         Exceptions.SetError(Exceptions.TypeError, "instance is not a clr object");
                         return -1;
                     }
-                    self._typeAccessor[co.inst, info.Name] = newval;
+
+                    // FastMember's TypeAccessor increases performance, but only works on public fields
+                    var typeAccessor = info.IsPublic ? TypeAccessorManager.GetTypeAccessor(co.inst.GetType()) : null;
+                    if (typeAccessor != null)
+                    {
+                        typeAccessor[co.inst, info.Name] = newval;
+                    }
+                    else
+                    {
+                        info.SetValue(co.inst, newval);
+                    }
                 }
                 else
                 {

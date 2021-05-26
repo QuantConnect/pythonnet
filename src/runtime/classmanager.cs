@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Dynamic;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security;
@@ -463,8 +464,6 @@ namespace Python.Runtime
                 }
             }
 
-            TypeAccessor typeAccessor = null;
-
             for (i = 0; i < items.Count; i++)
             {
                 var mi = (MemberInfo)items[i];
@@ -509,12 +508,7 @@ namespace Python.Runtime
                             continue;
                         }
 
-                        if (typeAccessor == null)
-                        {
-                            typeAccessor = TypeAccessor.Create(type);
-                        }
-
-                        ob = new PropertyObject(pi, typeAccessor);
+                        ob = new PropertyObject(pi);
                         ci.members[pi.Name] = ob;
                         continue;
 
@@ -525,12 +519,7 @@ namespace Python.Runtime
                             continue;
                         }
 
-                        if (typeAccessor == null)
-                        {
-                            typeAccessor = TypeAccessor.Create(type);
-                        }
-
-                        ob = new FieldObject(fi, typeAccessor);
+                        ob = new FieldObject(fi);
                         ci.members[mi.Name] = ob;
                         continue;
 

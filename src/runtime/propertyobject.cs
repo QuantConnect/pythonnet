@@ -17,15 +17,12 @@ namespace Python.Runtime
         private MaybeMethodInfo getter;
         private MaybeMethodInfo setter;
 
-        private readonly TypeAccessor _typeAccessor;
-
         [StrongNameIdentityPermission(SecurityAction.Assert)]
-        public PropertyObject(PropertyInfo md, TypeAccessor typeAccessor)
+        public PropertyObject(PropertyInfo md)
         {
             getter = md.GetGetMethod(true);
             setter = md.GetSetMethod(true);
             info = md;
-            _typeAccessor = typeAccessor;
         }
 
 
@@ -79,7 +76,17 @@ namespace Python.Runtime
 
             try
             {
-                result = self._typeAccessor[co.inst, info.Name];
+                // FastMember's TypeAccessor increases performance, but only works on public properties
+                var typeAccessor = getter.IsPublic ? TypeAccessorManager.GetTypeAccessor(co.inst.GetType()) : null;
+                if (typeAccessor != null)
+                {
+                    result = typeAccessor[co.inst, info.Name];
+                }
+                else
+                {
+                    result = info.GetValue(co.inst, null);
+                }
+
                 return Converter.ToPython(result, info.PropertyType);
             }
             catch (Exception e)
@@ -151,7 +158,17 @@ namespace Python.Runtime
                         Exceptions.RaiseTypeError("invalid target");
                         return -1;
                     }
-                    self._typeAccessor[co.inst, info.Name] = newval;
+
+                    // FastMember's TypeAccessor increases performance, but only works on public properties
+                    var typeAccessor = setter.IsPublic ? TypeAccessorManager.GetTypeAccessor(co.inst.GetType()) : null;
+                    if (typeAccessor != null)
+                    {
+                        typeAccessor[co.inst, info.Name] = newval;
+                    }
+                    else
+                    {
+                        info.SetValue(co.inst, newval, null);
+                    }
                 }
                 else
                 {
