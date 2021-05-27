@@ -1,6 +1,8 @@
 using System;
 using System.Runtime.InteropServices;
 
+using FastMember;
+
 namespace Python.Runtime
 {
     /// <summary>
@@ -11,6 +13,9 @@ namespace Python.Runtime
     [Serializable]
     internal abstract class ExtensionType : ManagedType
     {
+        private Type _lastTypeAccessorType;
+        private TypeAccessor _lastTypeAccessor;
+
         public ExtensionType()
         {
             // Create a new PyObject whose type is a generated type that is
@@ -107,6 +112,23 @@ namespace Python.Runtime
         {
             base.OnLoad(context);
             SetupGc();
+        }
+
+        protected TypeAccessor GetTypeAccessor(object obj)
+        {
+            var type = obj.GetType();
+
+            // Usually this is called with the same type repeatedly, so we save the last used type
+            // If it matches we can save the look-up in TypeAccessorManager's cache
+            if (_lastTypeAccessorType == type)
+            {
+                return _lastTypeAccessor;
+            }
+
+            _lastTypeAccessorType = type;
+            _lastTypeAccessor = TypeAccessorManager.GetTypeAccessor(type);
+
+            return _lastTypeAccessor;
         }
     }
 }

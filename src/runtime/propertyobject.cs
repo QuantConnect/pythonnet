@@ -77,7 +77,7 @@ namespace Python.Runtime
             try
             {
                 // FastMember's TypeAccessor increases performance, but only works on public properties
-                var typeAccessor = getter.IsPublic ? TypeAccessorManager.GetTypeAccessor(co.inst.GetType()) : null;
+                var typeAccessor = getter.IsPublic ? self.GetTypeAccessor(co.inst) : null;
                 if (typeAccessor != null)
                 {
                     result = typeAccessor[co.inst, info.Name];
@@ -160,7 +160,7 @@ namespace Python.Runtime
                     }
 
                     // FastMember's TypeAccessor increases performance, but only works on public properties
-                    var typeAccessor = setter.IsPublic ? TypeAccessorManager.GetTypeAccessor(co.inst.GetType()) : null;
+                    var typeAccessor = setter.IsPublic ? self.GetTypeAccessor(co.inst) : null;
                     if (typeAccessor != null)
                     {
                         typeAccessor[co.inst, info.Name] = newval;

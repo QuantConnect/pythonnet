@@ -60,7 +60,7 @@ namespace Python.Runtime
         internal GCHandle AllocGCHandle(TrackTypes track = TrackTypes.Untrack)
         {
             gcHandle = GCHandle.Alloc(this);
-            if (track != TrackTypes.Untrack)
+            if (track != TrackTypes.Untrack && PythonEngine.ShutdownMode == ShutdownMode.Reload)
             {
                 _managedObjs.Add(this, track);
             }
@@ -69,7 +69,11 @@ namespace Python.Runtime
 
         internal void FreeGCHandle()
         {
-            _managedObjs.Remove(this);
+            if (PythonEngine.ShutdownMode == ShutdownMode.Reload)
+            {
+                _managedObjs.Remove(this);
+            }
+
             if (gcHandle.IsAllocated)
             {
                 gcHandle.Free();
