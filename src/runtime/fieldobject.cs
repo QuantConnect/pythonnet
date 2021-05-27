@@ -175,7 +175,7 @@ namespace Python.Runtime
         {
             if (type != _memberGetterType)
             {
-                _memberGetter = type.DelegateForGetFieldValue(info.Value.Name);
+                _memberGetter = FasterflectManager.GetFieldGetter(type, info.Value.Name);
                 _memberGetterType = type;
             }
 
@@ -186,7 +186,7 @@ namespace Python.Runtime
         {
             if (type != _memberSetterType)
             {
-                _memberSetter = type.DelegateForSetFieldValue(info.Value.Name);
+                _memberSetter = FasterflectManager.GetFieldSetter(type, info.Value.Name);
                 _memberSetterType = type;
             }
 

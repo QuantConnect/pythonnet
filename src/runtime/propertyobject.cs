@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Security.Permissions;
 
@@ -188,7 +189,7 @@ namespace Python.Runtime
         {
             if (type != _memberGetterType)
             {
-                _memberGetter = type.DelegateForGetPropertyValue(info.Value.Name);
+                _memberGetter = FasterflectManager.GetPropertyGetter(type, info.Value.Name);
                 _memberGetterType = type;
             }
 
@@ -199,7 +200,7 @@ namespace Python.Runtime
         {
             if (type != _memberSetterType)
             {
-                _memberSetter = type.DelegateForSetPropertyValue(info.Value.Name);
+                _memberSetter = FasterflectManager.GetPropertySetter(type, info.Value.Name);
                 _memberSetterType = type;
             }
 
