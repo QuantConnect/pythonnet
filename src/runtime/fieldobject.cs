@@ -1,7 +1,7 @@
 using System;
 using System.Reflection;
 
-using FastMember;
+using Fasterflect;
 
 namespace Python.Runtime
 {
@@ -13,6 +13,12 @@ namespace Python.Runtime
     internal class FieldObject : ExtensionType
     {
         private MaybeFieldInfo info;
+
+        private MemberGetter _memberGetter;
+        private Type _memberGetterType;
+
+        private MemberSetter _memberSetter;
+        private Type _memberSetterType;
 
         public FieldObject(FieldInfo info)
         {
@@ -51,7 +57,7 @@ namespace Python.Runtime
                 }
                 try
                 {
-                    result = info.GetValue(null);
+                    result = self.GetMemberGetter(info.DeclaringType)(null);
                     return Converter.ToPython(result, info.FieldType);
                 }
                 catch (Exception e)
@@ -70,17 +76,7 @@ namespace Python.Runtime
                     return IntPtr.Zero;
                 }
 
-                // FastMember's TypeAccessor increases performance, but only works on public fields
-                var typeAccessor = info.IsPublic ? self.GetTypeAccessor(co.inst) : null;
-                if (typeAccessor != null)
-                {
-                    result = typeAccessor[co.inst, info.Name];
-                }
-                else
-                {
-                    result = info.GetValue(co.inst);
-                }
-
+                result = self.GetMemberGetter(co.inst.GetType())(co.inst);
                 return Converter.ToPython(result, info.FieldType);
             }
             catch (Exception e)
@@ -151,20 +147,11 @@ namespace Python.Runtime
                         return -1;
                     }
 
-                    // FastMember's TypeAccessor increases performance, but only works on public fields
-                    var typeAccessor = info.IsPublic ? self.GetTypeAccessor(co.inst) : null;
-                    if (typeAccessor != null)
-                    {
-                        typeAccessor[co.inst, info.Name] = newval;
-                    }
-                    else
-                    {
-                        info.SetValue(co.inst, newval);
-                    }
+                    self.GetMemberSetter(co.inst.GetType())(co.inst, newval);
                 }
                 else
                 {
-                    info.SetValue(null, newval);
+                    self.GetMemberSetter(info.DeclaringType)(null, newval);
                 }
                 return 0;
             }
@@ -182,6 +169,28 @@ namespace Python.Runtime
         {
             var self = (FieldObject)GetManagedObject(ob);
             return Runtime.PyString_FromString($"<field '{self.info}'>");
+        }
+
+        private MemberGetter GetMemberGetter(Type type)
+        {
+            if (type != _memberGetterType)
+            {
+                _memberGetter = type.DelegateForGetFieldValue(info.Value.Name);
+                _memberGetterType = type;
+            }
+
+            return _memberGetter;
+        }
+
+        private MemberSetter GetMemberSetter(Type type)
+        {
+            if (type != _memberSetterType)
+            {
+                _memberSetter = type.DelegateForSetFieldValue(info.Value.Name);
+                _memberSetterType = type;
+            }
+
+            return _memberSetter;
         }
     }
 }

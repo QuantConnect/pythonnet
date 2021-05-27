@@ -2,7 +2,7 @@ using System;
 using System.Reflection;
 using System.Security.Permissions;
 
-using FastMember;
+using Fasterflect;
 
 namespace Python.Runtime
 {
@@ -16,6 +16,12 @@ namespace Python.Runtime
         private MaybeMemberInfo<PropertyInfo> info;
         private MaybeMethodInfo getter;
         private MaybeMethodInfo setter;
+
+        private MemberGetter _memberGetter;
+        private Type _memberGetterType;
+
+        private MemberSetter _memberSetter;
+        private Type _memberSetterType;
 
         [StrongNameIdentityPermission(SecurityAction.Assert)]
         public PropertyObject(PropertyInfo md)
@@ -59,7 +65,7 @@ namespace Python.Runtime
 
                 try
                 {
-                    result = info.GetValue(null, null);
+                    result = self.GetMemberGetter(info.DeclaringType)(null);
                     return Converter.ToPython(result, info.PropertyType);
                 }
                 catch (Exception e)
@@ -76,17 +82,7 @@ namespace Python.Runtime
 
             try
             {
-                // FastMember's TypeAccessor increases performance, but only works on public properties
-                var typeAccessor = getter.IsPublic ? self.GetTypeAccessor(co.inst) : null;
-                if (typeAccessor != null)
-                {
-                    result = typeAccessor[co.inst, info.Name];
-                }
-                else
-                {
-                    result = info.GetValue(co.inst, null);
-                }
-
+                result = self.GetMemberGetter(co.inst.GetType())(co.inst);
                 return Converter.ToPython(result, info.PropertyType);
             }
             catch (Exception e)
@@ -159,20 +155,11 @@ namespace Python.Runtime
                         return -1;
                     }
 
-                    // FastMember's TypeAccessor increases performance, but only works on public properties
-                    var typeAccessor = setter.IsPublic ? self.GetTypeAccessor(co.inst) : null;
-                    if (typeAccessor != null)
-                    {
-                        typeAccessor[co.inst, info.Name] = newval;
-                    }
-                    else
-                    {
-                        info.SetValue(co.inst, newval, null);
-                    }
+                    self.GetMemberSetter(info.DeclaringType)(co.inst, newval);
                 }
                 else
                 {
-                    info.SetValue(null, newval, null);
+                    self.GetMemberSetter(info.DeclaringType)(null, newval);
                 }
                 return 0;
             }
@@ -195,6 +182,28 @@ namespace Python.Runtime
         {
             var self = (PropertyObject)GetManagedObject(ob);
             return Runtime.PyString_FromString($"<property '{self.info}'>");
+        }
+
+        private MemberGetter GetMemberGetter(Type type)
+        {
+            if (type != _memberGetterType)
+            {
+                _memberGetter = type.DelegateForGetPropertyValue(info.Value.Name);
+                _memberGetterType = type;
+            }
+
+            return _memberGetter;
+        }
+
+        private MemberSetter GetMemberSetter(Type type)
+        {
+            if (type != _memberSetterType)
+            {
+                _memberSetter = type.DelegateForSetPropertyValue(info.Value.Name);
+                _memberSetterType = type;
+            }
+
+            return _memberSetter;
         }
     }
 }
