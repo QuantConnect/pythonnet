@@ -11,7 +11,7 @@ namespace Python.Runtime
     /// </summary>
     public class TypeAccessorManager
     {
-        private static readonly Dictionary<Type, TypeAccessor> Cache = new Dictionary<Type, TypeAccessor>(128);
+        private static Dictionary<Type, TypeAccessor> Cache = new Dictionary<Type, TypeAccessor>(128);
 
         /// <summary>
         /// Returns the TypeAccessor of a type, or null if FastMember doesn't work on the type.
