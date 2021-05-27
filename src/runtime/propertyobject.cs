@@ -66,7 +66,7 @@ namespace Python.Runtime
 
                 try
                 {
-                    result = self.GetMemberGetter(info.DeclaringType)(null);
+                    result = self.GetMemberGetter(info.DeclaringType)(info.DeclaringType);
                     return Converter.ToPython(result, info.PropertyType);
                 }
                 catch (Exception e)
@@ -156,11 +156,11 @@ namespace Python.Runtime
                         return -1;
                     }
 
-                    self.GetMemberSetter(info.DeclaringType)(co.inst, newval);
+                    self.GetMemberSetter(co.inst.GetType())(co.inst, newval);
                 }
                 else
                 {
-                    self.GetMemberSetter(info.DeclaringType)(null, newval);
+                    self.GetMemberSetter(info.DeclaringType)(info.DeclaringType, newval);
                 }
                 return 0;
             }

@@ -50,6 +50,32 @@ namespace Python.EmbeddingTest
 
             public static readonly string PublicStaticReadOnlyField = "Default value";
             protected static readonly string ProtectedStaticReadOnlyField = "Default value";
+
+            public static Fixture Create()
+            {
+                return new Fixture();
+            }
+        }
+
+        [Test]
+        public void TestPublicStaticMethodWorks()
+        {
+            dynamic model = PythonEngine.ModuleFromString("module", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+class TestPublicStaticMethodWorks:
+    def GetValue(self):
+        return TestPropertyAccess.Fixture.Create()
+").GetAttr("TestPublicStaticMethodWorks").Invoke();
+
+            using (Py.GIL())
+            {
+                Assert.AreEqual("Default value", model.GetValue().PublicProperty.ToString());
+            }
         }
 
         [Test]
