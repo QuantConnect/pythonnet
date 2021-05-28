@@ -70,7 +70,7 @@ namespace Python.Runtime
             // lets wait until all assemblies are loaded
             do
             {
-                if (safeCount++ > 200)
+                if (safeCount++ > 400)
                 {
                     throw new TimeoutException("Timeout while waiting for assemblies to load");
                 }
