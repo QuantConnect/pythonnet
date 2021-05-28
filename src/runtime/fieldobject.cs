@@ -20,6 +20,9 @@ namespace Python.Runtime
         private MemberSetter _memberSetter;
         private Type _memberSetterType;
 
+        private bool _isValueType;
+        private Type _isValueTypeType;
+
         public FieldObject(FieldInfo info)
         {
             this.info = info;
@@ -92,7 +95,8 @@ namespace Python.Runtime
                 }
                 else
                 {
-                    result = self.GetMemberGetter(co.inst.GetType())(co.inst.WrapIfValueType());
+                    var type = co.inst.GetType();
+                    result = self.GetMemberGetter(type)(self.IsValueType(type) ? co.inst.WrapIfValueType() : co.inst);
                 }
 
                 return Converter.ToPython(result, info.FieldType);
@@ -172,7 +176,8 @@ namespace Python.Runtime
                     }
                     else
                     {
-                        self.GetMemberSetter(co.inst.GetType())(co.inst.WrapIfValueType(), newval);
+                        var type = co.inst.GetType();
+                        self.GetMemberSetter(type)(self.IsValueType(type) ? co.inst.WrapIfValueType() : co.inst, newval);
                     }
                 }
                 else
@@ -225,6 +230,17 @@ namespace Python.Runtime
             }
 
             return _memberSetter;
+        }
+
+        private bool IsValueType(Type type)
+        {
+            if (type != _isValueTypeType)
+            {
+                _isValueType = FasterflectManager.IsValueType(type);
+                _isValueTypeType = type;
+            }
+
+            return _isValueType;
         }
     }
 }

@@ -7,8 +7,23 @@ namespace Python.Runtime
 {
     public static class FasterflectManager
     {
+        private static Dictionary<Type, bool> _isValueTypeCache = new();
         private static Dictionary<string, MemberGetter> _memberGetterCache = new();
         private static Dictionary<string, MemberSetter> _memberSetterCache = new();
+
+        public static bool IsValueType(Type type)
+        {
+            bool isValueType;
+            if (_isValueTypeCache.TryGetValue(type, out isValueType))
+            {
+                return isValueType;
+            }
+
+            isValueType = type.IsValueType;
+            _isValueTypeCache[type] = isValueType;
+
+            return isValueType;
+        }
 
         public static MemberGetter GetPropertyGetter(Type type, string propertyName)
         {

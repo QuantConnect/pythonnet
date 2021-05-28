@@ -24,6 +24,9 @@ namespace Python.Runtime
         private MemberSetter _memberSetter;
         private Type _memberSetterType;
 
+        private bool _isValueType;
+        private Type _isValueTypeType;
+
         [StrongNameIdentityPermission(SecurityAction.Assert)]
         public PropertyObject(PropertyInfo md)
         {
@@ -66,16 +69,7 @@ namespace Python.Runtime
 
                 try
                 {
-                    var memberGetter = self.GetMemberGetter(info.DeclaringType);
-                    if (memberGetter != null)
-                    {
-                        result = memberGetter(info.DeclaringType);
-                    }
-                    else
-                    {
-                        result = info.GetValue(null, null);
-                    }
-
+                    result = self.GetMemberGetter(info.DeclaringType)(info.DeclaringType);
                     return Converter.ToPython(result, info.PropertyType);
                 }
                 catch (Exception e)
@@ -92,16 +86,8 @@ namespace Python.Runtime
 
             try
             {
-                var memberGetter = self.GetMemberGetter(co.inst.GetType());
-                if (memberGetter != null)
-                {
-                    result = memberGetter(co.inst.WrapIfValueType());
-                }
-                else
-                {
-                    result = info.GetValue(co.inst, null);
-                }
-
+                var type = co.inst.GetType();
+                result = self.GetMemberGetter(type)(self.IsValueType(type) ? co.inst.WrapIfValueType() : co.inst);
                 return Converter.ToPython(result, info.PropertyType);
             }
             catch (Exception e)
@@ -174,27 +160,12 @@ namespace Python.Runtime
                         return -1;
                     }
 
-                    var memberSetter = self.GetMemberSetter(co.inst.GetType());
-                    if (memberSetter != null)
-                    {
-                        memberSetter(co.inst.WrapIfValueType(), newval);
-                    }
-                    else
-                    {
-                        info.SetValue(co.inst, newval, null);
-                    }
+                    var type = co.inst.GetType();
+                    self.GetMemberSetter(type)(self.IsValueType(type) ? co.inst.WrapIfValueType() : co.inst, newval);
                 }
                 else
                 {
-                    var memberSetter = self.GetMemberSetter(info.DeclaringType);
-                    if (memberSetter != null)
-                    {
-                        memberSetter(info.DeclaringType, newval);
-                    }
-                    else
-                    {
-                        info.SetValue(null, newval, null);
-                    }
+                    self.GetMemberSetter(info.DeclaringType)(info.DeclaringType, newval);
                 }
                 return 0;
             }
@@ -239,6 +210,17 @@ namespace Python.Runtime
             }
 
             return _memberSetter;
+        }
+
+        private bool IsValueType(Type type)
+        {
+            if (type != _isValueTypeType)
+            {
+                _isValueType = FasterflectManager.IsValueType(type);
+                _isValueTypeType = type;
+            }
+
+            return _isValueType;
         }
     }
 }
