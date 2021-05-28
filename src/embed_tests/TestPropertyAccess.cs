@@ -57,6 +57,16 @@ namespace Python.EmbeddingTest
             }
         }
 
+        public class NonStaticConstHolder
+        {
+            public const string USA = "usa";
+        }
+
+        public static class StaticConstHolder
+        {
+            public const string USA = "usa";
+        }
+
         [Test]
         public void TestPublicStaticMethodWorks()
         {
@@ -75,6 +85,48 @@ class TestPublicStaticMethodWorks:
             using (Py.GIL())
             {
                 Assert.AreEqual("Default value", model.GetValue().PublicProperty.ToString());
+            }
+        }
+
+        [Test]
+        public void TestConstWorksInNonStaticClass()
+        {
+            dynamic model = PythonEngine.ModuleFromString("module", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+class TestConstWorksInNonStaticClass:
+    def GetValue(self):
+        return TestPropertyAccess.NonStaticConstHolder.USA
+").GetAttr("TestConstWorksInNonStaticClass").Invoke();
+
+            using (Py.GIL())
+            {
+                Assert.AreEqual("usa", model.GetValue().ToString());
+            }
+        }
+
+        [Test]
+        public void TestConstWorksInStaticClass()
+        {
+            dynamic model = PythonEngine.ModuleFromString("module", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+class TestConstWorksInStaticClass:
+    def GetValue(self):
+        return TestPropertyAccess.StaticConstHolder.USA
+").GetAttr("TestConstWorksInStaticClass").Invoke();
+
+            using (Py.GIL())
+            {
+                Assert.AreEqual("usa", model.GetValue().ToString());
             }
         }
 

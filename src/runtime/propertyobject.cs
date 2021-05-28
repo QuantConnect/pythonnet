@@ -66,7 +66,16 @@ namespace Python.Runtime
 
                 try
                 {
-                    result = self.GetMemberGetter(info.DeclaringType)(info.DeclaringType);
+                    var memberGetter = self.GetMemberGetter(info.DeclaringType);
+                    if (memberGetter != null)
+                    {
+                        result = memberGetter(info.DeclaringType);
+                    }
+                    else
+                    {
+                        result = info.GetValue(null, null);
+                    }
+
                     return Converter.ToPython(result, info.PropertyType);
                 }
                 catch (Exception e)
@@ -83,7 +92,16 @@ namespace Python.Runtime
 
             try
             {
-                result = self.GetMemberGetter(co.inst.GetType())(co.inst);
+                var memberGetter = self.GetMemberGetter(co.inst.GetType());
+                if (memberGetter != null)
+                {
+                    result = memberGetter(co.inst.WrapIfValueType());
+                }
+                else
+                {
+                    result = info.GetValue(co.inst, null);
+                }
+
                 return Converter.ToPython(result, info.PropertyType);
             }
             catch (Exception e)
@@ -156,11 +174,27 @@ namespace Python.Runtime
                         return -1;
                     }
 
-                    self.GetMemberSetter(co.inst.GetType())(co.inst, newval);
+                    var memberSetter = self.GetMemberSetter(co.inst.GetType());
+                    if (memberSetter != null)
+                    {
+                        memberSetter(co.inst.WrapIfValueType(), newval);
+                    }
+                    else
+                    {
+                        info.SetValue(co.inst, newval, null);
+                    }
                 }
                 else
                 {
-                    self.GetMemberSetter(info.DeclaringType)(info.DeclaringType, newval);
+                    var memberSetter = self.GetMemberSetter(info.DeclaringType);
+                    if (memberSetter != null)
+                    {
+                        memberSetter(info.DeclaringType, newval);
+                    }
+                    else
+                    {
+                        info.SetValue(null, newval, null);
+                    }
                 }
                 return 0;
             }

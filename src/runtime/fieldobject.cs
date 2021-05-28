@@ -57,7 +57,16 @@ namespace Python.Runtime
                 }
                 try
                 {
-                    result = self.GetMemberGetter(info.DeclaringType)(info.DeclaringType);
+                    // Fasterflect does not support constant fields
+                    if (info.IsLiteral && !info.IsInitOnly)
+                    {
+                        result = info.GetValue(null);
+                    }
+                    else
+                    {
+                        result = self.GetMemberGetter(info.DeclaringType)(info.DeclaringType);
+                    }
+
                     return Converter.ToPython(result, info.FieldType);
                 }
                 catch (Exception e)
@@ -76,7 +85,16 @@ namespace Python.Runtime
                     return IntPtr.Zero;
                 }
 
-                result = self.GetMemberGetter(co.inst.GetType())(co.inst);
+                // Fasterflect does not support constant fields
+                if (info.IsLiteral && !info.IsInitOnly)
+                {
+                    result = info.GetValue(co.inst);
+                }
+                else
+                {
+                    result = self.GetMemberGetter(co.inst.GetType())(co.inst.WrapIfValueType());
+                }
+
                 return Converter.ToPython(result, info.FieldType);
             }
             catch (Exception e)
@@ -147,11 +165,27 @@ namespace Python.Runtime
                         return -1;
                     }
 
-                    self.GetMemberSetter(co.inst.GetType())(co.inst, newval);
+                    // Fasterflect does not support constant fields
+                    if (info.IsLiteral && !info.IsInitOnly)
+                    {
+                        info.SetValue(co.inst, newval);
+                    }
+                    else
+                    {
+                        self.GetMemberSetter(co.inst.GetType())(co.inst.WrapIfValueType(), newval);
+                    }
                 }
                 else
                 {
-                    self.GetMemberSetter(info.DeclaringType)(info.DeclaringType, newval);
+                    // Fasterflect does not support constant fields
+                    if (info.IsLiteral && !info.IsInitOnly)
+                    {
+                        info.SetValue(null, newval);
+                    }
+                    else
+                    {
+                        self.GetMemberSetter(info.DeclaringType)(info.DeclaringType, newval);
+                    }
                 }
                 return 0;
             }
