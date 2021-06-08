@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 using NUnit.Framework;
 
@@ -24,7 +26,13 @@ class PythonModel(TestMethodBinder.CSharpModel):
     def TestD(self):
         return self.InvokeModel(TestMethodBinder.TestImplicitConversion())
     def TestE(self, array):
-        return array.Length == 2";
+        return array.Length == 2
+    def TestF(self):
+        model = TestMethodBinder.CSharpModel()
+        model.TestEnumerable(model.SomeList)
+    def TestG(self):
+        model = TestMethodBinder.CSharpModel()
+        model.TestList(model.SomeList)";
 
 
         [OneTimeSetUp]
@@ -38,6 +46,18 @@ class PythonModel(TestMethodBinder.CSharpModel):
         public void Dispose()
         {
             PythonEngine.Shutdown();
+        }
+
+        [Test]
+        public void ListToEnumerableExpectingMethod()
+        {
+            Assert.DoesNotThrow(() => module.TestF());
+        }
+
+        [Test]
+        public void ListToListExpectingMethod()
+        {
+            Assert.DoesNotThrow(() => module.TestG());
         }
 
         [Test]
@@ -85,6 +105,36 @@ class PythonModel(TestMethodBinder.CSharpModel):
 
         public class CSharpModel
         {
+            public List<TestImplicitConversion> SomeList { get; set; }
+
+            public CSharpModel()
+            {
+                SomeList = new List<TestImplicitConversion>
+                {
+                    new TestImplicitConversion()
+                };
+            }
+            public void TestList(List<TestImplicitConversion> conversions)
+            {
+                if (!conversions.Any())
+                {
+                    throw new ArgumentException("We expect at least an instance");
+                }
+            }
+
+            public void TestEnumerable(IEnumerable<TestImplicitConversion> conversions)
+            {
+                if (!conversions.Any())
+                {
+                    throw new ArgumentException("We expect at least an instance");
+                }
+            }
+
+            public bool SomeMethod()
+            {
+                return true;
+            }
+
             public virtual string OnlyClass(TestImplicitConversion data)
             {
                 return "OnlyClass impl";
