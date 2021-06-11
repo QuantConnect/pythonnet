@@ -1,7 +1,6 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0</TargetFrameworks>
-    <Platforms>AnyCPU</Platforms>
+    <TargetFrameworks>net5.0</TargetFrameworks>
     <LangVersion>9.0</LangVersion>
     <RootNamespace>Python.Runtime</RootNamespace>
     <AssemblyName>Python.Runtime</AssemblyName>
@@ -38,10 +37,6 @@
         <PackagePath>contentFiles/any/any/pythonnet</PackagePath>
         <PackageCopyToOutput>true</PackageCopyToOutput>
       </TfmSpecificPackageFile>
-      <TfmSpecificPackageFile Include="../console/bin/x64/$(Configuration)/net472/nPython.exe">
-        <PackagePath>contentFiles/any/any/</PackagePath>
-        <PackageCopyToOutput>true</PackageCopyToOutput>
-      </TfmSpecificPackageFile>
     </ItemGroup>
   </Target>
 
@@ -62,9 +57,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Security.Permissions" Version="4.4.0" />
-    <PackageReference Include="System.Reflection.Emit" Version="4.3.0" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" PrivateAssets="All" />
+    <PackageReference Include="System.Security.Permissions" Version="4.7.0" />
     <PackageReference Include="fasterflect" Version="3.0.0" />
   </ItemGroup>
 </Project>
