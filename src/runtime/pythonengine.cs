@@ -176,6 +176,20 @@ namespace Python.Runtime
             {
                 return;
             }
+
+            string pythonNetPyDllPath = Environment.GetEnvironmentVariable("PYTHONNET_PYDLL");
+
+            if (string.IsNullOrWhiteSpace(pythonNetPyDllPath))
+                throw new InvalidOperationException(@"Environment Variable PYTHONNET_PYDLL is not set.");
+
+            string pythonNetHome = Path.GetDirectoryName(pythonNetPyDllPath);
+
+            if (string.IsNullOrWhiteSpace(pythonNetHome))
+                throw new InvalidOperationException(@"Set Environment Variable PYTHONNET_PYDLL to python directory. Ex. C:\Python36\python36.dll");
+
+            //Set python home so that we do not need to restart computer
+            PythonHome = pythonNetHome;
+
             // Creating the delegateManager MUST happen before Runtime.Initialize
             // is called. If it happens afterwards, DelegateManager's CodeGenerator
             // throws an exception in its ctor.  This exception is eaten somehow
