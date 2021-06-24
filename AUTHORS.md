@@ -71,6 +71,7 @@
 -   William Sardar ([@williamsardar](https://github.com/williamsardar))
 -   Xavier Dupré ([@sdpython](https://github.com/sdpython))
 -   Zane Purvis ([@zanedp](https://github.com/zanedp))
+-   Brian Mello ([@bmello4688](https://github.com/bmello4688))
 -   ([@amos402](https://github.com/amos402))
 -   ([@bltribble](https://github.com/bltribble))
 -   ([@civilx64](https://github.com/civilx64))
