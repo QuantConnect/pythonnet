@@ -185,7 +185,7 @@ namespace Python.Runtime
             string pythonNetHome = Path.GetDirectoryName(pythonNetPyDllPath);
 
             if (string.IsNullOrWhiteSpace(pythonNetHome))
-                throw new InvalidOperationException(@"Set Environment Variable PYTHONNET_PYDLL to python directory. Ex. C:\Python36\python36.dll");
+                throw new InvalidOperationException(@"Set Environment Variable PYTHONNET_PYDLL to python path. Ex. C:\Python36\python36.dll");
 
             //Set python home so that we do not need to restart computer
             PythonHome = pythonNetHome;
