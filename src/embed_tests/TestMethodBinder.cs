@@ -90,7 +90,6 @@ class PythonModel(TestMethodBinder.CSharpModel):
             catch (Exception e)
             {
                 errorCaught = true;
-                Console.WriteLine(e.Message);
                 Assert.AreEqual("TypeError : Failed to implicitly convert Python.EmbeddingTest.TestMethodBinder+ErroredImplicitConversion to System.String", e.Message);
             }
 
