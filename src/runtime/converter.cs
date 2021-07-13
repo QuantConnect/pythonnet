@@ -636,7 +636,14 @@ class GMT(tzinfo):
                     opImplicit = obType.GetMethod("op_Implicit", new[] { result.GetType() });
                     if (opImplicit != null)
                     {
-                        result = opImplicit.Invoke(null, new[] { result });
+                        try
+                        {
+                            result = opImplicit.Invoke(null, new[] { result });
+                        }
+                        catch
+                        {
+                            Exceptions.SetError(Exceptions.TypeError, $"Failed to implicitly convert {result} of {result.GetType()} type to {obType} type");
+                        }
                     }
                     return opImplicit != null;
                 }
