@@ -20,7 +20,7 @@ class PythonModel(TestMethodBinder.CSharpModel):
     def TestA(self):
         return self.OnlyString(TestMethodBinder.TestImplicitConversion())
     def TestB(self):
-            return self.OnlyClass('input string')
+        return self.OnlyClass('input string')
     def TestC(self):
         return self.InvokeModel('input string')
     def TestD(self):
@@ -32,7 +32,9 @@ class PythonModel(TestMethodBinder.CSharpModel):
         model.TestEnumerable(model.SomeList)
     def TestG(self):
         model = TestMethodBinder.CSharpModel()
-        model.TestList(model.SomeList)";
+        model.TestList(model.SomeList)
+    def TestH(self):
+        return self.OnlyString(TestMethodBinder.ErroredImplicitConversion())";
 
 
         [OneTimeSetUp]
@@ -74,6 +76,24 @@ class PythonModel(TestMethodBinder.CSharpModel):
             var data = (string)module.TestB();
             // we assert implicit conversion took place
             Assert.AreEqual("OnlyClass impl", data);
+        }
+
+        // Reproduces a bug in which program explodes when implicit conversion fails
+        // in Linux
+        [Test]
+        public void ImplicitConversionErrorHandling(){
+            var errorCaught = false;
+            try
+            {
+                var data = (string)module.TestH();
+            }
+            catch (Exception e)
+            {
+                errorCaught = true;
+                Console.WriteLine(e.Message);
+            }
+
+            Assert.IsTrue(errorCaught);
         }
 
         [Test]
@@ -165,6 +185,18 @@ class PythonModel(TestMethodBinder.CSharpModel):
             public static implicit operator TestImplicitConversion(string symbol)
             {
                 return new TestImplicitConversion();
+            }
+        }
+
+        public class ErroredImplicitConversion
+        {
+            public static implicit operator string(ErroredImplicitConversion symbol)
+            {
+                throw new ArgumentException();
+            }
+            public static implicit operator ErroredImplicitConversion(string symbol)
+            {
+                throw new ArgumentException();
             }
         }
     }
