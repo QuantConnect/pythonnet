@@ -91,6 +91,7 @@ class PythonModel(TestMethodBinder.CSharpModel):
             {
                 errorCaught = true;
                 Console.WriteLine(e.Message);
+                Assert.AreEqual("TypeError : Failed to implicitly convert Python.EmbeddingTest.TestMethodBinder+ErroredImplicitConversion to System.String", e.Message);
             }
 
             Assert.IsTrue(errorCaught);
