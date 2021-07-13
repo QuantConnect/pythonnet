@@ -449,9 +449,17 @@ class GMT(tzinfo):
                         var conversionMethod = type.GetMethod("op_Implicit", new[] { type });
                         if (conversionMethod != null && conversionMethod.ReturnType == obType)
                         {
-                            result = conversionMethod.Invoke(null, new[] { tmp });
-                            usedImplicit = true;
-                            return true;
+                            try{
+                                result = conversionMethod.Invoke(null, new[] { tmp });
+                                usedImplicit = true;
+                                return true;
+                            }
+                            catch (Exception e)
+                            {
+                                // Failed to convert using implicit conversion,
+                                // must catch the error to stop program from exploding on Linux
+                                return false;
+                            }
                         }
                     }
                     if (setError)
