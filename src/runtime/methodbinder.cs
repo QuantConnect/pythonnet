@@ -508,7 +508,6 @@ namespace Python.Runtime
 
                         if (!Converter.ToManaged(op, clrtype, out arg, false))
                         {
-                            Exceptions.Clear();
                             margs = null;
                             break;
                         }
@@ -749,19 +748,23 @@ namespace Python.Runtime
 
             if (binding == null)
             {
-                var value = new StringBuilder("No method matches given arguments");
-                if (methodinfo != null && methodinfo.Length > 0)
-                {
-                    value.Append($" for {methodinfo[0].Name}");
-                }
-                else if (list.Count > 0)
-                {
-                    value.Append($" for {list[0].MethodBase.Name}");
+                // If we already have an exception pending, don't create a new one
+                if(!Exceptions.ErrorOccurred()){
+                    var value = new StringBuilder("No method matches given arguments");
+                    if (methodinfo != null && methodinfo.Length > 0)
+                    {
+                        value.Append($" for {methodinfo[0].Name}");
+                    }
+                    else if (list.Count > 0)
+                    {
+                        value.Append($" for {list[0].MethodBase.Name}");
+                    }
+
+                    value.Append(": ");
+                    AppendArgumentTypes(to: value, args);
+                    Exceptions.RaiseTypeError(value.ToString());
                 }
 
-                value.Append(": ");
-                AppendArgumentTypes(to: value, args);
-                Exceptions.RaiseTypeError(value.ToString());
                 return IntPtr.Zero;
             }
 
