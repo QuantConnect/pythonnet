@@ -449,9 +449,17 @@ class GMT(tzinfo):
                         var conversionMethod = type.GetMethod("op_Implicit", new[] { type });
                         if (conversionMethod != null && conversionMethod.ReturnType == obType)
                         {
-                            result = conversionMethod.Invoke(null, new[] { tmp });
-                            usedImplicit = true;
-                            return true;
+                            try{
+                                result = conversionMethod.Invoke(null, new[] { tmp });
+                                usedImplicit = true;
+                                return true;
+                            }
+                            catch
+                            {
+                                // Failed to convert using implicit conversion,  must catch the error to stop program from exploding on Linux
+                                Exceptions.RaiseTypeError($"Failed to implicitly convert {type} to {obType}");
+                                return false;
+                            }
                         }
                     }
                     if (setError)
@@ -628,7 +636,16 @@ class GMT(tzinfo):
                     opImplicit = obType.GetMethod("op_Implicit", new[] { result.GetType() });
                     if (opImplicit != null)
                     {
-                        result = opImplicit.Invoke(null, new[] { result });
+                        try
+                        {
+                            result = opImplicit.Invoke(null, new[] { result });
+                        }
+                        catch
+                        {
+                            // Failed to convert using implicit conversion,  must catch the error to stop program from exploding on Linux
+                            Exceptions.RaiseTypeError($"Failed to implicitly convert {result.GetType()} to {obType}");
+                            return false;
+                        }
                     }
                     return opImplicit != null;
                 }

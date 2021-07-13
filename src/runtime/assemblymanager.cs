@@ -111,24 +111,23 @@ namespace Python.Runtime
         {
             if (assembly != null)
             {
-                Interlocked.Increment(ref pendingAssemblies);
-                Task.Factory.StartNew(() =>
+                if (assembliesNamesCache.TryAdd(assembly.GetName().Name, assembly))
                 {
-                    try
+                    Interlocked.Increment(ref pendingAssemblies);
+                    Task.Factory.StartNew(() =>
                     {
-                        if (assembliesNamesCache.TryAdd(assembly.GetName().Name, assembly))
+                        try
                         {
                             assemblies.Enqueue(assembly);
                             ScanAssembly(assembly);
                         }
-                    }
-                    catch
-                    {
-                        // pass
-                    }
-
-                    Interlocked.Decrement(ref pendingAssemblies);
-                });
+                        catch
+                        {
+                            // pass
+                        }
+                        Interlocked.Decrement(ref pendingAssemblies);
+                    });
+                }
             }
         }
 
