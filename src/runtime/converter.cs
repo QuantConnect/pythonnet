@@ -454,10 +454,10 @@ class GMT(tzinfo):
                                 usedImplicit = true;
                                 return true;
                             }
-                            catch (Exception e)
+                            catch
                             {
-                                // Failed to convert using implicit conversion,
-                                // must catch the error to stop program from exploding on Linux
+                                // Failed to convert using implicit conversion,  must catch the error to stop program from exploding on Linux
+                                Exceptions.SetError(Exceptions.TypeError, $"Failed to implicitly convert {tmp} of {type} type to {obType} type");
                                 return false;
                             }
                         }
@@ -642,7 +642,9 @@ class GMT(tzinfo):
                         }
                         catch
                         {
+                            // Failed to convert using implicit conversion,  must catch the error to stop program from exploding on Linux
                             Exceptions.SetError(Exceptions.TypeError, $"Failed to implicitly convert {result} of {result.GetType()} type to {obType} type");
+                            return false;
                         }
                     }
                     return opImplicit != null;
