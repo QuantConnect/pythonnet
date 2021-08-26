@@ -54,8 +54,9 @@ namespace Python.Runtime
                 return null;
             }
             int count = tp.Length;
-            foreach (MethodInfo t in mi)
+            for (var i = 0; i < mi.Length; i++)
             {
+                var t = mi[i];
                 ParameterInfo[] pi = t.GetParameters();
                 if (pi.Length != count)
                 {
@@ -87,8 +88,9 @@ namespace Python.Runtime
                 return null;
             }
             int count = tp.Length;
-            foreach (MethodInfo t in mi)
+            for (var i = 0; i < mi.Length; i++)
             {
+                var t = mi[i];
                 if (!t.IsGenericMethodDefinition)
                 {
                     continue;
@@ -127,8 +129,9 @@ namespace Python.Runtime
             }
             int genericCount = genericTp.Length;
             int signatureCount = sigTp.Length;
-            foreach (MethodInfo t in mi)
+            for (var i = 0; i < mi.Length; i++)
             {
+                var t = mi[i];
                 if (!t.IsGenericMethodDefinition)
                 {
                     continue;
@@ -236,38 +239,32 @@ namespace Python.Runtime
                 case TypeCode.Object:
                     return 1;
 
-                case TypeCode.UInt64:
-                    return 10;
-
-                case TypeCode.UInt32:
-                    return 11;
-
-                case TypeCode.UInt16:
-                    return 12;
+                // we place higher precision methods at the top
+                case TypeCode.Decimal:
+                    return 2;
+                case TypeCode.Double:
+                    return 3;
+                case TypeCode.Single:
+                    return 4;
 
                 case TypeCode.Int64:
-                    return 13;
-
-                case TypeCode.Int32:
-                    return 14;
-
-                case TypeCode.Int16:
-                    return 15;
-
-                case TypeCode.Char:
-                    return 16;
-
-                case TypeCode.SByte:
-                    return 17;
-
-                case TypeCode.Byte:
-                    return 18;
-
-                case TypeCode.Single:
-                    return 20;
-
-                case TypeCode.Double:
                     return 21;
+                case TypeCode.Int32:
+                    return 22;
+                case TypeCode.Int16:
+                    return 23;
+                case TypeCode.UInt64:
+                    return 24;
+                case TypeCode.UInt32:
+                    return 25;
+                case TypeCode.UInt16:
+                    return 26;
+                case TypeCode.Char:
+                    return 27;
+                case TypeCode.Byte:
+                    return 28;
+                case TypeCode.SByte:
+                    return 29;
 
                 case TypeCode.String:
                     return 30;
@@ -331,8 +328,9 @@ namespace Python.Runtime
             var methods = info == null ? GetMethods()
                 : new List<MethodInformation>(1) { new MethodInformation(info, info.GetParameters()) };
 
-            foreach (var methodInformation in methods)
+            for (var i = 0; i < methods.Count; i++)
             {
+                var methodInformation = methods[i];
                 // Relevant method variables
                 var mi = methodInformation.MethodBase;
                 var pi = methodInformation.ParameterInfo;
@@ -375,7 +373,7 @@ namespace Python.Runtime
                 {
                     var outs = 0;
                     var margs = new object[clrArgCount];
-                    
+
                     int paramsArrayIndex = paramsArray ? pi.Length - 1 : -1; // -1 indicates no paramsArray
                     var usedImplicitConversion = false;
 
@@ -470,18 +468,26 @@ namespace Python.Runtime
                                         typematch = true;
                                         clrtype = parameter.ParameterType;
                                     }
-                                    // accepts non-decimal numbers in decimal parameters
-                                    if (underlyingType == typeof(decimal))
+                                    // lets just keep the first binding using implicit conversion
+                                    // this is to respect method order/precedence
+                                    else if (bindingUsingImplicitConversion == null)
                                     {
-                                        clrtype = parameter.ParameterType;
-                                        typematch = Converter.ToManaged(op, clrtype, out arg, false);
-                                    }
-                                    // this takes care of implicit conversions
-                                    var opImplicit = parameter.ParameterType.GetMethod("op_Implicit", new[] { clrtype });
-                                    if (opImplicit != null)
-                                    {
-                                        usedImplicitConversion = typematch = opImplicit.ReturnType == parameter.ParameterType;
-                                        clrtype = parameter.ParameterType;
+                                        // accepts non-decimal numbers in decimal parameters
+                                        if (underlyingType == typeof(decimal))
+                                        {
+                                            clrtype = parameter.ParameterType;
+                                            usedImplicitConversion |= typematch = Converter.ToManaged(op, clrtype, out arg, false);
+                                        }
+                                        if (!typematch)
+                                        {
+                                            // this takes care of implicit conversions
+                                            var opImplicit = parameter.ParameterType.GetMethod("op_Implicit", new[] { clrtype });
+                                            if (opImplicit != null)
+                                            {
+                                                usedImplicitConversion |= typematch = opImplicit.ReturnType == parameter.ParameterType;
+                                                clrtype = parameter.ParameterType;
+                                            }
+                                        }
                                     }
                                 }
                                 Runtime.XDecref(pyoptype);
@@ -575,14 +581,9 @@ namespace Python.Runtime
                     var binding = new Binding(mi, target, margs, outs);
                     if (usedImplicitConversion)
                     {
-                        // lets just keep the first binding using implicit conversion
-                        // this is to respect method order/precedence
-                        if (bindingUsingImplicitConversion == null)
-                        {
-                            // in this case we will not return the binding yet in case there is a match
-                            // which does not use implicit conversions, which will return directly
-                            bindingUsingImplicitConversion = binding;
-                        }
+                        // in this case we will not return the binding yet in case there is a match
+                        // which does not use implicit conversions, which will return directly
+                        bindingUsingImplicitConversion = binding;
                     }
                     else
                     {

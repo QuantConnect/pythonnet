@@ -113,10 +113,13 @@ namespace Python.Runtime
 
         private void DisposeAll()
         {
+#if DEBUG
+            // only used for testing
             CollectOnce?.Invoke(this, new CollectArgs()
             {
                 ObjectCount = _objQueue.Count
             });
+#endif
 #if FINALIZER_CHECK
             lock (_queueLock)
 #endif
@@ -129,11 +132,8 @@ namespace Python.Runtime
 
                 try
                 {
-                    while (!_objQueue.IsEmpty)
+                    while (_objQueue.TryDequeue(out obj))
                     {
-                        if (!_objQueue.TryDequeue(out obj))
-                            continue;
-
                         Runtime.XDecref(obj);
                         try
                         {
