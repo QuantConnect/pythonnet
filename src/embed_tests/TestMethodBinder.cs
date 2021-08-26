@@ -1,10 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-
-using NUnit.Framework;
-
 using Python.Runtime;
+using NUnit.Framework;
+using System.Collections.Generic;
 
 namespace Python.EmbeddingTest
 {
@@ -34,13 +32,30 @@ class PythonModel(TestMethodBinder.CSharpModel):
         model = TestMethodBinder.CSharpModel()
         model.TestList(model.SomeList)
     def TestH(self):
-        return self.OnlyString(TestMethodBinder.ErroredImplicitConversion())";
+        return self.OnlyString(TestMethodBinder.ErroredImplicitConversion())
+    def NumericalArgumentMethodInteger(self):
+        self.NumericalArgumentMethod(1)
+    def NumericalArgumentMethodDouble(self):
+        self.NumericalArgumentMethod(0.1)
+    def NumericalArgumentMethodNumpyFloat(self):
+        self.NumericalArgumentMethod(TestMethodBinder.Numpy.float(0.1))
+    def NumericalArgumentMethodNumpy64Float(self):
+        self.NumericalArgumentMethod(TestMethodBinder.Numpy.float64(0.1))";
 
+        public static dynamic Numpy;
 
         [OneTimeSetUp]
         public void SetUp()
         {
             PythonEngine.Initialize();
+
+            try
+            {
+                Numpy = Py.Import("numpy");
+            }
+            catch (PythonException)
+            {
+            }
             module = PythonEngine.ModuleFromString("module", testModule).GetAttr("PythonModel").Invoke();
         }
 
@@ -110,7 +125,7 @@ class PythonModel(TestMethodBinder.CSharpModel):
             var data = (string)module.TestD();
             // we assert no implicit conversion took place
             Assert.AreEqual("TestImplicitConversion impl", data);
-            
+
         }
 
         [Test]
@@ -123,8 +138,54 @@ class PythonModel(TestMethodBinder.CSharpModel):
             Assert.AreEqual(true, data);
         }
 
+        [Test]
+        public void NumericalArgumentMethod()
+        {
+            CSharpModel.NumericalValue = 0;
+
+            module.NumericalArgumentMethodInteger();
+            Assert.AreEqual(typeof(int), CSharpModel.NumericalValue.GetType());
+            Assert.AreEqual(1, CSharpModel.NumericalValue);
+
+            // python float type has double precision
+            module.NumericalArgumentMethodDouble();
+            Assert.AreEqual(typeof(double), CSharpModel.NumericalValue.GetType());
+            Assert.AreEqual(0.1d, CSharpModel.NumericalValue);
+
+            module.NumericalArgumentMethodNumpyFloat();
+            Assert.AreEqual(typeof(double), CSharpModel.NumericalValue.GetType());
+            Assert.AreEqual(0.1d, CSharpModel.NumericalValue);
+
+            module.NumericalArgumentMethodNumpy64Float();
+            Assert.AreEqual(typeof(decimal), CSharpModel.NumericalValue.GetType());
+            Assert.AreEqual(0.1, CSharpModel.NumericalValue);
+        }
+
+        [Test]
+        // TODO: see GH issue https://github.com/pythonnet/pythonnet/issues/1532 re importing numpy after an engine restart fails
+        // so moving example test here so we import numpy once
+        public void TestReadme()
+        {
+            Assert.AreEqual("1.0", Numpy.cos(Numpy.pi * 2).ToString());
+
+            dynamic sin = Numpy.sin;
+            StringAssert.StartsWith("-0.95892", sin(5).ToString());
+
+            double c = Numpy.cos(5) + sin(5);
+            Assert.AreEqual(-0.675262, c, 0.01);
+
+            dynamic a = Numpy.array(new List<float> { 1, 2, 3 });
+            Assert.AreEqual("float64", a.dtype.ToString());
+
+            dynamic b = Numpy.array(new List<float> { 6, 5, 4 }, Py.kw("dtype", Numpy.int32));
+            Assert.AreEqual("int32", b.dtype.ToString());
+
+            Assert.AreEqual("[ 6. 10. 12.]", (a * b).ToString().Replace("  ", " "));
+        }
+
         public class CSharpModel
         {
+            public static dynamic NumericalValue;
             public List<TestImplicitConversion> SomeList { get; set; }
 
             public CSharpModel()
@@ -173,6 +234,23 @@ class PythonModel(TestMethodBinder.CSharpModel):
             public virtual string InvokeModel(TestImplicitConversion data)
             {
                 return "TestImplicitConversion impl";
+            }
+
+            public void NumericalArgumentMethod(int value)
+            {
+                NumericalValue = value;
+            }
+            public void NumericalArgumentMethod(float value)
+            {
+                NumericalValue = value;
+            }
+            public void NumericalArgumentMethod(double value)
+            {
+                NumericalValue = value;
+            }
+            public void NumericalArgumentMethod(decimal value)
+            {
+                NumericalValue = value;
             }
         }
 
