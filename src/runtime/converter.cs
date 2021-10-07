@@ -1022,11 +1022,13 @@ class GMT(tzinfo):
                 case TypeCode.Decimal:
                     op = Runtime.PyObject_Str(value);
                     decimal m;
-                    string sm = Runtime.GetManagedString(op);
+                    var sm = Runtime.GetManagedSpan(op, out var newReference);
                     if (!Decimal.TryParse(sm, NumberStyles.Number | NumberStyles.AllowExponent, nfi, out m))
                     {
+                        newReference.Dispose();
                         goto type_error;
                     }
+                    newReference.Dispose();
                     Runtime.XDecref(op);
                     result = m;
                     return true;

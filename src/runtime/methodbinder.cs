@@ -908,7 +908,8 @@ namespace Python.Runtime
                             var description = Runtime.PyObject_Unicode(type);
                             if (description != IntPtr.Zero)
                             {
-                                to.Append(Runtime.GetManagedString(description));
+                                to.Append(Runtime.GetManagedSpan(description, out var newReference));
+                                newReference.Dispose();
                                 Runtime.XDecref(description);
                             }
                         }

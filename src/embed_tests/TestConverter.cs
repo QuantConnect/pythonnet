@@ -72,6 +72,27 @@ namespace Python.EmbeddingTest
             Assert.AreEqual(result, timespan);
         }
 
+        [Test]
+        public void ConvertDecimalPerformance()
+        {
+            var value = 1111111111.0001m;
+
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+            for (var i = 0; i < 500000; i++)
+            {
+                var pyDecimal = value.ToPython();
+                object result;
+                var converted = Converter.ToManaged(pyDecimal.Handle, typeof(decimal), out result, false);
+                if (!converted || result == null)
+                {
+                    throw new Exception("");
+                }
+            }
+            stopwatch.Stop();
+            Console.WriteLine($"Took: {stopwatch.ElapsedMilliseconds}");
+        }
+
         [TestCase(DateTimeKind.Utc)]
         [TestCase(DateTimeKind.Unspecified)]
         public void ConvertDateTimeRoundTripPerformance(DateTimeKind kind)

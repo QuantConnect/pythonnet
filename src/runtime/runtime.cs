@@ -1647,6 +1647,20 @@ namespace Python.Runtime
 
             return null;
         }
+        internal static ReadOnlySpan<char> GetManagedSpan(IntPtr op, out NewReference reference)
+        {
+            IntPtr type = PyObject_TYPE(op);
+
+            if (type == PyUnicodeType)
+            {
+                reference = PyUnicode_AsUTF16String(new BorrowedReference(op));
+                var length = (int)PyUnicode_GetSize(op);
+                var intPtr = PyBytes_AS_STRING(reference.DangerousGetAddress());
+                return new ReadOnlySpan<char>(IntPtr.Add(intPtr, sizeof(char)).ToPointer(), length: length);
+            }
+            reference = default;
+            return null;
+        }
 
 
         //====================================================================
