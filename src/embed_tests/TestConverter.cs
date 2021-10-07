@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 using NUnit.Framework;
@@ -71,8 +72,30 @@ namespace Python.EmbeddingTest
             Assert.AreEqual(result, timespan);
         }
 
+        [TestCase(DateTimeKind.Utc)]
+        [TestCase(DateTimeKind.Unspecified)]
+        public void ConvertDateTimeRoundTripPerformance(DateTimeKind kind)
+        {
+            var datetime = new DateTime(2000, 1, 1, 2, 3, 4, 5, kind);
+
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+            for (var i = 0; i < 500000; i++)
+            {
+                var pyDatetime = datetime.ToPython();
+                object result;
+                var converted = Converter.ToManaged(pyDatetime.Handle, typeof(DateTime), out result, false);
+                if (!converted || result == null)
+                {
+                    throw new Exception("");
+                }
+            }
+            stopwatch.Stop();
+            Console.WriteLine($"Took: {stopwatch.ElapsedMilliseconds}");
+        }
+
         [Test]
-        public void ConvertDateTimeRoundTrip()
+        public void ConvertDateTimeRoundTripNoTime()
         {
             var datetime = new DateTime(2000, 1, 1);
             var pyDatetime = datetime.ToPython();
@@ -81,7 +104,34 @@ namespace Python.EmbeddingTest
             var converted = Converter.ToManaged(pyDatetime.Handle, typeof(DateTime), out result, false);
 
             Assert.IsTrue(converted);
-            Assert.AreEqual(result, datetime);
+            Assert.AreEqual(datetime, result);
+        }
+
+        [TestCase(DateTimeKind.Utc)]
+        [TestCase(DateTimeKind.Unspecified)]
+        public void ConvertDateTimeRoundTrip(DateTimeKind kind)
+        {
+            var datetime = new DateTime(2000, 1, 1, 2, 3, 4, 5, kind);
+            var pyDatetime = datetime.ToPython();
+
+            object result;
+            var converted = Converter.ToManaged(pyDatetime.Handle, typeof(DateTime), out result, false);
+
+            Assert.IsTrue(converted);
+            Assert.AreEqual(datetime, result);
+        }
+
+        [Test]
+        public void ConvertTimestampRoundTrip()
+        {
+            var timeSpan = new TimeSpan(1, 2, 3, 4, 5);
+            var pyTimeSpan = timeSpan.ToPython();
+
+            object result;
+            var converted = Converter.ToManaged(pyTimeSpan.Handle, typeof(TimeSpan), out result, false);
+
+            Assert.IsTrue(converted);
+            Assert.AreEqual(timeSpan, result);
         }
 
         [Test]
