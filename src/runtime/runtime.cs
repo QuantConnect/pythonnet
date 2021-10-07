@@ -679,7 +679,7 @@ namespace Python.Runtime
                 {
                     op = PyObject_TYPE(op);
                 }
-                ManagedType mt = ManagedType.GetManagedObject(op);
+                var mt = ManagedType.GetManagedObject(op);
 
                 if (mt is ClassBase)
                 {

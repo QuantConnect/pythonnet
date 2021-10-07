@@ -194,6 +194,19 @@ class PythonModel(TestMethodBinder.CSharpModel):
         }
 
         [Test]
+        public void NumpyDateTime64()
+        {
+            var number = 10;
+            var numpyDateTime = Numpy.datetime64("2011-02");
+
+            object result;
+            var converted = Converter.ToManaged(numpyDateTime.Handle, typeof(DateTime), out result, false);
+
+            Assert.IsTrue(converted);
+            Assert.AreEqual(new DateTime(2011, 02, 1), result);
+        }
+
+        [Test]
         public void ListKeyValuePair()
         {
             Assert.DoesNotThrow(() => module.ListKeyValuePairTest());

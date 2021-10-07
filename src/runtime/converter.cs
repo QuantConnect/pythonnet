@@ -460,7 +460,7 @@ class GMT(tzinfo):
 
             // Common case: if the Python value is a wrapped managed object
             // instance, just return the wrapped object.
-            ManagedType mt = ManagedType.GetManagedObject(value);
+            var mt = ManagedType.GetManagedObject(value);
             result = null;
 
             if (mt != null)
@@ -1026,6 +1026,7 @@ class GMT(tzinfo):
                     if (!Decimal.TryParse(sm, NumberStyles.Number | NumberStyles.AllowExponent, nfi, out m))
                     {
                         newReference.Dispose();
+                        Runtime.XDecref(op);
                         goto type_error;
                     }
                     newReference.Dispose();
@@ -1034,6 +1035,25 @@ class GMT(tzinfo):
                     return true;
                 case TypeCode.DateTime:
                     var year = Runtime.PyObject_GetAttrString(value, yearPtr);
+                    if (year == IntPtr.Zero || year == Runtime.PyNone)
+                    {
+                        Runtime.XDecref(year);
+                        Exceptions.Clear();
+
+                        // fallback to string parsing for types such as numpy
+                        op = Runtime.PyObject_Str(value);
+                        var sdt = Runtime.GetManagedSpan(op, out var reference);
+                        if (!DateTime.TryParse(sdt, out var dt))
+                        {
+                            reference.Dispose();
+                            Runtime.XDecref(op);
+                            goto type_error;
+                        }
+                        result = sdt.EndsWith("+00:00") ? dt.ToUniversalTime() : dt;
+                        reference.Dispose();
+                        Runtime.XDecref(op);
+                        return true;
+                    }
                     var month = Runtime.PyObject_GetAttrString(value, monthPtr);
                     var day = Runtime.PyObject_GetAttrString(value, dayPtr);
                     var hour = Runtime.PyObject_GetAttrString(value, hourPtr);

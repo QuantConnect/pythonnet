@@ -60,6 +60,18 @@ namespace Python.EmbeddingTest
         }
 
         [Test]
+        public void ConvertInvalidDateTime()
+        {
+            var number = 10;
+            var pyNumber = number.ToPython();
+
+            object result;
+            var converted = Converter.ToManaged(pyNumber.Handle, typeof(DateTime), out result, false);
+
+            Assert.IsFalse(converted);
+        }
+
+        [Test]
         public void ConvertTimeSpanRoundTrip()
         {
             var timespan = new TimeSpan(0, 1, 0, 0);
