@@ -25,11 +25,11 @@
   </Target>
 
   <Target Name="CopyBaseline" AfterTargets="Build">
-    <Copy SourceFiles="$(NuGetPackageRoot)quantconnect.pythonnet\2.0.7\lib\net5.0\Python.Runtime.dll" DestinationFolder="$(OutDir)\baseline" />
+    <Copy SourceFiles="$(NuGetPackageRoot)quantconnect.pythonnet\2.0.7\lib\net5.0\Python.Runtime.dll" DestinationFolder="$(OutDir)baseline" />
   </Target>
 
   <Target Name="CopyNewBuild" AfterTargets="Build">
-    <Copy SourceFiles="@(NewPythonRuntime)" DestinationFolder="$(OutDir)\new" />
+    <Copy SourceFiles="@(NewPythonRuntime)" DestinationFolder="$(OutDir)new" />
   </Target>
 
 </Project>
