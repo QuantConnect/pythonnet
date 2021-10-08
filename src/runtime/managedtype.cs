@@ -81,12 +81,12 @@ namespace Python.Runtime
             }
         }
 
-        internal static ManagedType GetManagedObject(BorrowedReference ob)
+        internal static object GetManagedObject(BorrowedReference ob)
             => GetManagedObject(ob.DangerousGetAddress());
         /// <summary>
         /// Given a Python object, return the associated managed object or null.
         /// </summary>
-        internal static ManagedType GetManagedObject(IntPtr ob)
+        internal static object GetManagedObject(IntPtr ob)
         {
             if (ob != IntPtr.Zero)
             {
@@ -106,8 +106,7 @@ namespace Python.Runtime
                     {
                         return null;
                     }
-                    var gc = (GCHandle)op;
-                    return (ManagedType)gc.Target;
+                    return GCHandle.FromIntPtr(op).Target;
                 }
             }
             return null;
@@ -116,7 +115,7 @@ namespace Python.Runtime
 
         internal static ManagedType GetManagedObjectErr(IntPtr ob)
         {
-            ManagedType result = GetManagedObject(ob);
+            var result = (ManagedType)GetManagedObject(ob);
             if (result == null)
             {
                 Exceptions.SetError(Exceptions.TypeError, "invalid argument, expected CLR type");

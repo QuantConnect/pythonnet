@@ -5,6 +5,9 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security;
+using System.Text;
+
+using Python.Runtime.Native;
 
 namespace Python.Runtime
 {
@@ -33,6 +36,20 @@ namespace Python.Runtime
         private static IntPtr dateTimeCtor;
         private static IntPtr timeSpanCtor;
         private static IntPtr tzInfoCtor;
+        private static IntPtr pyTupleNoKind;
+        private static IntPtr pyTupleKind;
+
+        private static StrPtr yearPtr;
+        private static StrPtr monthPtr;
+        private static StrPtr dayPtr;
+        private static StrPtr hourPtr;
+        private static StrPtr minutePtr;
+        private static StrPtr secondPtr;
+        private static StrPtr microsecondPtr;
+
+        private static StrPtr tzinfoPtr;
+        private static StrPtr hoursPtr;
+        private static StrPtr minutesPtr;
 
         static Converter()
         {
@@ -73,6 +90,21 @@ class GMT(tzinfo):
 
             tzInfoCtor = Runtime.PyObject_GetAttrString(tzInfoMod, "GMT");
             if (tzInfoCtor == null) throw new PythonException();
+
+            pyTupleNoKind = Runtime.PyTuple_New(7);
+            pyTupleKind = Runtime.PyTuple_New(8);
+
+            yearPtr = new StrPtr("year", Encoding.UTF8);
+            monthPtr = new StrPtr("month", Encoding.UTF8);
+            dayPtr = new StrPtr("day", Encoding.UTF8);
+            hourPtr = new StrPtr("hour", Encoding.UTF8);
+            minutePtr = new StrPtr("minute", Encoding.UTF8);
+            secondPtr = new StrPtr("second", Encoding.UTF8);
+            microsecondPtr = new StrPtr("microsecond", Encoding.UTF8);
+
+            tzinfoPtr = new StrPtr("tzinfo", Encoding.UTF8);
+            hoursPtr = new StrPtr("hours", Encoding.UTF8);
+            minutesPtr = new StrPtr("minutes", Encoding.UTF8);
         }
 
 
@@ -182,7 +214,8 @@ class GMT(tzinfo):
                 return result;
             }
 
-            if (Type.GetTypeCode(type) == TypeCode.Object && value.GetType() != typeof(object)) {
+            var valueType = value.GetType();
+            if (Type.GetTypeCode(type) == TypeCode.Object && valueType != typeof(object)) {
                 var encoded = PyObjectConversions.TryEncode(value, type);
                 if (encoded != null) {
                     result = encoded.Handle;
@@ -191,7 +224,7 @@ class GMT(tzinfo):
                 }
             }
 
-            if (value is IList && !(value is INotifyPropertyChanged) && value.GetType().IsGenericType)
+            if (valueType.IsGenericType && value is IList && !(value is INotifyPropertyChanged))
             {
                 using (var resultlist = new PyList())
                 {
@@ -300,7 +333,7 @@ class GMT(tzinfo):
 
                     var size = datetime.Kind == DateTimeKind.Unspecified ? 7 : 8;
 
-                    IntPtr dateTimeArgs = Runtime.PyTuple_New(size);
+                    var dateTimeArgs = datetime.Kind == DateTimeKind.Unspecified ? pyTupleNoKind : pyTupleKind;
                     Runtime.PyTuple_SetItem(dateTimeArgs, 0, Runtime.PyInt_FromInt32(datetime.Year));
                     Runtime.PyTuple_SetItem(dateTimeArgs, 1, Runtime.PyInt_FromInt32(datetime.Month));
                     Runtime.PyTuple_SetItem(dateTimeArgs, 2, Runtime.PyInt_FromInt32(datetime.Day));
@@ -320,8 +353,6 @@ class GMT(tzinfo):
                     }
 
                     var returnDateTime = Runtime.PyObject_CallObject(dateTimeCtor, dateTimeArgs);
-                    // clean up
-                    Runtime.XDecref(dateTimeArgs);
                     return returnDateTime;
 
 
@@ -429,7 +460,7 @@ class GMT(tzinfo):
 
             // Common case: if the Python value is a wrapped managed object
             // instance, just return the wrapped object.
-            ManagedType mt = ManagedType.GetManagedObject(value);
+            var mt = ManagedType.GetManagedObject(value);
             result = null;
 
             if (mt != null)
@@ -516,7 +547,7 @@ class GMT(tzinfo):
 
             if (obType.IsEnum)
             {
-                return ToEnum(value, obType, out result, setError);
+                return ToEnum(value, obType, out result, setError, out usedImplicit);
             }
 
             // Conversion to 'Object' is done based on some reasonable default
@@ -525,27 +556,27 @@ class GMT(tzinfo):
             {
                 if (Runtime.IsStringType(value))
                 {
-                    return ToPrimitive(value, stringType, out result, setError);
+                    return ToPrimitive(value, stringType, out result, setError, out usedImplicit);
                 }
 
                 if (Runtime.PyBool_Check(value))
                 {
-                    return ToPrimitive(value, boolType, out result, setError);
+                    return ToPrimitive(value, boolType, out result, setError, out usedImplicit);
                 }
 
                 if (Runtime.PyInt_Check(value))
                 {
-                    return ToPrimitive(value, int32Type, out result, setError);
+                    return ToPrimitive(value, int32Type, out result, setError, out usedImplicit);
                 }
 
                 if (Runtime.PyLong_Check(value))
                 {
-                    return ToPrimitive(value, int64Type, out result, setError);
+                    return ToPrimitive(value, int64Type, out result, setError, out usedImplicit);
                 }
 
                 if (Runtime.PyFloat_Check(value))
                 {
-                    return ToPrimitive(value, doubleType, out result, setError);
+                    return ToPrimitive(value, doubleType, out result, setError, out usedImplicit);
                 }
 
                 // give custom codecs a chance to take over conversion of sequences
@@ -628,6 +659,11 @@ class GMT(tzinfo):
                 }
             }
 
+            if (ToPrimitive(value, obType, out result, setError, out usedImplicit))
+            {
+                return true;
+            }
+
             var opImplicit = obType.GetMethod("op_Implicit", new[] { obType });
             if (opImplicit != null)
             {
@@ -651,7 +687,7 @@ class GMT(tzinfo):
                 }
             }
 
-            return ToPrimitive(value, obType, out result, setError);
+            return false;
         }
 
         internal delegate bool TryConvertFromPythonDelegate(IntPtr pyObj, out object result);
@@ -659,11 +695,12 @@ class GMT(tzinfo):
         /// <summary>
         /// Convert a Python value to an instance of a primitive managed type.
         /// </summary>
-        private static bool ToPrimitive(IntPtr value, Type obType, out object result, bool setError)
+        private static bool ToPrimitive(IntPtr value, Type obType, out object result, bool setError, out bool usedImplicit)
         {
             TypeCode tc = Type.GetTypeCode(obType);
             result = null;
             IntPtr op = IntPtr.Zero;
+            usedImplicit = false;
 
             switch (tc)
             {
@@ -690,6 +727,35 @@ class GMT(tzinfo):
                         }
                         result = ts.Add(TimeSpan.FromDays(days));
                         return true;
+                    }
+                    else if (obType.IsGenericType && obType.GetGenericTypeDefinition() == typeof(KeyValuePair<,>))
+                    {
+                        if (Runtime.PyDict_Check(value))
+                        {
+                            var typeArguments = obType.GenericTypeArguments;
+                            if (typeArguments.Length != 2)
+                            {
+                                goto type_error;
+                            }
+                            IntPtr key, dicValue, pos;
+                            // references returned through key, dicValue are borrowed.
+                            if (Runtime.PyDict_Next(value, out pos, out key, out dicValue) != 0)
+                            {
+                                if (!ToManaged(key, typeArguments[0], out var convertedKey, setError, out usedImplicit))
+                                {
+                                    goto type_error;
+                                }
+                                if (!ToManaged(dicValue, typeArguments[1], out var convertedValue, setError, out usedImplicit))
+                                {
+                                    goto type_error;
+                                }
+
+                                result = Activator.CreateInstance(obType, convertedKey, convertedValue);
+                                return true;
+                            }
+                            // and empty dictionary we can't create a key value pair from it
+                            goto type_error;
+                        }
                     }
                     break;
 
@@ -956,24 +1022,98 @@ class GMT(tzinfo):
                 case TypeCode.Decimal:
                     op = Runtime.PyObject_Str(value);
                     decimal m;
-                    string sm = Runtime.GetManagedString(op);
+                    var sm = Runtime.GetManagedSpan(op, out var newReference);
                     if (!Decimal.TryParse(sm, NumberStyles.Number | NumberStyles.AllowExponent, nfi, out m))
                     {
+                        newReference.Dispose();
+                        Runtime.XDecref(op);
                         goto type_error;
                     }
+                    newReference.Dispose();
                     Runtime.XDecref(op);
                     result = m;
                     return true;
                 case TypeCode.DateTime:
-                    op = Runtime.PyObject_Str(value);
-                    DateTime dt;
-                    string sdt = Runtime.GetManagedString(op);
-                    if (!DateTime.TryParse(sdt, out dt))
+                    var year = Runtime.PyObject_GetAttrString(value, yearPtr);
+                    if (year == IntPtr.Zero || year == Runtime.PyNone)
                     {
-                        goto type_error;
+                        Runtime.XDecref(year);
+                        Exceptions.Clear();
+
+                        // fallback to string parsing for types such as numpy
+                        op = Runtime.PyObject_Str(value);
+                        var sdt = Runtime.GetManagedSpan(op, out var reference);
+                        if (!DateTime.TryParse(sdt, out var dt))
+                        {
+                            reference.Dispose();
+                            Runtime.XDecref(op);
+                            goto type_error;
+                        }
+                        result = sdt.EndsWith("+00:00") ? dt.ToUniversalTime() : dt;
+                        reference.Dispose();
+                        Runtime.XDecref(op);
+                        return true;
                     }
-                    Runtime.XDecref(op);
-                    result = sdt.EndsWith("+00:00") ? dt.ToUniversalTime() : dt;
+                    var month = Runtime.PyObject_GetAttrString(value, monthPtr);
+                    var day = Runtime.PyObject_GetAttrString(value, dayPtr);
+                    var hour = Runtime.PyObject_GetAttrString(value, hourPtr);
+                    var minute = Runtime.PyObject_GetAttrString(value, minutePtr);
+                    var second = Runtime.PyObject_GetAttrString(value, secondPtr);
+                    var microsecond = Runtime.PyObject_GetAttrString(value, microsecondPtr);
+                    var timeKind = DateTimeKind.Unspecified;
+                    var tzinfo = Runtime.PyObject_GetAttrString(value, tzinfoPtr);
+
+                    var hours = IntPtr.MaxValue;
+                    var minutes = IntPtr.MaxValue;
+                    if (tzinfo != IntPtr.Zero && tzinfo != Runtime.PyNone)
+                    {
+                        hours = Runtime.PyObject_GetAttrString(tzinfo, hoursPtr);
+                        minutes = Runtime.PyObject_GetAttrString(tzinfo, minutesPtr);
+                        if (Runtime.PyInt_AsLong(hours) == 0 && Runtime.PyInt_AsLong(minutes) == 0)
+                        {
+                            timeKind = DateTimeKind.Utc;
+                        }
+                    }
+
+                    var convertedHour = 0;
+                    var convertedMinute = 0;
+                    var convertedSecond = 0;
+                    var milliseconds = 0;
+                    // could be python date type
+                    if (hour != IntPtr.Zero && hour != Runtime.PyNone)
+                    {
+                        convertedHour = Runtime.PyInt_AsLong(hour);
+                        convertedMinute = Runtime.PyInt_AsLong(minute);
+                        convertedSecond = Runtime.PyInt_AsLong(second);
+                        milliseconds = Runtime.PyInt_AsLong(microsecond) / 1000;
+                    }
+
+                    result = new DateTime(Runtime.PyInt_AsLong(year),
+                        Runtime.PyInt_AsLong(month),
+                        Runtime.PyInt_AsLong(day),
+                        convertedHour,
+                        convertedMinute,
+                        convertedSecond,
+                        millisecond: milliseconds,
+                        timeKind);
+
+                    Runtime.XDecref(year);
+                    Runtime.XDecref(month);
+                    Runtime.XDecref(day);
+                    Runtime.XDecref(hour);
+                    Runtime.XDecref(minute);
+                    Runtime.XDecref(second);
+                    Runtime.XDecref(microsecond);
+
+                    if (tzinfo != IntPtr.Zero)
+                    {
+                        Runtime.XDecref(tzinfo);
+                        if(tzinfo != Runtime.PyNone)
+                        {
+                            Runtime.XDecref(hours);
+                            Runtime.XDecref(minutes);
+                        }
+                    }
                     return true;
                 default:
                     goto type_error;
@@ -1138,12 +1278,12 @@ class GMT(tzinfo):
         /// <summary>
         /// Convert a Python value to a correctly typed managed enum instance.
         /// </summary>
-        private static bool ToEnum(IntPtr value, Type obType, out object result, bool setError)
+        private static bool ToEnum(IntPtr value, Type obType, out object result, bool setError, out bool usedImplicit)
         {
             Type etype = Enum.GetUnderlyingType(obType);
             result = null;
 
-            if (!ToPrimitive(value, etype, out result, setError))
+            if (!ToPrimitive(value, etype, out result, setError, out usedImplicit))
             {
                 return false;
             }

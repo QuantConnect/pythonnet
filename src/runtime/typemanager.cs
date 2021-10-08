@@ -21,7 +21,7 @@ namespace Python.Runtime
         internal static IntPtr subtype_clear;
 
         private const BindingFlags tbFlags = BindingFlags.Public | BindingFlags.Static;
-        private static Dictionary<MaybeType, IntPtr> cache = new Dictionary<MaybeType, IntPtr>();
+        private static Dictionary<Type, IntPtr> cache = new Dictionary<Type, IntPtr>();
 
         private static readonly Dictionary<IntPtr, SlotsHolder> _slotsHolders = new Dictionary<IntPtr, SlotsHolder>();
         private static Dictionary<MaybeType, Type> _slotsImpls = new Dictionary<MaybeType, Type>();
@@ -585,7 +585,7 @@ namespace Python.Runtime
             IntPtr tp_dict = Marshal.ReadIntPtr(type, TypeOffset.tp_dict);
             IntPtr mod = Runtime.PyString_FromString("CLR");
             Runtime.PyDict_SetItem(tp_dict, PyIdentifier.__module__, mod);
-            
+
             // The type has been modified after PyType_Ready has been called
             // Refresh the type
             Runtime.PyType_Modified(type);

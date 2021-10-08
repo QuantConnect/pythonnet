@@ -3,6 +3,8 @@ using System.Linq;
 using Python.Runtime;
 using NUnit.Framework;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
 
 namespace Python.EmbeddingTest
 {
@@ -40,7 +42,15 @@ class PythonModel(TestMethodBinder.CSharpModel):
     def NumericalArgumentMethodNumpyFloat(self):
         self.NumericalArgumentMethod(TestMethodBinder.Numpy.float(0.1))
     def NumericalArgumentMethodNumpy64Float(self):
-        self.NumericalArgumentMethod(TestMethodBinder.Numpy.float64(0.1))";
+        self.NumericalArgumentMethod(TestMethodBinder.Numpy.float64(0.1))
+    def ListKeyValuePairTest(self):
+        self.ListKeyValuePair([{'key': 1}])
+        self.ListKeyValuePair([])
+    def EnumerableKeyValuePairTest(self):
+        self.EnumerableKeyValuePair([{'key': 1}])
+        self.EnumerableKeyValuePair([])
+    def MethodWithParamsTest(self):
+        self.MethodWithParams(1, 'pepe')";
 
         public static dynamic Numpy;
 
@@ -141,24 +151,24 @@ class PythonModel(TestMethodBinder.CSharpModel):
         [Test]
         public void NumericalArgumentMethod()
         {
-            CSharpModel.NumericalValue = 0;
+            CSharpModel.ProvidedArgument = 0;
 
             module.NumericalArgumentMethodInteger();
-            Assert.AreEqual(typeof(int), CSharpModel.NumericalValue.GetType());
-            Assert.AreEqual(1, CSharpModel.NumericalValue);
+            Assert.AreEqual(typeof(int), CSharpModel.ProvidedArgument.GetType());
+            Assert.AreEqual(1, CSharpModel.ProvidedArgument);
 
             // python float type has double precision
             module.NumericalArgumentMethodDouble();
-            Assert.AreEqual(typeof(double), CSharpModel.NumericalValue.GetType());
-            Assert.AreEqual(0.1d, CSharpModel.NumericalValue);
+            Assert.AreEqual(typeof(double), CSharpModel.ProvidedArgument.GetType());
+            Assert.AreEqual(0.1d, CSharpModel.ProvidedArgument);
 
             module.NumericalArgumentMethodNumpyFloat();
-            Assert.AreEqual(typeof(double), CSharpModel.NumericalValue.GetType());
-            Assert.AreEqual(0.1d, CSharpModel.NumericalValue);
+            Assert.AreEqual(typeof(double), CSharpModel.ProvidedArgument.GetType());
+            Assert.AreEqual(0.1d, CSharpModel.ProvidedArgument);
 
             module.NumericalArgumentMethodNumpy64Float();
-            Assert.AreEqual(typeof(decimal), CSharpModel.NumericalValue.GetType());
-            Assert.AreEqual(0.1, CSharpModel.NumericalValue);
+            Assert.AreEqual(typeof(decimal), CSharpModel.ProvidedArgument.GetType());
+            Assert.AreEqual(0.1, CSharpModel.ProvidedArgument);
         }
 
         [Test]
@@ -183,9 +193,68 @@ class PythonModel(TestMethodBinder.CSharpModel):
             Assert.AreEqual("[ 6. 10. 12.]", (a * b).ToString().Replace("  ", " "));
         }
 
+        [Test]
+        public void NumpyDateTime64()
+        {
+            var number = 10;
+            var numpyDateTime = Numpy.datetime64("2011-02");
+
+            object result;
+            var converted = Converter.ToManaged(numpyDateTime.Handle, typeof(DateTime), out result, false);
+
+            Assert.IsTrue(converted);
+            Assert.AreEqual(new DateTime(2011, 02, 1), result);
+        }
+
+        [Test]
+        public void ListKeyValuePair()
+        {
+            Assert.DoesNotThrow(() => module.ListKeyValuePairTest());
+        }
+
+        [Test]
+        public void EnumerableKeyValuePair()
+        {
+            Assert.DoesNotThrow(() => module.EnumerableKeyValuePairTest());
+        }
+
+        [Test]
+        public void MethodWithParamsPerformance()
+        {
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+            for (var i = 0; i < 100000; i++)
+            {
+                module.MethodWithParamsTest();
+            }
+            stopwatch.Stop();
+
+            Console.WriteLine($"Took: {stopwatch.ElapsedMilliseconds}");
+        }
+
+        [Test]
+        public void NumericalArgumentMethodNumpy64FloatPerformance()
+        {
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+            for (var i = 0; i < 100000; i++)
+            {
+                module.NumericalArgumentMethodNumpy64Float();
+            }
+            stopwatch.Stop();
+
+            Console.WriteLine($"Took: {stopwatch.ElapsedMilliseconds}");
+        }
+
+        [Test]
+        public void MethodWithParamsTest()
+        {
+            Assert.DoesNotThrow(() => module.MethodWithParamsTest());
+        }
+
         public class CSharpModel
         {
-            public static dynamic NumericalValue;
+            public static dynamic ProvidedArgument;
             public List<TestImplicitConversion> SomeList { get; set; }
 
             public CSharpModel()
@@ -238,19 +307,32 @@ class PythonModel(TestMethodBinder.CSharpModel):
 
             public void NumericalArgumentMethod(int value)
             {
-                NumericalValue = value;
+                ProvidedArgument = value;
             }
             public void NumericalArgumentMethod(float value)
             {
-                NumericalValue = value;
+                ProvidedArgument = value;
             }
             public void NumericalArgumentMethod(double value)
             {
-                NumericalValue = value;
+                ProvidedArgument = value;
             }
             public void NumericalArgumentMethod(decimal value)
             {
-                NumericalValue = value;
+                ProvidedArgument = value;
+            }
+            public void EnumerableKeyValuePair(IEnumerable<KeyValuePair<string, decimal>> value)
+            {
+                ProvidedArgument = value;
+            }
+            public void ListKeyValuePair(List<KeyValuePair<string, decimal>> value)
+            {
+                ProvidedArgument = value;
+            }
+
+            public void MethodWithParams(decimal value, params string[] argument)
+            {
+
             }
         }
 

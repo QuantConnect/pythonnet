@@ -353,7 +353,7 @@ namespace Python.Runtime
         /// </summary>
         public static void tp_dealloc(IntPtr ob)
         {
-            ManagedType self = GetManagedObject(ob);
+            var self = (ManagedType)GetManagedObject(ob);
             tp_clear(ob);
             Runtime.PyObject_GC_UnTrack(self.pyHandle);
             Runtime.PyObject_GC_Del(self.pyHandle);
@@ -362,7 +362,7 @@ namespace Python.Runtime
 
         public static int tp_clear(IntPtr ob)
         {
-            ManagedType self = GetManagedObject(ob);
+            var self = (ManagedType)GetManagedObject(ob);
             if (!self.IsTypeObject())
             {
                 ClearObjectDict(ob);

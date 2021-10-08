@@ -26,7 +26,7 @@ namespace Python.Runtime
             }
 
             GCHandle gc = AllocGCHandle(TrackTypes.Wrapper);
-            Marshal.WriteIntPtr(py, ObjectOffset.magic(tp), (IntPtr)gc);
+            Marshal.WriteIntPtr(py, ObjectOffset.magic(tp),  GCHandle.ToIntPtr(gc));
             tpHandle = tp;
             pyHandle = py;
             inst = ob;

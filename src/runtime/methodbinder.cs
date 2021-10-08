@@ -659,7 +659,15 @@ namespace Python.Runtime
 
             // Prepare our outputs
             defaultArgList = null;
-            paramsArray = parameterInfo.Length > 0 && Attribute.IsDefined(parameterInfo[parameterInfo.Length - 1], typeof(ParamArrayAttribute));
+            paramsArray = false;
+            if (parameterInfo.Length > 0)
+            {
+                var lastParameterInfo = parameterInfo[parameterInfo.Length - 1];
+                if (lastParameterInfo.ParameterType.IsArray)
+                {
+                    paramsArray = Attribute.IsDefined(lastParameterInfo, typeof(ParamArrayAttribute));
+                }
+            }
 
             // First if we have anys kwargs, look at the function for matching args
             if (kwargDict != null && kwargDict.Count > 0)
@@ -900,7 +908,8 @@ namespace Python.Runtime
                             var description = Runtime.PyObject_Unicode(type);
                             if (description != IntPtr.Zero)
                             {
-                                to.Append(Runtime.GetManagedString(description));
+                                to.Append(Runtime.GetManagedSpan(description, out var newReference));
+                                newReference.Dispose();
                                 Runtime.XDecref(description);
                             }
                         }

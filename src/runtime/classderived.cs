@@ -660,7 +660,7 @@ namespace Python.Runtime
                     if (method.Handle != Runtime.PyNone)
                     {
                         // if the method hasn't been overridden then it will be a managed object
-                        ManagedType managedMethod = ManagedType.GetManagedObject(method.Handle);
+                        var managedMethod = ManagedType.GetManagedObject(method.Handle);
                         if (null == managedMethod)
                         {
                             var pyargs = new PyObject[args.Length];
@@ -722,7 +722,7 @@ namespace Python.Runtime
                     if (method.Handle != Runtime.PyNone)
                     {
                         // if the method hasn't been overridden then it will be a managed object
-                        ManagedType managedMethod = ManagedType.GetManagedObject(method.Handle);
+                        var managedMethod = ManagedType.GetManagedObject(method.Handle);
                         if (null == managedMethod)
                         {
                             var pyargs = new PyObject[args.Length];
