@@ -252,6 +252,36 @@ class PythonModel(TestMethodBinder.CSharpModel):
             Assert.DoesNotThrow(() => module.MethodWithParamsTest());
         }
 
+        [Test]
+        public void TestGenericMethodBinding()
+        {
+            // Run in C#
+            var class1 = new TestGenericClass1();
+            var class2 = new TestGenericClass2();
+
+            TestGenericMethod(class1);
+            TestGenericMethod(class2);
+
+            Assert.AreEqual(1, class1.Value);
+            Assert.AreEqual(1, class2.Value);
+
+            // Run in Python
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class1 = TestMethodBinder.TestGenericClass1()
+class2 = TestMethodBinder.TestGenericClass2()
+
+TestMethodBinder.TestGenericMethod(class1)
+TestMethodBinder.TestGenericMethod(class2)
+
+if class1.Value != 1 or class2.Value != 1:
+    raise AssertionError('Values were not updated')
+"));
+        }
+
         public class CSharpModel
         {
             public static dynamic ProvidedArgument;
@@ -359,5 +389,29 @@ class PythonModel(TestMethodBinder.CSharpModel):
                 throw new ArgumentException();
             }
         }
+
+        public class GenericClassBase<T>
+            where T : class
+        {
+            public int Value = 0;
+        }
+
+        public static void TestGenericMethod<T>(GenericClassBase<T> test)
+            where T : class
+        {
+            test.Value = 1;
+        }
+
+        public class ReferenceClass1
+        {}
+
+        public class ReferenceClass2
+        {}
+
+        public class TestGenericClass1 : GenericClassBase<ReferenceClass1>
+        {}
+
+        public class TestGenericClass2 : GenericClassBase<ReferenceClass2>
+        {}
     }
 }
