@@ -470,7 +470,7 @@ class GMT(tzinfo):
                     object tmp = co.inst;
                     var type = tmp.GetType();
                     
-                    if (obType.IsInstanceOfType(tmp) || (obType.IsGenericType && IsSubclassOfRawGeneric(obType, type)))
+                    if (obType.IsInstanceOfType(tmp) || IsSubclassOfRawGeneric(obType, type))
                     {
                         result = tmp;
                         return true;
@@ -694,9 +694,9 @@ class GMT(tzinfo):
         /// Determine if the comparing class is a subclass of a generic type
         private static bool IsSubclassOfRawGeneric(Type generic, Type comparingClass) {
 
-            // Check before we start
+            // Check this is a generic type first
             if(!generic.IsGenericType){
-                throw new ArgumentException("Base class is not generic type", nameof(generic));
+                return false;
             }
 
             // Ensure we have the full generic type definition or it won't match
@@ -708,10 +708,10 @@ class GMT(tzinfo):
             while (comparingClass != null && comparingClass != objType) {
 
                 // Check the input for generic type definition, if doesn't exist just use the class
-                var cur = comparingClass.IsGenericType ? comparingClass.GetGenericTypeDefinition() : comparingClass;
+                var comparingClassGeneric = comparingClass.IsGenericType ? comparingClass.GetGenericTypeDefinition() : null;
 
                 // If the same as generic, this is a subclass return true
-                if (generic == cur) {
+                if (generic == comparingClassGeneric) {
                     return true;
                 }
 
