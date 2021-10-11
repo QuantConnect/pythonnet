@@ -282,6 +282,125 @@ if class1.Value != 1 or class2.Value != 1:
 "));
         }
 
+        [Test]
+        public void TestMultipleGenericMethodBinding()
+        {
+            // Run in C#
+            var class1 = new TestMultipleGenericClass1();
+            var class2 = new TestMultipleGenericClass2();
+
+            TestMultipleGenericMethod(class1);
+            TestMultipleGenericMethod(class2);
+
+            Assert.AreEqual(1, class1.Value);
+            Assert.AreEqual(1, class2.Value);
+
+            // Run in Python
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class1 = TestMethodBinder.TestMultipleGenericClass1()
+class2 = TestMethodBinder.TestMultipleGenericClass2()
+
+TestMethodBinder.TestMultipleGenericMethod(class1)
+TestMethodBinder.TestMultipleGenericMethod(class2)
+
+if class1.Value != 1 or class2.Value != 1:
+    raise AssertionError('Values were not updated')
+"));
+        }
+
+                [Test]
+        public void TestMultipleGenericParamMethodBinding()
+        {
+            // Run in C#
+            var class1a = new TestGenericClass1();
+            var class1b = new TestMultipleGenericClass1();
+
+            TestMultipleGenericParamsMethod(class1a, class1b);
+
+            Assert.AreEqual(1, class1a.Value);
+            Assert.AreEqual(1, class1a.Value);
+
+
+            var class2a = new TestGenericClass2();
+            var class2b = new TestMultipleGenericClass2();
+
+            TestMultipleGenericParamsMethod(class2a, class2b);
+
+            Assert.AreEqual(1, class2a.Value);
+            Assert.AreEqual(1, class2b.Value);
+
+            // Run in Python
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class1a = TestMethodBinder.TestGenericClass1()
+class1b = TestMethodBinder.TestMultipleGenericClass1()
+
+TestMethodBinder.TestMultipleGenericParamsMethod(class1a, class1b)
+
+if class1a.Value != 1 or class1b.Value != 1:
+    raise AssertionError('Values were not updated')
+
+class2a = TestMethodBinder.TestGenericClass2()
+class2b = TestMethodBinder.TestMultipleGenericClass2()
+
+TestMethodBinder.TestMultipleGenericParamsMethod(class2a, class2b)
+
+if class2a.Value != 1 or class2b.Value != 1:
+    raise AssertionError('Values were not updated')
+"));
+        }
+
+        [Test]
+        public void TestMultipleGenericParamMethodBinding2()
+        {
+            // Run in C#
+            var class1a = new TestGenericClass2();
+            var class1b = new TestMultipleGenericClass1();
+
+            TestMultipleGenericParamsMethod2(class1a, class1b);
+
+            Assert.AreEqual(1, class1a.Value);
+            Assert.AreEqual(1, class1a.Value);
+
+            var class2a = new TestGenericClass1();
+            var class2b = new TestMultipleGenericClass2();
+
+            TestMultipleGenericParamsMethod2(class2a, class2b);
+
+            Assert.AreEqual(1, class2a.Value);
+            Assert.AreEqual(1, class2b.Value);
+
+            // Run in Python
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class1a = TestMethodBinder.TestGenericClass2()
+class1b = TestMethodBinder.TestMultipleGenericClass1()
+
+TestMethodBinder.TestMultipleGenericParamsMethod2(class1a, class1b)
+
+if class1a.Value != 1 or class1b.Value != 1:
+    raise AssertionError('Values were not updated')
+
+class2a = TestMethodBinder.TestGenericClass1()
+class2b = TestMethodBinder.TestMultipleGenericClass2()
+
+TestMethodBinder.TestMultipleGenericParamsMethod2(class2a, class2b)
+
+if class2a.Value != 1 or class2b.Value != 1:
+    raise AssertionError('Values were not updated')
+"));
+        }
+
         public class CSharpModel
         {
             public static dynamic ProvidedArgument;
@@ -390,8 +509,8 @@ if class1.Value != 1 or class2.Value != 1:
             }
         }
 
-        public class GenericClassBase<T>
-            where T : class
+        public class GenericClassBase<J>
+            where J : class
         {
             public int Value = 0;
         }
@@ -413,5 +532,48 @@ if class1.Value != 1 or class2.Value != 1:
 
         public class TestGenericClass2 : GenericClassBase<ReferenceClass2>
         {}
+
+        public class MultipleGenericClassBase<T, K>
+            where T : class
+            where K : class
+        {
+            public int Value = 0;
+        }
+
+        public static void TestMultipleGenericMethod<T, K>(MultipleGenericClassBase<T, K> test)
+            where T : class
+            where K : class
+        {
+            test.Value = 1;
+        }
+        
+        public class TestMultipleGenericClass1 : MultipleGenericClassBase<ReferenceClass1, ReferenceClass2>
+        {}
+
+        public class TestMultipleGenericClass2 : MultipleGenericClassBase<ReferenceClass2, ReferenceClass1>
+        {}
+
+        public class TestMultipleGenericClass3 : MultipleGenericClassBase<ReferenceClass1, ReferenceClass1>
+        {}
+
+        public class TestMultipleGenericClass4 : MultipleGenericClassBase<ReferenceClass2, ReferenceClass2>
+        {}
+
+        public static void TestMultipleGenericParamsMethod<T, K>(GenericClassBase<T> singleGeneric, MultipleGenericClassBase<T, K> doubleGeneric)
+            where T : class
+            where K : class
+        {
+            singleGeneric.Value = 1;
+            doubleGeneric.Value = 1;
+        }
+
+        public static void TestMultipleGenericParamsMethod2<T, K>(GenericClassBase<K> singleGeneric, MultipleGenericClassBase<T, K> doubleGeneric)
+            where T : class
+            where K : class
+        {
+            singleGeneric.Value = 1;
+            doubleGeneric.Value = 1;
+        }
+        
     }
 }
