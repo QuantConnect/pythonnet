@@ -123,6 +123,7 @@ namespace Python.Runtime
             // Get our matching generic types to create our method
             var methodGenerics = method.GetGenericArguments();
             var resolvedGenericsTypes = new Type[methodGenerics.Length];
+            int resolvedGenerics = 0;
 
             var parameters = method.GetParameters();
             for(int k = 0; k < parameters.Length; k++){
@@ -156,14 +157,16 @@ namespace Python.Runtime
                             // Get the final matching index for our resolved types array for this params generic
                             var index = Array.IndexOf(methodGenerics, paramGenerics[j]);
 
-                            if(resolvedGenericsTypes[index] != null && resolvedGenericsTypes[index] != argGenericsResolved[j]){
-                                // In the event the resolved type is in there as that index, its okay
-                                // but if we have two resolved types for the same generic we have a problem
-                                throw new ArgumentException("Generic method mismatch on argument types");
-                            } 
-                            else
+                            if (resolvedGenericsTypes[index] == null)
                             {
+                                // Add it, and increment our count
                                 resolvedGenericsTypes[index] = argGenericsResolved[j];
+                                resolvedGenerics++;
+                            }
+                            else if(resolvedGenericsTypes[index] != argGenericsResolved[j])
+                            {
+                                // If we have two resolved types for the same generic we have a problem
+                                throw new ArgumentException("ResolveGenericMethod(): Generic method mismatch on argument types");
                             }
                         }
 
@@ -176,9 +179,9 @@ namespace Python.Runtime
             }
 
             try{
-                if (resolvedGenericsTypes.Length != methodGenerics.Length)
+                if (resolvedGenerics != methodGenerics.Length)
                 {
-                    throw new Exception($"Count of resolved generics {resolvedGenericsTypes.Length} does not match method generic count {methodGenerics.Length}.");
+                    throw new Exception($"ResolveGenericMethod(): Count of resolved generics {resolvedGenerics} does not match method generic count {methodGenerics.Length}.");
                 }
 
                 method = method.MakeGenericMethod(resolvedGenericsTypes);
