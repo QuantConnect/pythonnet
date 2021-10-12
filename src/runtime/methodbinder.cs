@@ -124,9 +124,6 @@ namespace Python.Runtime
             var methodGenerics = method.GetGenericArguments();
             var methodGenericMap = new Dictionary<Type, Type>();
 
-            // The generics matching these args to the method
-            var argsGenericMap = new Dictionary<Type, Type[]>();
-
             // Just cache this type for sake of performance on iterations
             var objType = typeof(object);
 
@@ -151,7 +148,6 @@ namespace Python.Runtime
                     // If the generic type matches our params generic definition, this is our match
                     // go ahead and match these types to this arg
                     if (paramGenericDefinition == genericType) {
-                        argsGenericMap.Add(argTypes[k], currentType.GenericTypeArguments);
 
                         // The matching generic for this method parameter
                         var paramGenerics = parameters[k].ParameterType.GenericTypeArguments;
