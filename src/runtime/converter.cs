@@ -703,9 +703,8 @@ class GMT(tzinfo):
             generic = generic.GetGenericTypeDefinition();
             
             // Loop for searching for generic match in inheritance tree of comparing class
-            // If we have reach null or object, we've gone far enough
-            var objType = typeof(object);
-            while (comparingClass != null && comparingClass != objType) {
+            // If we have reach null we don't have a match
+            while (comparingClass != null) {
 
                 // Check the input for generic type definition, if doesn't exist just use the class
                 var comparingClassGeneric = comparingClass.IsGenericType ? comparingClass.GetGenericTypeDefinition() : null;

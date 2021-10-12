@@ -120,27 +120,25 @@ namespace Python.Runtime
         // generate the matching method
         internal static MethodInfo ResolveGenericMethod(MethodInfo method, Type[] argTypes){
 
-            // Get our matching generic args to create our method
+            // Get our matching generic types to create our method
             var methodGenerics = method.GetGenericArguments();
-            var methodGenericMap = new Dictionary<Type, Type>();
-
-            // Just cache this type for sake of performance on iterations
-            var objType = typeof(object);
+            var resolvedGenericsTypes = new Type[methodGenerics.Length];
 
             var parameters = method.GetParameters();
             for(int k = 0; k < parameters.Length; k++){
+                var parameterType = parameters[k].ParameterType;
 
                 // Ignore those without generic params
-                if(!parameters[k].ParameterType.ContainsGenericParameters){
+                if(!parameterType.ContainsGenericParameters){
                     continue;
                 }
 
                 // The parameters generic definition
-                var paramGenericDefinition = parameters[k].ParameterType.GetGenericTypeDefinition();
+                var paramGenericDefinition = parameterType.GetGenericTypeDefinition();
 
                 // For the arg that matches this param index, determine the matching type for the generic
                 var currentType = argTypes[k];
-                while (currentType != null && currentType != objType) {
+                while (currentType != null) {
 
                     // Check the current type for generic type definition
                     var genericType = currentType.IsGenericType ? currentType.GetGenericTypeDefinition() : null;
@@ -150,18 +148,22 @@ namespace Python.Runtime
                     if (paramGenericDefinition == genericType) {
 
                         // The matching generic for this method parameter
-                        var paramGenerics = parameters[k].ParameterType.GenericTypeArguments;
+                        var paramGenerics = parameterType.GenericTypeArguments;
                         var argGenericsResolved = currentType.GenericTypeArguments;
 
                         for (int j = 0; j < paramGenerics.Length; j++){
 
-                            if(!methodGenericMap.TryAdd(paramGenerics[j], argGenericsResolved[j])){
+                            // Get the final matching index for our resolved types array for this params generic
+                            var index = Array.IndexOf(methodGenerics, paramGenerics[j]);
 
-                                // In the event the resolved type is in there as that generic key thats okay and expected
-                                // but if they aren't the same then this method will not work.
-                                if(methodGenericMap[paramGenerics[j]] != argGenericsResolved[j]){
-                                    throw new ArgumentException("Generic method mismatch on argument types");
-                                }
+                            if(resolvedGenericsTypes[index] != null && resolvedGenericsTypes[index] != argGenericsResolved[j]){
+                                // In the event the resolved type is in there as that index, its okay
+                                // but if we have two resolved types for the same generic we have a problem
+                                throw new ArgumentException("Generic method mismatch on argument types");
+                            } 
+                            else
+                            {
+                                resolvedGenericsTypes[index] = argGenericsResolved[j];
                             }
                         }
 
@@ -174,16 +176,12 @@ namespace Python.Runtime
             }
 
             try{
-                // Now that we have resolved our types to set the generics with
-                // lets put them in order from our map and generate our method
-                var genericTypes = new Type[methodGenerics.Length];
-                for (int i = 0; i < methodGenerics.Length; i++){
-
-                    // Extract the matching type for this generic from our map
-                    genericTypes[i] = methodGenericMap[methodGenerics[i]];
+                if (resolvedGenericsTypes.Length != methodGenerics.Length)
+                {
+                    throw new Exception($"Count of resolved generics {resolvedGenericsTypes.Length} does not match method generic count {methodGenerics.Length}.");
                 }
 
-                method = method.MakeGenericMethod(genericTypes);
+                method = method.MakeGenericMethod(resolvedGenericsTypes);
             }
             catch (ArgumentException e)
             {
@@ -402,8 +400,6 @@ namespace Python.Runtime
                 Runtime.XDecref(valueList);
             }
 
-
-            // TODO: This setup only picks the first accepted binding unless implicit
             // Fetch our methods we are going to attempt to match and bind too.
             var methods = info == null ? GetMethods()
                 : new List<MethodInformation>(1) { new MethodInformation(info, info.GetParameters()) };
@@ -868,10 +864,7 @@ namespace Python.Runtime
 
             try
             {
-                var method = binding.info;
-                
-                // Invoke our method
-                result = method.Invoke(binding.inst, BindingFlags.Default, null, binding.args, null);
+                result = binding.info.Invoke(binding.inst, BindingFlags.Default, null, binding.args, null);
             }
             catch (Exception e)
             {
