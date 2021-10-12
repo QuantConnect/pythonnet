@@ -440,6 +440,30 @@ if singleGenericClass.Value != 1 or multiGenericClass.Value != 1:
 "));
         }
 
+        [Test]
+        public void TestNonGenericIsUsedWhenAvailable(){
+            // Run in C#
+            var class1 = new TestGenericClass3();
+            TestGenericMethod(class1);
+            Assert.AreEqual(10, class1.Value);
+
+
+            // When available, should select non-generic method over generic method
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+
+class1 = TestMethodBinder.TestGenericClass3()
+
+TestMethodBinder.TestGenericMethod(class1)
+
+if class1.Value != 10:
+    raise AssertionError('Value was not updated')
+"));
+        }
+
         public class CSharpModel
         {
             public static dynamic ProvidedArgument;
@@ -560,6 +584,11 @@ if singleGenericClass.Value != 1 or multiGenericClass.Value != 1:
             test.Value = 1;
         }
 
+        // Used in test to verify non-generic is bound and used when generic option is also available
+        public static void TestGenericMethod(TestGenericClass3 class3){
+            class3.Value = 10;
+        }
+
         public class ReferenceClass1
         {}
 
@@ -570,6 +599,9 @@ if singleGenericClass.Value != 1 or multiGenericClass.Value != 1:
         {}
 
         public class TestGenericClass2 : GenericClassBase<ReferenceClass2>
+        {}
+
+        public class TestGenericClass3 : GenericClassBase<ReferenceClass2>
         {}
 
         public class MultipleGenericClassBase<T, K>
