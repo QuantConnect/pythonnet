@@ -383,6 +383,7 @@ namespace Python.Runtime
         {
             // Relevant function variables used post conversion
             Binding bindingUsingImplicitConversion = null;
+            Binding genericBinding = null;
 
             // If we have KWArgs create dictionary and collect them
             Dictionary<string, IntPtr> kwArgDict = null;
@@ -656,10 +657,13 @@ namespace Python.Runtime
                     }
 
                     // If this match is generic we need to resolve it with our types.
+                    // Store this generic match to be used if no others match
                     if (mi.IsGenericMethod)
                     {
                         Type[] types = Runtime.PythonArgsToTypeArray(args, true);
                         mi = ResolveGenericMethod((MethodInfo)mi, types);
+                        genericBinding = new Binding(mi, target, margs, outs);
+                        continue;
                     }
 
                     var binding = new Binding(mi, target, margs, outs);
@@ -680,6 +684,12 @@ namespace Python.Runtime
             if (bindingUsingImplicitConversion != null)
             {
                 return bindingUsingImplicitConversion;
+            }
+
+            // if we generated a generic binding, return it
+            if (genericBinding != null)
+            {
+                return genericBinding;
             }
 
             return null;
