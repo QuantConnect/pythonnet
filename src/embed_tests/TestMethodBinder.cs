@@ -501,6 +501,30 @@ if class1.Value != 10:
         }
 
         [Test]
+        public void TestMatchTypedGenericOverload()
+        {
+            // Test to ensure we can match a typed generic overload
+            // even when there are other matches that would apply.
+            var class1 = new TestGenericClass4();
+            TestGenericMethod(class1);
+            Assert.AreEqual(15, class1.Value);
+
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+
+class1 = TestMethodBinder.TestGenericClass4()
+
+TestMethodBinder.TestGenericMethod(class1)
+
+if class1.Value != 15:
+    raise AssertionError('Value was not updated')
+"));
+        }
+
+        [Test]
         public void TestGenericBindingSpeed()
         {
             var stopwatch = new Stopwatch();
@@ -634,6 +658,13 @@ if class1.Value != 10:
             }
         }
 
+        // Used to test that when a generic option is available but the parameter is already typed it doesn't
+        // match to the wrong one. This is an example of a typed generic parameter
+        public static void TestGenericMethod(GenericClassBase<ReferenceClass3> test)
+        {
+            test.Value = 15;
+        }
+
         public static void TestGenericMethod<T>(GenericClassBase<T> test)
             where T : class
         {
@@ -652,6 +683,9 @@ if class1.Value != 10:
         public class ReferenceClass2
         { }
 
+        public class ReferenceClass3
+        { }
+
         public class TestGenericClass1 : GenericClassBase<ReferenceClass1>
         { }
 
@@ -659,6 +693,9 @@ if class1.Value != 10:
         { }
 
         public class TestGenericClass3 : GenericClassBase<ReferenceClass2>
+        { }
+
+        public class TestGenericClass4 : GenericClassBase<ReferenceClass3>
         { }
 
         public class MultipleGenericClassBase<T, K>
@@ -679,12 +716,6 @@ if class1.Value != 10:
         { }
 
         public class TestMultipleGenericClass2 : MultipleGenericClassBase<ReferenceClass2, ReferenceClass1>
-        { }
-
-        public class TestMultipleGenericClass3 : MultipleGenericClassBase<ReferenceClass1, ReferenceClass1>
-        { }
-
-        public class TestMultipleGenericClass4 : MultipleGenericClassBase<ReferenceClass2, ReferenceClass2>
         { }
 
         public static void TestMultipleGenericParamsMethod<T, K>(GenericClassBase<T> singleGeneric, MultipleGenericClassBase<T, K> doubleGeneric)
