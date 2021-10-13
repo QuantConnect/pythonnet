@@ -17,6 +17,7 @@ namespace Python.Runtime
     internal class MethodBinder
     {
         private List<MethodInformation> list;
+        private Dictionary<string, MethodInfo> resolvedGenericsCache = new();
         public const bool DefaultAllowThreads = true;
         public bool allow_threads = DefaultAllowThreads;
         public bool init = false;
@@ -118,7 +119,15 @@ namespace Python.Runtime
 
         // Given a generic method and the argsTypes previously matched with it, 
         // generate the matching method
-        internal static MethodInfo ResolveGenericMethod(MethodInfo method, Type[] argTypes){
+        internal MethodInfo ResolveGenericMethod(MethodInfo method, Type[] argTypes)
+        {
+
+            // Check our resolved generics cache first
+            var key = method.ToString() + string.Join(",", argTypes.AsEnumerable());
+            if (resolvedGenericsCache.TryGetValue(key, out var cachedMethod))
+            {
+                return cachedMethod;
+            }
 
             // Get our matching generic types to create our method
             var methodGenerics = method.GetGenericArguments();
@@ -126,11 +135,13 @@ namespace Python.Runtime
             int resolvedGenerics = 0;
 
             var parameters = method.GetParameters();
-            for(int k = 0; k < parameters.Length; k++){
+            for (int k = 0; k < parameters.Length; k++)
+            {
                 var parameterType = parameters[k].ParameterType;
 
                 // Ignore those without generic params
-                if(!parameterType.ContainsGenericParameters){
+                if (!parameterType.ContainsGenericParameters)
+                {
                     continue;
                 }
 
@@ -139,20 +150,23 @@ namespace Python.Runtime
 
                 // For the arg that matches this param index, determine the matching type for the generic
                 var currentType = argTypes[k];
-                while (currentType != null) {
+                while (currentType != null)
+                {
 
                     // Check the current type for generic type definition
                     var genericType = currentType.IsGenericType ? currentType.GetGenericTypeDefinition() : null;
 
                     // If the generic type matches our params generic definition, this is our match
                     // go ahead and match these types to this arg
-                    if (paramGenericDefinition == genericType) {
+                    if (paramGenericDefinition == genericType)
+                    {
 
                         // The matching generic for this method parameter
                         var paramGenerics = parameterType.GenericTypeArguments;
                         var argGenericsResolved = currentType.GenericTypeArguments;
 
-                        for (int j = 0; j < paramGenerics.Length; j++){
+                        for (int j = 0; j < paramGenerics.Length; j++)
+                        {
 
                             // Get the final matching index for our resolved types array for this params generic
                             var index = Array.IndexOf(methodGenerics, paramGenerics[j]);
@@ -163,7 +177,7 @@ namespace Python.Runtime
                                 resolvedGenericsTypes[index] = argGenericsResolved[j];
                                 resolvedGenerics++;
                             }
-                            else if(resolvedGenericsTypes[index] != argGenericsResolved[j])
+                            else if (resolvedGenericsTypes[index] != argGenericsResolved[j])
                             {
                                 // If we have two resolved types for the same generic we have a problem
                                 throw new ArgumentException("ResolveGenericMethod(): Generic method mismatch on argument types");
@@ -178,13 +192,17 @@ namespace Python.Runtime
                 }
             }
 
-            try{
+            try
+            {
                 if (resolvedGenerics != methodGenerics.Length)
                 {
                     throw new Exception($"ResolveGenericMethod(): Count of resolved generics {resolvedGenerics} does not match method generic count {methodGenerics.Length}.");
                 }
 
                 method = method.MakeGenericMethod(resolvedGenericsTypes);
+
+                // Add to cache
+                resolvedGenericsCache.Add(key, method);
             }
             catch (ArgumentException e)
             {
