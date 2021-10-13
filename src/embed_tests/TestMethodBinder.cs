@@ -254,6 +254,39 @@ class PythonModel(TestMethodBinder.CSharpModel):
         }
 
         [Test]
+        public void TestNonStaticGenericMethodBinding()
+        {
+            // Test matching generic on instance functions
+            // i.e. function signature is <T>(Generic<T> var1)
+
+            // Run in C#
+            var class1 = new TestGenericClass1();
+            var class2 = new TestGenericClass2();
+
+            class1.TestNonStaticGenericMethod(class1);
+            class2.TestNonStaticGenericMethod(class2);
+
+            Assert.AreEqual(1, class1.Value);
+            Assert.AreEqual(1, class2.Value);
+
+            // Run in Python
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class1 = TestMethodBinder.TestGenericClass1()
+class2 = TestMethodBinder.TestGenericClass2()
+
+class1.TestNonStaticGenericMethod(class1)
+class2.TestNonStaticGenericMethod(class2)
+
+if class1.Value != 1 or class2.Value != 1:
+    raise AssertionError('Values were not updated')
+"));
+        }
+
+        [Test]
         public void TestGenericMethodBinding()
         {
             // Test matching generic
@@ -593,6 +626,12 @@ if class1.Value != 10:
             where J : class
         {
             public int Value = 0;
+
+            public void TestNonStaticGenericMethod<T>(GenericClassBase<T> test)
+                where T : class
+            {
+                test.Value = 1;
+            }
         }
 
         public static void TestGenericMethod<T>(GenericClassBase<T> test)

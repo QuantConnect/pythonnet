@@ -17,7 +17,7 @@ namespace Python.Runtime
     internal class MethodBinder
     {
         private List<MethodInformation> list;
-        private Dictionary<string, MethodInfo> resolvedGenericsCache = new();
+        private static Dictionary<string, MethodInfo> _resolvedGenericsCache = new();
         public const bool DefaultAllowThreads = true;
         public bool allow_threads = DefaultAllowThreads;
         public bool init = false;
@@ -119,14 +119,19 @@ namespace Python.Runtime
 
         // Given a generic method and the argsTypes previously matched with it, 
         // generate the matching method
-        internal MethodInfo ResolveGenericMethod(MethodInfo method, Type[] argTypes)
+        internal static MethodInfo ResolveGenericMethod(MethodInfo method, Type[] argTypes)
         {
+            bool shouldCache = method.DeclaringType != null;
+            string key = null;
 
             // Check our resolved generics cache first
-            var key = method.ToString() + string.Join(",", argTypes.AsEnumerable());
-            if (resolvedGenericsCache.TryGetValue(key, out var cachedMethod))
+            if (shouldCache)
             {
-                return cachedMethod;
+                key = method.DeclaringType.AssemblyQualifiedName + method.ToString() + string.Join(",", argTypes.AsEnumerable());
+                if (_resolvedGenericsCache.TryGetValue(key, out var cachedMethod))
+                {
+                    return cachedMethod;
+                }
             }
 
             // Get our matching generic types to create our method
@@ -201,8 +206,11 @@ namespace Python.Runtime
 
                 method = method.MakeGenericMethod(resolvedGenericsTypes);
 
-                // Add to cache
-                resolvedGenericsCache.Add(key, method);
+                if (shouldCache)
+                {
+                    // Add to cache
+                    _resolvedGenericsCache.Add(key, method);
+                }
             }
             catch (ArgumentException e)
             {
