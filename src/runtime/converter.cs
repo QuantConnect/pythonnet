@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
+using System.Linq;
 
 using Python.Runtime.Native;
 
@@ -694,8 +695,8 @@ class GMT(tzinfo):
         /// Determine if the comparing class is a subclass of a generic type
         private static bool IsSubclassOfRawGeneric(Type generic, Type comparingClass) {
 
-            // Check this is a generic type first
-            if(!generic.IsGenericType){
+            // Check this is a raw generic type first
+            if(!generic.IsGenericType || generic.GenericTypeArguments.Any(x => !x.IsGenericParameter)){
                 return false;
             }
 

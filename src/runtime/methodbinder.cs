@@ -140,7 +140,9 @@ namespace Python.Runtime
             int resolvedGenerics = 0;
 
             var parameters = method.GetParameters();
-            for (int k = 0; k < parameters.Length; k++)
+
+            // Iterate to length of ArgTypes since default args are plausible
+            for (int k = 0; k < argTypes.Length; k++)
             {
                 var parameterType = parameters[k].ParameterType;
 
