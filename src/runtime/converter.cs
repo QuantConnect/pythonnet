@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
+using System.Linq;
 
 using Python.Runtime.Native;
 
@@ -468,14 +469,15 @@ class GMT(tzinfo):
                 if (mt is CLRObject co)
                 {
                     object tmp = co.inst;
-                    if (obType.IsInstanceOfType(tmp))
+                    var type = tmp.GetType();
+                    
+                    if (obType.IsInstanceOfType(tmp) || IsSubclassOfRawGeneric(obType, type))
                     {
                         result = tmp;
                         return true;
                     }
                     else
                     {
-                        var type = tmp.GetType();
                         // check implicit conversions that receive tmp type and return obType
                         var conversionMethod = type.GetMethod("op_Implicit", new[] { type });
                         if (conversionMethod != null && conversionMethod.ReturnType == obType)
@@ -687,6 +689,37 @@ class GMT(tzinfo):
                 }
             }
 
+            return false;
+        }
+
+        /// Determine if the comparing class is a subclass of a generic type
+        private static bool IsSubclassOfRawGeneric(Type generic, Type comparingClass) {
+
+            // Check this is a raw generic type first
+            if(!generic.IsGenericType || !generic.ContainsGenericParameters){
+                return false;
+            }
+
+            // Ensure we have the full generic type definition or it won't match
+            generic = generic.GetGenericTypeDefinition();
+            
+            // Loop for searching for generic match in inheritance tree of comparing class
+            // If we have reach null we don't have a match
+            while (comparingClass != null) {
+
+                // Check the input for generic type definition, if doesn't exist just use the class
+                var comparingClassGeneric = comparingClass.IsGenericType ? comparingClass.GetGenericTypeDefinition() : null;
+
+                // If the same as generic, this is a subclass return true
+                if (generic == comparingClassGeneric) {
+                    return true;
+                }
+
+                // Step up the inheritance tree
+                comparingClass = comparingClass.BaseType;
+            }
+
+            // The comparing class is not based on the generic
             return false;
         }
 

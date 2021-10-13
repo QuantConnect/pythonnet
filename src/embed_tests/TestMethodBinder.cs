@@ -106,7 +106,8 @@ class PythonModel(TestMethodBinder.CSharpModel):
         // Reproduces a bug in which program explodes when implicit conversion fails
         // in Linux
         [Test]
-        public void ImplicitConversionErrorHandling(){
+        public void ImplicitConversionErrorHandling()
+        {
             var errorCaught = false;
             try
             {
@@ -252,6 +253,291 @@ class PythonModel(TestMethodBinder.CSharpModel):
             Assert.DoesNotThrow(() => module.MethodWithParamsTest());
         }
 
+        [Test]
+        public void TestNonStaticGenericMethodBinding()
+        {
+            // Test matching generic on instance functions
+            // i.e. function signature is <T>(Generic<T> var1)
+
+            // Run in C#
+            var class1 = new TestGenericClass1();
+            var class2 = new TestGenericClass2();
+
+            class1.TestNonStaticGenericMethod(class1);
+            class2.TestNonStaticGenericMethod(class2);
+
+            Assert.AreEqual(1, class1.Value);
+            Assert.AreEqual(1, class2.Value);
+
+            // Run in Python
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class1 = TestMethodBinder.TestGenericClass1()
+class2 = TestMethodBinder.TestGenericClass2()
+
+class1.TestNonStaticGenericMethod(class1)
+class2.TestNonStaticGenericMethod(class2)
+
+if class1.Value != 1 or class2.Value != 1:
+    raise AssertionError('Values were not updated')
+"));
+        }
+
+        [Test]
+        public void TestGenericMethodBinding()
+        {
+            // Test matching generic
+            // i.e. function signature is <T>(Generic<T> var1)
+
+            // Run in C#
+            var class1 = new TestGenericClass1();
+            var class2 = new TestGenericClass2();
+
+            TestGenericMethod(class1);
+            TestGenericMethod(class2);
+
+            Assert.AreEqual(1, class1.Value);
+            Assert.AreEqual(1, class2.Value);
+
+            // Run in Python
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class1 = TestMethodBinder.TestGenericClass1()
+class2 = TestMethodBinder.TestGenericClass2()
+
+TestMethodBinder.TestGenericMethod(class1)
+TestMethodBinder.TestGenericMethod(class2)
+
+if class1.Value != 1 or class2.Value != 1:
+    raise AssertionError('Values were not updated')
+"));
+        }
+
+        [Test]
+        public void TestMultipleGenericMethodBinding()
+        {
+            // Test matching multiple generics
+            // i.e. function signature is <T,K>(Generic<T,K> var1)
+
+            // Run in C#
+            var class1 = new TestMultipleGenericClass1();
+            var class2 = new TestMultipleGenericClass2();
+
+            TestMultipleGenericMethod(class1);
+            TestMultipleGenericMethod(class2);
+
+            Assert.AreEqual(1, class1.Value);
+            Assert.AreEqual(1, class2.Value);
+
+            // Run in Python
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class1 = TestMethodBinder.TestMultipleGenericClass1()
+class2 = TestMethodBinder.TestMultipleGenericClass2()
+
+TestMethodBinder.TestMultipleGenericMethod(class1)
+TestMethodBinder.TestMultipleGenericMethod(class2)
+
+if class1.Value != 1 or class2.Value != 1:
+    raise AssertionError('Values were not updated')
+"));
+        }
+
+        [Test]
+        public void TestMultipleGenericParamMethodBinding()
+        {
+            // Test multiple param generics matching
+            // i.e. function signature is <T,K>(Generic1<T> var1, Generic<T,K> var2)
+
+            // Run in C#
+            var class1a = new TestGenericClass1();
+            var class1b = new TestMultipleGenericClass1();
+
+            TestMultipleGenericParamsMethod(class1a, class1b);
+
+            Assert.AreEqual(1, class1a.Value);
+            Assert.AreEqual(1, class1a.Value);
+
+
+            var class2a = new TestGenericClass2();
+            var class2b = new TestMultipleGenericClass2();
+
+            TestMultipleGenericParamsMethod(class2a, class2b);
+
+            Assert.AreEqual(1, class2a.Value);
+            Assert.AreEqual(1, class2b.Value);
+
+            // Run in Python
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class1a = TestMethodBinder.TestGenericClass1()
+class1b = TestMethodBinder.TestMultipleGenericClass1()
+
+TestMethodBinder.TestMultipleGenericParamsMethod(class1a, class1b)
+
+if class1a.Value != 1 or class1b.Value != 1:
+    raise AssertionError('Values were not updated')
+
+class2a = TestMethodBinder.TestGenericClass2()
+class2b = TestMethodBinder.TestMultipleGenericClass2()
+
+TestMethodBinder.TestMultipleGenericParamsMethod(class2a, class2b)
+
+if class2a.Value != 1 or class2b.Value != 1:
+    raise AssertionError('Values were not updated')
+"));
+        }
+
+        [Test]
+        public void TestMultipleGenericParamMethodBinding_MixedOrder()
+        {
+            // Test matching multiple param generics with mixed order
+            // i.e. function signature is <T,K>(Generic1<K> var1, Generic<T,K> var2)
+
+            // Run in C#
+            var class1a = new TestGenericClass2();
+            var class1b = new TestMultipleGenericClass1();
+
+            TestMultipleGenericParamsMethod2(class1a, class1b);
+
+            Assert.AreEqual(1, class1a.Value);
+            Assert.AreEqual(1, class1a.Value);
+
+            var class2a = new TestGenericClass1();
+            var class2b = new TestMultipleGenericClass2();
+
+            TestMultipleGenericParamsMethod2(class2a, class2b);
+
+            Assert.AreEqual(1, class2a.Value);
+            Assert.AreEqual(1, class2b.Value);
+
+            // Run in Python
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class1a = TestMethodBinder.TestGenericClass2()
+class1b = TestMethodBinder.TestMultipleGenericClass1()
+
+TestMethodBinder.TestMultipleGenericParamsMethod2(class1a, class1b)
+
+if class1a.Value != 1 or class1b.Value != 1:
+    raise AssertionError('Values were not updated')
+
+class2a = TestMethodBinder.TestGenericClass1()
+class2b = TestMethodBinder.TestMultipleGenericClass2()
+
+TestMethodBinder.TestMultipleGenericParamsMethod2(class2a, class2b)
+
+if class2a.Value != 1 or class2b.Value != 1:
+    raise AssertionError('Values were not updated')
+"));
+        }
+
+        [Test]
+        public void TestPyClassGenericBinding()
+        {
+            // Overriding our generics in Python we should still match with the generic method
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+
+class PyGenericClass(TestMethodBinder.TestGenericClass1):
+    pass
+
+class PyMultipleGenericClass(TestMethodBinder.TestMultipleGenericClass1):
+    pass
+
+singleGenericClass = PyGenericClass()
+multiGenericClass = PyMultipleGenericClass()
+
+TestMethodBinder.TestGenericMethod(singleGenericClass)
+TestMethodBinder.TestMultipleGenericMethod(multiGenericClass)
+TestMethodBinder.TestMultipleGenericParamsMethod(singleGenericClass, multiGenericClass)
+
+if singleGenericClass.Value != 1 or multiGenericClass.Value != 1:
+    raise AssertionError('Values were not updated')
+"));
+        }
+
+        [Test]
+        public void TestNonGenericIsUsedWhenAvailable()
+        {
+            // Run in C#
+            var class1 = new TestGenericClass3();
+            TestGenericMethod(class1);
+            Assert.AreEqual(10, class1.Value);
+
+
+            // When available, should select non-generic method over generic method
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+
+class1 = TestMethodBinder.TestGenericClass3()
+
+TestMethodBinder.TestGenericMethod(class1)
+
+if class1.Value != 10:
+    raise AssertionError('Value was not updated')
+"));
+        }
+
+        [Test]
+        public void TestMatchTypedGenericOverload()
+        {
+            // Test to ensure we can match a typed generic overload
+            // even when there are other matches that would apply.
+            var class1 = new TestGenericClass4();
+            TestGenericMethod(class1);
+            Assert.AreEqual(15, class1.Value);
+
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+
+class1 = TestMethodBinder.TestGenericClass4()
+
+TestMethodBinder.TestGenericMethod(class1)
+
+if class1.Value != 15:
+    raise AssertionError('Value was not updated')
+"));
+        }
+
+        [Test]
+        public void TestGenericBindingSpeed()
+        {
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+            for (int i = 0; i < 10000; i++)
+            {
+                TestMultipleGenericParamMethodBinding();
+            }
+            stopwatch.Stop();
+
+            Console.WriteLine($"Took: {stopwatch.ElapsedMilliseconds} ms");
+        }
+
         public class CSharpModel
         {
             public static dynamic ProvidedArgument;
@@ -359,5 +645,94 @@ class PythonModel(TestMethodBinder.CSharpModel):
                 throw new ArgumentException();
             }
         }
+
+        public class GenericClassBase<J>
+            where J : class
+        {
+            public int Value = 0;
+
+            public void TestNonStaticGenericMethod<T>(GenericClassBase<T> test)
+                where T : class
+            {
+                test.Value = 1;
+            }
+        }
+
+        // Used to test that when a generic option is available but the parameter is already typed it doesn't
+        // match to the wrong one. This is an example of a typed generic parameter
+        public static void TestGenericMethod(GenericClassBase<ReferenceClass3> test)
+        {
+            test.Value = 15;
+        }
+
+        public static void TestGenericMethod<T>(GenericClassBase<T> test)
+            where T : class
+        {
+            test.Value = 1;
+        }
+
+        // Used in test to verify non-generic is bound and used when generic option is also available
+        public static void TestGenericMethod(TestGenericClass3 class3)
+        {
+            class3.Value = 10;
+        }
+
+        public class ReferenceClass1
+        { }
+
+        public class ReferenceClass2
+        { }
+
+        public class ReferenceClass3
+        { }
+
+        public class TestGenericClass1 : GenericClassBase<ReferenceClass1>
+        { }
+
+        public class TestGenericClass2 : GenericClassBase<ReferenceClass2>
+        { }
+
+        public class TestGenericClass3 : GenericClassBase<ReferenceClass2>
+        { }
+
+        public class TestGenericClass4 : GenericClassBase<ReferenceClass3>
+        { }
+
+        public class MultipleGenericClassBase<T, K>
+            where T : class
+            where K : class
+        {
+            public int Value = 0;
+        }
+
+        public static void TestMultipleGenericMethod<T, K>(MultipleGenericClassBase<T, K> test)
+            where T : class
+            where K : class
+        {
+            test.Value = 1;
+        }
+
+        public class TestMultipleGenericClass1 : MultipleGenericClassBase<ReferenceClass1, ReferenceClass2>
+        { }
+
+        public class TestMultipleGenericClass2 : MultipleGenericClassBase<ReferenceClass2, ReferenceClass1>
+        { }
+
+        public static void TestMultipleGenericParamsMethod<T, K>(GenericClassBase<T> singleGeneric, MultipleGenericClassBase<T, K> doubleGeneric)
+            where T : class
+            where K : class
+        {
+            singleGeneric.Value = 1;
+            doubleGeneric.Value = 1;
+        }
+
+        public static void TestMultipleGenericParamsMethod2<T, K>(GenericClassBase<K> singleGeneric, MultipleGenericClassBase<T, K> doubleGeneric)
+            where T : class
+            where K : class
+        {
+            singleGeneric.Value = 1;
+            doubleGeneric.Value = 1;
+        }
+
     }
 }
