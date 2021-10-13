@@ -121,6 +121,11 @@ namespace Python.Runtime
         // generate the matching method
         internal static MethodInfo ResolveGenericMethod(MethodInfo method, Type[] argTypes)
         {
+            // No need to resolve a method where generics are already assigned
+            if(!method.ContainsGenericParameters){
+                return method;
+            }
+
             bool shouldCache = method.DeclaringType != null;
             string key = null;
 
@@ -135,7 +140,7 @@ namespace Python.Runtime
             }
 
             // Get our matching generic types to create our method
-            var methodGenerics = method.GetGenericArguments();
+            var methodGenerics = method.GetGenericArguments().Where(x => x.IsGenericParameter).ToArray();
             var resolvedGenericsTypes = new Type[methodGenerics.Length];
             int resolvedGenerics = 0;
 

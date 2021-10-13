@@ -696,7 +696,7 @@ class GMT(tzinfo):
         private static bool IsSubclassOfRawGeneric(Type generic, Type comparingClass) {
 
             // Check this is a raw generic type first
-            if(!generic.IsGenericType || generic.GenericTypeArguments.Any(x => !x.IsGenericParameter)){
+            if(!generic.IsGenericType || !generic.ContainsGenericParameters){
                 return false;
             }
 
