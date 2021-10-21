@@ -692,8 +692,14 @@ namespace Python.Runtime
                     // Store this generic match to be used if no others match
                     if (mi.IsGenericMethod)
                     {
-                        Type[] types = Runtime.PythonArgsToTypeArray(args, true);
-                        mi = ResolveGenericMethod((MethodInfo)mi, types);
+                        List<Type> types = new();
+                        for(int j = 0; j < margs.Length; j++){
+                            if(margs[j] != null){
+                                types.Add(margs[j].GetType());
+                            }
+                        }
+
+                        mi = ResolveGenericMethod((MethodInfo)mi, types.ToArray());
                         genericBinding = new Binding(mi, target, margs, outs);
                         continue;
                     }
