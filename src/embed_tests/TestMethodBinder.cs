@@ -612,6 +612,31 @@ if class1.Value != 20:
 "));
         }
 
+        [Test]
+        public void TestMatchPyDateToDateTime()
+        {
+            // This test ensures that we match py datetime.date object to C# DateTime object
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from datetime import *
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+
+test = date(year=2011, month=5, day=1)
+result = TestMethodBinder.GetMonth(test)
+
+if result != 5:
+    raise AssertionError('Failed to return expected value 1')
+"));
+        }
+
+
+        // Used to test that we match this function with Py DateTime & Date Objects
+        public static int GetMonth(DateTime test){
+            return test.Month;
+        }
+
         public class CSharpModel
         {
             public static dynamic ProvidedArgument;

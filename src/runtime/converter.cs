@@ -1071,7 +1071,6 @@ class GMT(tzinfo):
                     if (year == IntPtr.Zero || year == Runtime.PyNone)
                     {
                         Runtime.XDecref(year);
-                        Exceptions.Clear();
 
                         // fallback to string parsing for types such as numpy
                         op = Runtime.PyObject_Str(value);
@@ -1085,6 +1084,8 @@ class GMT(tzinfo):
                         result = sdt.EndsWith("+00:00") ? dt.ToUniversalTime() : dt;
                         reference.Dispose();
                         Runtime.XDecref(op);
+
+                        Exceptions.Clear();
                         return true;
                     }
                     var month = Runtime.PyObject_GetAttrString(value, monthPtr);
@@ -1147,6 +1148,8 @@ class GMT(tzinfo):
                             Runtime.XDecref(minutes);
                         }
                     }
+
+                    Exceptions.Clear();
                     return true;
                 default:
                     goto type_error;
