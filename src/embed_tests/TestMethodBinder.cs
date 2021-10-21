@@ -538,6 +538,105 @@ if class1.Value != 15:
             Console.WriteLine($"Took: {stopwatch.ElapsedMilliseconds} ms");
         }
 
+        [Test]
+        public void TestGenericTypeMatchingWithConvertedPyType()
+        {
+            // This test ensures that we can still match and bind a generic method when we
+            // have a converted pytype in the args (py timedelta -> C# TimeSpan)
+    
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from datetime import timedelta
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class1 = TestMethodBinder.TestGenericClass1()
+
+span = timedelta(hours=5)
+
+TestMethodBinder.TestGenericMethod(class1, span)
+
+if class1.Value != 5:
+    raise AssertionError('Values were not updated properly')
+"));
+        }
+
+        [Test]
+        public void TestGenericTypeMatchingWithDefaultArgs()
+        {
+            // This test ensures that we can still match and bind a generic method when we have default args
+    
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from datetime import timedelta
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class1 = TestMethodBinder.TestGenericClass1()
+
+TestMethodBinder.TestGenericMethodWithDefault(class1)
+
+if class1.Value != 25:
+    raise AssertionError(f'Value was not 25, was {class1.Value}')
+
+TestMethodBinder.TestGenericMethodWithDefault(class1, 50)
+
+if class1.Value != 50:
+    raise AssertionError('Value was not 50, was {class1.Value}')
+"));
+        }
+
+                [Test]
+        public void TestGenericTypeMatchingWithNullDefaultArgs()
+        {
+            // This test ensures that we can still match and bind a generic method when we have \
+            // null default args, important because caching by arg types occurs
+    
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from datetime import timedelta
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class1 = TestMethodBinder.TestGenericClass1()
+
+TestMethodBinder.TestGenericMethodWithNullDefault(class1)
+
+if class1.Value != 10:
+    raise AssertionError(f'Value was not 25, was {class1.Value}')
+
+TestMethodBinder.TestGenericMethodWithNullDefault(class1, class1)
+
+if class1.Value != 20:
+    raise AssertionError('Value was not 50, was {class1.Value}')
+"));
+        }
+
+        [Test]
+        public void TestMatchPyDateToDateTime()
+        {
+            // This test ensures that we match py datetime.date object to C# DateTime object
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from datetime import *
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+
+test = date(year=2011, month=5, day=1)
+result = TestMethodBinder.GetMonth(test)
+
+if result != 5:
+    raise AssertionError('Failed to return expected value 1')
+"));
+        }
+
+
+        // Used to test that we match this function with Py DateTime & Date Objects
+        public static int GetMonth(DateTime test){
+            return test.Month;
+        }
+
         public class CSharpModel
         {
             public static dynamic ProvidedArgument;
@@ -675,6 +774,33 @@ if class1.Value != 15:
         public static void TestGenericMethod(TestGenericClass3 class3)
         {
             class3.Value = 10;
+        }
+
+        // Used in test to verify generic binding when converted PyTypes are involved (timedelta -> TimeSpan)
+        public static void TestGenericMethod<T>(GenericClassBase<T> test, TimeSpan span)
+        where T : class
+        {
+            test.Value = span.Hours;
+        }
+
+        // Used in test to verify generic binding when defaults are used
+        public static void TestGenericMethodWithDefault<T>(GenericClassBase<T> test, int value = 25)
+        where T : class
+        {
+            test.Value = value;
+        }
+
+        // Used in test to verify generic binding when null defaults are used
+        public static void TestGenericMethodWithNullDefault<T>(GenericClassBase<T> test, Object testObj = null)
+        where T : class
+        {
+            if(testObj == null){
+                test.Value = 10;
+            } 
+            else
+            {
+                test.Value = 20;
+            }
         }
 
         public class ReferenceClass1

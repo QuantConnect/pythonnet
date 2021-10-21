@@ -119,7 +119,7 @@ namespace Python.Runtime
 
         // Given a generic method and the argsTypes previously matched with it, 
         // generate the matching method
-        internal static MethodInfo ResolveGenericMethod(MethodInfo method, Type[] argTypes)
+        internal static MethodInfo ResolveGenericMethod(MethodInfo method, Object[] args)
         {
             // No need to resolve a method where generics are already assigned
             if(!method.ContainsGenericParameters){
@@ -132,7 +132,7 @@ namespace Python.Runtime
             // Check our resolved generics cache first
             if (shouldCache)
             {
-                key = method.DeclaringType.AssemblyQualifiedName + method.ToString() + string.Join(",", argTypes.AsEnumerable());
+                key = method.DeclaringType.AssemblyQualifiedName + method.ToString() + string.Join(",", args.Select(x => x?.GetType()));
                 if (_resolvedGenericsCache.TryGetValue(key, out var cachedMethod))
                 {
                     return cachedMethod;
@@ -147,8 +147,13 @@ namespace Python.Runtime
             var parameters = method.GetParameters();
 
             // Iterate to length of ArgTypes since default args are plausible
-            for (int k = 0; k < argTypes.Length; k++)
+            for (int k = 0; k < args.Length; k++)
             {
+                if(args[k] == null){
+                    continue;
+                }
+
+                var argType = args[k].GetType();
                 var parameterType = parameters[k].ParameterType;
 
                 // Ignore those without generic params
@@ -161,7 +166,7 @@ namespace Python.Runtime
                 var paramGenericDefinition = parameterType.GetGenericTypeDefinition();
 
                 // For the arg that matches this param index, determine the matching type for the generic
-                var currentType = argTypes[k];
+                var currentType = argType;
                 while (currentType != null)
                 {
 
@@ -692,8 +697,7 @@ namespace Python.Runtime
                     // Store this generic match to be used if no others match
                     if (mi.IsGenericMethod)
                     {
-                        Type[] types = Runtime.PythonArgsToTypeArray(args, true);
-                        mi = ResolveGenericMethod((MethodInfo)mi, types);
+                        mi = ResolveGenericMethod((MethodInfo)mi, margs);
                         genericBinding = new Binding(mi, target, margs, outs);
                         continue;
                     }

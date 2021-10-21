@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="quantconnect.pythonnet" Version="2.0.8" />
+    <ProjectReference Include="..\runtime\Python.Runtime.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="python-clear.ico" />
