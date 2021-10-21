@@ -538,6 +538,29 @@ if class1.Value != 15:
             Console.WriteLine($"Took: {stopwatch.ElapsedMilliseconds} ms");
         }
 
+        [Test]
+        public void TestGenericTypeMatchingWithConvertedPyType()
+        {
+            // This test ensures that we can still match and bind a generic method when we
+            // have a converted pytype in the args (py timedelta -> C# TimeSpan)
+    
+            Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
+from datetime import timedelta
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+from Python.EmbeddingTest import *
+class1 = TestMethodBinder.TestGenericClass1()
+
+span = timedelta(hours=5)
+
+TestMethodBinder.TestGenericMethod(class1, span)
+
+if class1.Value != 5:
+    raise AssertionError('Values were not updated properly')
+"));
+        }
+
         public class CSharpModel
         {
             public static dynamic ProvidedArgument;
@@ -675,6 +698,13 @@ if class1.Value != 15:
         public static void TestGenericMethod(TestGenericClass3 class3)
         {
             class3.Value = 10;
+        }
+
+        // Used in test to verify generic binding when converted PyTypes are involved (timedelta -> TimeSpan)
+        public static void TestGenericMethod<T>(GenericClassBase<T> test, TimeSpan span)
+        where T : class
+        {
+            test.Value = span.Hours;
         }
 
         public class ReferenceClass1
