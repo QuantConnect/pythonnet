@@ -12,6 +12,7 @@ namespace Python.EmbeddingTest
     {
         private static dynamic module;
         private static string testModule = @"
+from datetime import *
 from clr import AddReference
 AddReference(""System"")
 AddReference(""Python.EmbeddingTest"")
@@ -35,6 +36,10 @@ class PythonModel(TestMethodBinder.CSharpModel):
         model.TestList(model.SomeList)
     def TestH(self):
         return self.OnlyString(TestMethodBinder.ErroredImplicitConversion())
+    def MethodTimeSpanTest(self):
+        TestMethodBinder.CSharpModel.MethodDateTimeAndTimeSpan(self, timedelta(days = 1), TestMethodBinder.SomeEnu.A, pinocho = 0)
+        TestMethodBinder.CSharpModel.MethodDateTimeAndTimeSpan(self, date(1, 1, 1), TestMethodBinder.SomeEnu.A, pinocho = 0)
+        TestMethodBinder.CSharpModel.MethodDateTimeAndTimeSpan(self, datetime(1, 1, 1, 1, 1, 1), TestMethodBinder.SomeEnu.A, pinocho = 0)
     def NumericalArgumentMethodInteger(self):
         self.NumericalArgumentMethod(1)
     def NumericalArgumentMethodDouble(self):
@@ -147,6 +152,12 @@ class PythonModel(TestMethodBinder.CSharpModel):
 
             // Assert it is true
             Assert.AreEqual(true, data);
+        }
+
+        [Test]
+        public void MethodDateTimeAndTimeSpan()
+        {
+            Assert.DoesNotThrow(() => module.MethodTimeSpanTest());
         }
 
         [Test]
@@ -543,7 +554,7 @@ if class1.Value != 15:
         {
             // This test ensures that we can still match and bind a generic method when we
             // have a converted pytype in the args (py timedelta -> C# TimeSpan)
-    
+
             Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
 from datetime import timedelta
 from clr import AddReference
@@ -565,7 +576,7 @@ if class1.Value != 5:
         public void TestGenericTypeMatchingWithDefaultArgs()
         {
             // This test ensures that we can still match and bind a generic method when we have default args
-    
+
             Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
 from datetime import timedelta
 from clr import AddReference
@@ -591,7 +602,7 @@ if class1.Value != 50:
         {
             // This test ensures that we can still match and bind a generic method when we have \
             // null default args, important because caching by arg types occurs
-    
+
             Assert.DoesNotThrow(() => PythonEngine.ModuleFromString("test", @"
 from datetime import timedelta
 from clr import AddReference
@@ -719,6 +730,31 @@ if result != 5:
             {
 
             }
+
+            private static void AssertErrorNotOccurred()
+            {
+                if (Exceptions.ErrorOccurred())
+                {
+                    throw new Exception("Error occurred");
+                }
+            }
+
+            public static void MethodDateTimeAndTimeSpan(CSharpModel pepe, SomeEnu @someEnu, int integer, double? jose = null, double? pinocho = null)
+            {
+                AssertErrorNotOccurred();
+            }
+            public static void MethodDateTimeAndTimeSpan(CSharpModel pepe, DateTime dateTime, SomeEnu someEnu, double? jose = null, double? pinocho = null)
+            {
+                AssertErrorNotOccurred();
+            }
+            public static void MethodDateTimeAndTimeSpan(CSharpModel pepe, TimeSpan timeSpan, SomeEnu someEnu, double? jose = null, double? pinocho = null)
+            {
+                AssertErrorNotOccurred();
+            }
+            public static void MethodDateTimeAndTimeSpan(CSharpModel pepe, Func<DateTime, DateTime> func, SomeEnu someEnu, double? jose = null, double? pinocho = null)
+            {
+                AssertErrorNotOccurred();
+            }
         }
 
         public class TestImplicitConversion
@@ -796,7 +832,7 @@ if result != 5:
         {
             if(testObj == null){
                 test.Value = 10;
-            } 
+            }
             else
             {
                 test.Value = 20;
@@ -860,5 +896,10 @@ if result != 5:
             doubleGeneric.Value = 1;
         }
 
+        public enum SomeEnu
+        {
+            A = 1,
+            B = 2,
+        }
     }
 }

@@ -470,7 +470,7 @@ class GMT(tzinfo):
                 {
                     object tmp = co.inst;
                     var type = tmp.GetType();
-                    
+
                     if (obType.IsInstanceOfType(tmp) || IsSubclassOfRawGeneric(obType, type))
                     {
                         result = tmp;
@@ -702,7 +702,7 @@ class GMT(tzinfo):
 
             // Ensure we have the full generic type definition or it won't match
             generic = generic.GetGenericTypeDefinition();
-            
+
             // Loop for searching for generic match in inheritance tree of comparing class
             // If we have reach null we don't have a match
             while (comparingClass != null) {
@@ -1079,6 +1079,7 @@ class GMT(tzinfo):
                         {
                             reference.Dispose();
                             Runtime.XDecref(op);
+                            Exceptions.Clear();
                             goto type_error;
                         }
                         result = sdt.EndsWith("+00:00") ? dt.ToUniversalTime() : dt;
