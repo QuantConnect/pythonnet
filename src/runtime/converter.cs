@@ -453,7 +453,10 @@ class GMT(tzinfo):
             if (obType.IsGenericType && Runtime.PyObject_TYPE(value) == Runtime.PyListType)
             {
                 var typeDefinition = obType.GetGenericTypeDefinition();
-                if (typeDefinition == typeof(List<>) || typeDefinition == typeof(IEnumerable<>))
+                if (typeDefinition == typeof(List<>)
+                    || typeDefinition == typeof(IList<>)
+                    || typeDefinition == typeof(IEnumerable<>)
+                    || typeDefinition == typeof(IReadOnlyCollection<>))
                 {
                     return ToList(value, obType, out result, setError);
                 }

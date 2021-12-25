@@ -55,7 +55,17 @@ class PythonModel(TestMethodBinder.CSharpModel):
         self.EnumerableKeyValuePair([{'key': 1}])
         self.EnumerableKeyValuePair([])
     def MethodWithParamsTest(self):
-        self.MethodWithParams(1, 'pepe')";
+        self.MethodWithParams(1, 'pepe')
+
+    def TestList(self):
+        model = TestMethodBinder.CSharpModel()
+        model.List([TestMethodBinder.CSharpModel])
+    def TestListReadOnlyCollection(self):
+        model = TestMethodBinder.CSharpModel()
+        model.ListReadOnlyCollection([TestMethodBinder.CSharpModel])
+    def TestEnumerable(self):
+        model = TestMethodBinder.CSharpModel()
+        model.ListEnumerable([TestMethodBinder.CSharpModel])";
 
         public static dynamic Numpy;
 
@@ -78,6 +88,27 @@ class PythonModel(TestMethodBinder.CSharpModel):
         public void Dispose()
         {
             PythonEngine.Shutdown();
+        }
+
+        [Test]
+        public void MethodCalledList()
+        {
+            module.TestList();
+            Assert.AreEqual("List(List<Type> collection)", CSharpModel.MethodCalled);
+        }
+
+        [Test]
+        public void MethodCalledReadOnlyCollection()
+        {
+            module.TestListReadOnlyCollection();
+            Assert.AreEqual("List(IReadOnlyCollection<Type> collection)", CSharpModel.MethodCalled);
+        }
+
+        [Test]
+        public void MethodCalledEnumerable()
+        {
+            module.TestEnumerable();
+            Assert.AreEqual("List(IEnumerable<Type> collection)", CSharpModel.MethodCalled);
         }
 
         [Test]
@@ -650,6 +681,7 @@ if result != 5:
 
         public class CSharpModel
         {
+            public static string MethodCalled { get; set; }
             public static dynamic ProvidedArgument;
             public List<TestImplicitConversion> SomeList { get; set; }
 
@@ -729,6 +761,19 @@ if result != 5:
             public void MethodWithParams(decimal value, params string[] argument)
             {
 
+            }
+
+            public void ListReadOnlyCollection(IReadOnlyCollection<Type> collection)
+            {
+                MethodCalled = "List(IReadOnlyCollection<Type> collection)";
+            }
+            public void List(List<Type> collection)
+            {
+                MethodCalled = "List(List<Type> collection)";
+            }
+            public void ListEnumerable(IEnumerable<Type> collection)
+            {
+                MethodCalled = "List(IEnumerable<Type> collection)";
             }
 
             private static void AssertErrorNotOccurred()
