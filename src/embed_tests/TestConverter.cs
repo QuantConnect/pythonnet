@@ -48,15 +48,47 @@ namespace Python.EmbeddingTest
         }
 
         [Test]
+        public void GenericList()
+        {
+            var array = new List<Type> { typeof(decimal), typeof(int) };
+            var py = array.ToPython();
+            object result;
+            var converted = Converter.ToManaged(py.Handle, typeof(IList<Type>), out result, false);
+
+            Assert.IsTrue(converted);
+            Assert.AreEqual(typeof(List<Type>), result.GetType());
+            Assert.AreEqual(2, ((IReadOnlyCollection<Type>) result).Count);
+            Assert.AreEqual(typeof(decimal), ((IReadOnlyCollection<Type>) result).ToList()[0]);
+            Assert.AreEqual(typeof(int), ((IReadOnlyCollection<Type>) result).ToList()[1]);
+        }
+
+        [Test]
+        public void ReadOnlyCollection()
+        {
+            var array = new List<Type> { typeof(decimal), typeof(int) };
+            var py = array.ToPython();
+            object result;
+            var converted = Converter.ToManaged(py.Handle, typeof(IReadOnlyCollection<Type>), out result, false);
+
+            Assert.IsTrue(converted);
+            Assert.AreEqual(typeof(List<Type>), result.GetType());
+            Assert.AreEqual(2, ((IReadOnlyCollection<Type>) result).Count);
+            Assert.AreEqual(typeof(decimal), ((IReadOnlyCollection<Type>) result).ToList()[0]);
+            Assert.AreEqual(typeof(int), ((IReadOnlyCollection<Type>) result).ToList()[1]);
+        }
+
+        [Test]
         public void ConvertPyListToArray()
         {
             var array = new List<Type> { typeof(decimal), typeof(int) };
             var py = array.ToPython();
             object result;
-            var converted = Converter.ToManaged(py.Handle, typeof(Type[]), out result, false);
+            var outputType = typeof(Type[]);
+            var converted = Converter.ToManaged(py.Handle, outputType, out result, false);
 
             Assert.IsTrue(converted);
             Assert.AreEqual(result, array);
+            Assert.AreEqual(outputType, result.GetType());
         }
 
         [Test]
