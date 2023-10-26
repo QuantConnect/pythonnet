@@ -184,10 +184,15 @@ namespace Python.Runtime
                 exception = decodedException;
             }
 
-            if (!(exception is null))
+            if (exception is not null)
             {
+                if (exception is ClrBubbledException)
+                {
+                    return exception;
+                }
+
                 using var _ = new Py.GILState();
-                return new ClrBubbledException(exception, !(traceback is null) ? TracebackToString(traceback) : "");
+                return new ClrBubbledException(exception, TracebackToString(traceback));
             }
 
             using var cause = Runtime.PyException_GetCause(nValRef);
