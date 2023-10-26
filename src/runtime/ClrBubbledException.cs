@@ -35,7 +35,12 @@ namespace Python.Runtime
         {
             get
             {
-                return PythonTraceback + "Underlying exception stack trace:" + Environment.NewLine + InnerException.StackTrace;
+                if (HasPythonStacktrace)
+                {
+                    return PythonTraceback + "Underlying exception stack trace:" + Environment.NewLine + InnerException.StackTrace;
+                }
+
+                return InnerException.StackTrace;
             }
         }
 
@@ -43,8 +48,12 @@ namespace Python.Runtime
         {
             StringBuilder description = new StringBuilder();
             description.AppendFormat("{0}: {1}{2}", InnerException.GetType().Name, Message, Environment.NewLine);
-            description.AppendFormat(" --> {0}", PythonTraceback);
-            description.AppendFormat("   --- End of Python traceback ---{0}", Environment.NewLine);
+
+            if (HasPythonStacktrace)
+            {
+                description.AppendFormat(" --> {0}", PythonTraceback);
+                description.AppendFormat("   --- End of Python traceback ---{0}", Environment.NewLine);
+            }
 
             if (InnerException.InnerException != null)
             {
@@ -58,5 +67,7 @@ namespace Python.Runtime
             var str = description.ToString();
             return str;
         }
+
+        private bool HasPythonStacktrace => !string.IsNullOrEmpty(PythonTraceback);
     }
 }

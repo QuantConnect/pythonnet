@@ -1,6 +1,5 @@
 using System;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Runtime.Serialization;
@@ -188,7 +187,7 @@ namespace Python.Runtime
             if (!(exception is null))
             {
                 using var _ = new Py.GILState();
-                return new ClrBubbledException(exception, TracebackToString(traceback));
+                return new ClrBubbledException(exception, !(traceback is null) ? TracebackToString(traceback) : "");
             }
 
             using var cause = Runtime.PyException_GetCause(nValRef);
