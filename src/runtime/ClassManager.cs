@@ -545,7 +545,7 @@ namespace Python.Runtime
                         ob = new FieldObject(fi);
 
                         var pepName = fi.Name.ToSnakeCase();
-                        if (fi.IsLiteral)
+                        if (fi.IsLiteral || (fi.IsStatic && fi.IsInitOnly))
                         {
                             pepName = pepName.ToUpper();
                         }
