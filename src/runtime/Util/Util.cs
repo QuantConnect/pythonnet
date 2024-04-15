@@ -236,7 +236,7 @@ namespace Python.Runtime
         /// </summary>
         public static string ToSnakeCase(this FieldInfo fieldInfo)
         {
-            return fieldInfo.Name.ToSnakeCase(fieldInfo.IsLiteral || (fieldInfo.IsStatic && fieldInfo.IsInitOnly));
+            return fieldInfo.Name.ToSnakeCase(fieldInfo.IsLiteral || fieldInfo.IsStaticReadonly());
         }
 
         /// <summary>
@@ -245,9 +245,49 @@ namespace Python.Runtime
         /// </summary>
         public static string ToSnakeCase(this PropertyInfo propertyInfo)
         {
-            var constant = propertyInfo.CanRead && !propertyInfo.CanWrite &&
+            return propertyInfo.Name.ToSnakeCase(propertyInfo.IsStaticReadonly());
+        }
+
+        /// <summary>
+        /// Determines whether the specified field is static readonly.
+        /// </summary>
+        public static bool IsStaticReadonly(this FieldInfo fieldInfo)
+        {
+            return fieldInfo.IsStatic && fieldInfo.IsInitOnly;
+        }
+
+        /// <summary>
+        /// Determines whether the specified property is static readonly.
+        /// </summary>
+        public static bool IsStaticReadonly(this PropertyInfo propertyInfo)
+        {
+            return propertyInfo.CanRead && !propertyInfo.CanWrite &&
                 (propertyInfo.GetGetMethod()?.IsStatic ?? propertyInfo.GetGetMethod(nonPublic: true)?.IsStatic ?? false);
-            return propertyInfo.Name.ToSnakeCase(constant);
+        }
+
+        /// <summary>
+        /// Determines whether the specified field is static readonly and callable (Action, Func)
+        /// </summary>
+        public static bool IsStaticReadonlyCallable(this FieldInfo fieldInfo)
+        {
+            return fieldInfo.IsStaticReadonly() && fieldInfo.FieldType.IsDelegate();
+        }
+
+        /// <summary>
+        /// Determines whether the specified property is static readonly and callable (Action, Func)
+        /// </summary>
+        public static bool IsStaticReadonlyCallable(this PropertyInfo propertyInfo)
+        {
+            return propertyInfo.IsStaticReadonly() && propertyInfo.PropertyType.IsDelegate();
+        }
+
+        /// <summary>
+        /// Determines whether the specified type is a delegate.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsDelegate(this Type type)
+        {
+            return type.IsSubclassOf(typeof(Delegate));
         }
     }
 }
