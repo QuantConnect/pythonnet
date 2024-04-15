@@ -303,28 +303,28 @@ namespace Python.Runtime
 
         internal static bool ShouldBindProperty(PropertyInfo pi)
         {
-                MethodInfo? mm;
-                try
-                {
-                    mm = pi.GetGetMethod(true);
-                    if (mm == null)
-                    {
-                        mm = pi.GetSetMethod(true);
-                    }
-                }
-                catch (SecurityException)
-                {
-                    // GetGetMethod may try to get a method protected by
-                    // StrongNameIdentityPermission - effectively private.
-                    return false;
-                }
-
+            MethodInfo? mm;
+            try
+            {
+                mm = pi.GetGetMethod(true);
                 if (mm == null)
                 {
-                    return false;
+                    mm = pi.GetSetMethod(true);
                 }
+            }
+            catch (SecurityException)
+            {
+                // GetGetMethod may try to get a method protected by
+                // StrongNameIdentityPermission - effectively private.
+                return false;
+            }
 
-                return ShouldBindMethod(mm);
+            if (mm == null)
+            {
+                return false;
+            }
+
+            return ShouldBindMethod(mm);
         }
 
         internal static bool ShouldBindEvent(EventInfo ei)
@@ -348,7 +348,17 @@ namespace Python.Runtime
             MemberInfo m;
 
             var snakeCasedAttributes = new HashSet<string>();
-            var originalMemberNames = info.Select(mi => mi.Name).ToHashSet();
+            var originalMemberNames = info
+                .Where(mi => mi switch
+                {
+                    MethodInfo mei => ShouldBindMethod(mei),
+                    FieldInfo fi => ShouldBindField(fi),
+                    PropertyInfo pi => ShouldBindProperty(pi),
+                    EventInfo ei => ShouldBindEvent(ei),
+                    _ => false
+                })
+                .Select(mi => mi.Name)
+                .ToHashSet();
 
             // Loop through once to find out which names are declared
             for (i = 0; i < info.Length; i++)
@@ -525,7 +535,7 @@ namespace Python.Runtime
                     case MemberTypes.Property:
                         var pi = (PropertyInfo)mi;
 
-                        if(!ShouldBindProperty(pi))
+                        if (!ShouldBindProperty(pi))
                         {
                             continue;
                         }
@@ -613,7 +623,8 @@ namespace Python.Runtime
                 var parent = type.BaseType;
                 while (parent != null && ci.indexer == null)
                 {
-                    foreach (var prop in parent.GetProperties()) {
+                    foreach (var prop in parent.GetProperties())
+                    {
                         var args = prop.GetIndexParameters();
                         if (args.GetLength(0) > 0)
                         {

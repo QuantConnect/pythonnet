@@ -652,6 +652,9 @@ def SetEnumValue3SnakeCase(obj):
 
         private class AlreadyDefinedSnakeCaseMemberTestBaseClass
         {
+            private int private_field = 123;
+            public int PrivateField = 333;
+
             public virtual int SomeIntProperty { get; set; } = 123;
 
             public int some_int_property { get; set; } = 321;
@@ -715,6 +718,14 @@ def SetEnumValue3SnakeCase(obj):
             using var method = pyObj.GetAttr("another_int_property");
             Assert.IsTrue(method.IsCallable());
             Assert.AreEqual(654, method.Invoke().As<int>());
+        }
+
+        [Test]
+        public void BindsMemberWithSnakeCasedNameMatchingExistingPrivateMember()
+        {
+            using var obj = new AlreadyDefinedSnakeCaseMemberTestBaseClass().ToPython();
+
+            Assert.AreEqual(333, obj.GetAttr("private_field").As<int>());
         }
 
         private abstract class AlreadyDefinedSnakeCaseMemberTestBaseAbstractClass
