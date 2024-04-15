@@ -189,6 +189,7 @@ namespace Python.Runtime
                     case UnicodeCategory.TitlecaseLetter:
                         if (previousCategory == UnicodeCategory.SpaceSeparator ||
                             previousCategory == UnicodeCategory.LowercaseLetter ||
+                            previousCategory == UnicodeCategory.DecimalDigitNumber ||
                             previousCategory != UnicodeCategory.DecimalDigitNumber &&
                             previousCategory != null &&
                             currentIndex > 0 &&
@@ -204,14 +205,26 @@ namespace Python.Runtime
                         break;
 
                     case UnicodeCategory.LowercaseLetter:
-                    case UnicodeCategory.DecimalDigitNumber:
-                        if (previousCategory == UnicodeCategory.SpaceSeparator)
+                        if (previousCategory == UnicodeCategory.SpaceSeparator ||
+                            // Underscore before this character if previous is a digit and followed by more than one lowercase letter
+                            previousCategory == UnicodeCategory.DecimalDigitNumber &&
+                            currentIndex + 1 < name.Length &&
+                            char.IsLetter(name[currentIndex + 1]))
                         {
                             builder.Append('_');
                         }
                         if (constant)
                         {
                             currentChar = char.ToUpper(currentChar, CultureInfo.InvariantCulture);
+                        }
+                        break;
+
+                    case UnicodeCategory.DecimalDigitNumber:
+                        if (previousCategory != null &&
+                            previousCategory != UnicodeCategory.DecimalDigitNumber &&
+                            previousCategory != UnicodeCategory.SpaceSeparator)
+                        {
+                            builder.Append('_');
                         }
                         break;
 
