@@ -770,7 +770,7 @@ def SetEnumValue3SnakeCase(obj):
             public new int GetValue3(int x)
             {
                 throw new Exception("new GetValue3(int x)");
-        }
+            }
         }
 
         [TestCase(typeof(AlreadyDefinedSnakeCaseMemberTestBaseClass), "get_value", new object[] { 2, 3 }, "GetValue(int x, int y)")]
