@@ -370,9 +370,10 @@ namespace Python.Runtime
                 if (m.DeclaringType == type)
                 {
                     local.Add(m.Name);
-                    if (m is MethodInfo)
+                    var snakeName = m.Name.ToSnakeCase();
+                    if (snakeName != m.Name && m is MethodInfo)
                     {
-                        snakeCasedMethods.Add(m.Name.ToSnakeCase());
+                        snakeCasedMethods.Add(snakeName);
                     }
                 }
             }
@@ -410,6 +411,10 @@ namespace Python.Runtime
                 {
                     // the method binding is done by the case sensitive name and it's handled by a single MethodBinder instance, so in derived classes
                     // we need to add the methods of the base classes which have the same name or snake name
+                    // - the name of this method (of a base type) matches a snakename method of this type
+                    // - the snake name of this method (of a base type) matches:
+                    //    - a method name in this type
+                    //    - a snakename method of this type
                     var snakeName = m.Name.ToSnakeCase();
                     if (snakeCasedMethods.Contains(m.Name)
                         || local.Contains(snakeName) || snakeCasedMethods.Contains(snakeName))

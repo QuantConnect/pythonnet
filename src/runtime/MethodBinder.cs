@@ -338,11 +338,11 @@ namespace Python.Runtime
                 val += ArgPrecedence(info.ReturnType, methodInformation);
                 if (mi.DeclaringType == mi.ReflectedType)
                 {
-                    val += methodInformation.IsOriginal ? 0 : 3000;
+                    val += methodInformation.IsOriginal ? 0 : 300000;
                 }
                 else
                 {
-                    val += methodInformation.IsOriginal ? 2000 : 4000;
+                    val += methodInformation.IsOriginal ? 2000 : 400000;
                 }
             }
 

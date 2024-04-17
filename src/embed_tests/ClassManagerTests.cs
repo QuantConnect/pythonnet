@@ -710,6 +710,11 @@ def SetEnumValue3SnakeCase(obj):
                 return 654;
             }
 
+            public dynamic a(AlreadyDefinedSnakeCaseMemberTestBaseClass a)
+            {
+                throw new Exception("a(AlreadyDefinedSnakeCaseMemberTestBaseClass)");
+            }
+
             public int a()
             {
                 throw new Exception("a()");
@@ -766,6 +771,10 @@ def SetEnumValue3SnakeCase(obj):
             {
                 throw new Exception("A()");
             }
+            public PyObject A(PyObject a)
+            {
+                throw new Exception("A(PyObject)");
+            }
             public override int get_value(int x)
             {
                 throw new Exception("override get_value(int x)");
@@ -801,8 +810,27 @@ def SetEnumValue3SnakeCase(obj):
         // original beats fake
         [TestCase(typeof(AlreadyDefinedSnakeCaseMemberTestDerivedClass), "get_value_2", new object[] { 2 }, "get_value_2(int x)")]
         [TestCase(typeof(AlreadyDefinedSnakeCaseMemberTestDerivedClass), "get_value_3", new object[] { 2 }, "get_value_3(int x)")]
+
+        [TestCase(typeof(AlreadyDefinedSnakeCaseMemberTestDerivedClass), "a", new object[] { "AlreadyDefinedSnakeCaseMemberTestBaseClass" }, "a(AlreadyDefinedSnakeCaseMemberTestBaseClass)")]
+        // A(PyObject) is real
+        [TestCase(typeof(AlreadyDefinedSnakeCaseMemberTestDerivedClass), "A", new object[] { "AlreadyDefinedSnakeCaseMemberTestBaseClass" }, "A(PyObject)")]
+        [TestCase(typeof(AlreadyDefinedSnakeCaseMemberTestDerivedClass), "a", new object[] { "Type" }, "A(PyObject)")]
+        [TestCase(typeof(AlreadyDefinedSnakeCaseMemberTestDerivedClass), "A", new object[] { "Type" }, "A(PyObject)")]
+        [TestCase(typeof(AlreadyDefinedSnakeCaseMemberTestDerivedClass), "A", new object[] { "Type" }, "A(PyObject)")]
         public void BindsSnakeCasedMethodAsOverload(Type type, string methodName, object[] args, string expectedMessage)
         {
+            if (args.Length == 1)
+            {
+                if (args[0] is "AlreadyDefinedSnakeCaseMemberTestBaseClass")
+                {
+                    args = new object[] { new AlreadyDefinedSnakeCaseMemberTestBaseClass() };
+                }
+                else if (args[0] is "Type")
+                {
+                    args = new object[] { typeof(string) };
+                }
+            }
+
             var obj = Activator.CreateInstance(type);
             using var pyObj = obj.ToPython();
 
