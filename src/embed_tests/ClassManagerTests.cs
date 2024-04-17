@@ -948,6 +948,60 @@ def SetEnumValue3SnakeCase(obj):
             Assert.AreEqual(654, method.Invoke().As<int>());
         }
 
+        public class Class1
+        {
+        }
+
+        private class TestClass1
+        {
+            public dynamic get(Class1 s)
+            {
+                return "dynamic get(Class1 s)";
+            }
+        }
+
+        private class TestClass2 : TestClass1
+        {
+            public PyObject Get(PyObject o)
+            {
+                return "PyObject Get(PyObject o)".ToPython();
+            }
+
+            public dynamic Get(Type t)
+            {
+                return "dynamic Get(Type t)";
+            }
+        }
+
+        [Test]
+        public void BindsCorrectOverloadForClassName()
+        {
+            using var obj = new TestClass2().ToPython();
+
+            var result = obj.GetAttr("get").Invoke(new Class1().ToPython()).As<string>();
+            Assert.AreEqual("dynamic get(Class1 s)", result);
+
+            result = obj.GetAttr("get").Invoke(new TestClass1().ToPython()).As<string>();
+            Assert.AreEqual("PyObject Get(PyObject o)", result);
+
+            using (Py.GIL())
+            {
+                // Passing type name directly instead of typeof(Class1) from C#
+                var module = PyModule.FromString("module", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+def call(instance):
+    return instance.get(ClassManagerTests.Class1)
+                    ");
+
+                result = module.GetAttr("call").Invoke(obj).As<string>();
+                Assert.AreEqual("PyObject Get(PyObject o)", result);
+            }
+        }
+
         #endregion
     }
 
