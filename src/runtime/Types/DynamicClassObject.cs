@@ -66,10 +66,7 @@ namespace Python.Runtime
         /// </summary>
         public static NewReference tp_getattro(BorrowedReference ob, BorrowedReference key)
         {
-            var result = Runtime.PyObject_GenericGetAttr(ob, key);
-
-            // If AttributeError was raised, we try to get the attribute from the managed object dynamic properties.
-            if (Exceptions.ExceptionMatches(Exceptions.AttributeError))
+            if (!HasNonDynamicMember(ob, key, out var result))
             {
                 var clrObj = (CLRObject)GetManagedObject(ob)!;
 
@@ -111,7 +108,10 @@ namespace Python.Runtime
             var bindingFlags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
             var property = clrObjectType.GetProperty(name, bindingFlags);
             var field = property == null ? clrObjectType.GetField(name, bindingFlags) : null;
-            if ((property != null && property.SetMethod != null) || field != null)
+            if ((property != null && property.SetMethod != null) ||
+                field != null ||
+                // Not defined as property in the class, try with the snake case version of it before letting DynamicObject handle it.
+                HasNonDynamicMember(ob, key, out _, clearExceptions: true))
             {
                 return Runtime.PyObject_GenericSetAttr(ob, key, val);
             }
@@ -128,6 +128,20 @@ namespace Python.Runtime
             }
 
             return 0;
+        }
+
+        private static bool HasNonDynamicMember(BorrowedReference ob, BorrowedReference key, out NewReference value, bool clearExceptions = false)
+        {
+            value = Runtime.PyObject_GenericGetAttr(ob, key);
+            // If AttributeError was raised, we try to get the attribute from the managed object dynamic properties.
+            var result = !Exceptions.ExceptionMatches(Exceptions.AttributeError);
+
+            if (clearExceptions)
+            {
+                Exceptions.Clear();
+            }
+
+            return result;
         }
     }
 }
