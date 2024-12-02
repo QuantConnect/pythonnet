@@ -120,7 +120,10 @@ namespace Python.Runtime
             // Catch C# exceptions and raise them as Python exceptions.
             catch (Exception exception)
             {
-                Exceptions.SetError(exception);
+                // tp_setattro should call PyObject_GenericSetAttr (which we already did)
+                // which must throw AttributeError on failure and return -1 (see https://docs.python.org/3/c-api/object.html#c.PyObject_GenericSetAttr)
+                Exceptions.SetError(Exceptions.AttributeError, exception.Message);
+                return -1;
             }
 
             return 0;
