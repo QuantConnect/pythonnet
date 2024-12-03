@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Dynamic;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 
 using RuntimeBinder = Microsoft.CSharp.RuntimeBinder;
@@ -94,6 +92,7 @@ namespace Python.Runtime
                     // e.g hasattr uses this method to check if the attribute exists. If we throw anything other than AttributeError,
                     // hasattr will throw instead of catching and returning False.
                     Exceptions.SetError(Exceptions.AttributeError, exception.Message);
+                    return default;
                 }
             }
 
