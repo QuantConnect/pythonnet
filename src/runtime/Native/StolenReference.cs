@@ -28,7 +28,7 @@ namespace Python.Runtime
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         [DebuggerHidden]
-        public static StolenReference TakeNullable(ref IntPtr ptr)
+        public static StolenReference TakeNullable(scoped ref IntPtr ptr)
         {
             var stolenAddr = ptr;
             ptr = IntPtr.Zero;

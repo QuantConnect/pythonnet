@@ -793,7 +793,6 @@ namespace Python.Runtime
 
         static BorrowedReference HandleParamsArray(BorrowedReference args, int arrayStart, int pyArgCount, out NewReference tempObject)
         {
-            BorrowedReference op;
             tempObject = default;
             // for a params method, we may have a sequence or single/multiple items
             // here we look to see if the item at the paramIndex is there or not
@@ -806,20 +805,19 @@ namespace Python.Runtime
                 if (!Runtime.PyString_Check(item) && (Runtime.PySequence_Check(item) || (ManagedType.GetManagedObject(item) as CLRObject)?.inst is IEnumerable))
                 {
                     // it's a sequence (and not a string), so we use it as the op
-                    op = item;
+                    return item;
                 }
                 else
                 {
                     tempObject = Runtime.PyTuple_GetSlice(args, arrayStart, pyArgCount);
-                    op = tempObject.Borrow();
+                    return tempObject.Borrow();
                 }
             }
             else
             {
                 tempObject = Runtime.PyTuple_GetSlice(args, arrayStart, pyArgCount);
-                op = tempObject.Borrow();
+                return tempObject.Borrow();
             }
-            return op;
         }
 
         /// <summary>

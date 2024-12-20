@@ -157,15 +157,8 @@ namespace Python.Runtime
             // Initialize modules that depend on the runtime class.
             AssemblyManager.Initialize();
             OperatorMethod.Initialize();
-            if (RuntimeData.HasStashData())
-            {
-                RuntimeData.RestoreRuntimeData();
-            }
-            else
-            {
-                PyCLRMetaType = MetaType.Initialize();
-                ImportHook.Initialize();
-            }
+            PyCLRMetaType = MetaType.Initialize();
+            ImportHook.Initialize();
             Exceptions.Initialize();
 
             // Need to add the runtime directory to sys.path so that we
@@ -269,8 +262,6 @@ namespace Python.Runtime
             {
                 // avoid saving dead objects
                 TryCollectingGarbage(runs: 3);
-
-                RuntimeData.Stash();
             }
 
             AssemblyManager.Shutdown();
@@ -1715,7 +1706,7 @@ namespace Python.Runtime
         internal static NewReference PyType_GenericAlloc(BorrowedReference type, nint n) => Delegates.PyType_GenericAlloc(type, n);
 
         internal static IntPtr PyType_GetSlot(BorrowedReference type, TypeSlotID slot) => Delegates.PyType_GetSlot(type, slot);
-        internal static NewReference PyType_FromSpecWithBases(in NativeTypeSpec spec, BorrowedReference bases) => Delegates.PyType_FromSpecWithBases(in spec, bases);
+        internal static NewReference PyType_FromSpecWithBases(scoped in NativeTypeSpec spec, BorrowedReference bases) => Delegates.PyType_FromSpecWithBases(in spec, bases);
 
         /// <summary>
         /// Finalize a type object. This should be called on all type objects to finish their initialization. This function is responsible for adding inherited slots from a type�s base class. Return 0 on success, or return -1 and sets an exception on error.

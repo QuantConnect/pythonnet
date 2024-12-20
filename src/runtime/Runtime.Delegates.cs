@@ -59,9 +59,9 @@ public unsafe partial class Runtime
             Py_GetCompiler = (delegate* unmanaged[Cdecl]<IntPtr>)GetFunctionByName(nameof(Py_GetCompiler), GetUnmanagedDll(_PythonDll));
             Py_GetBuildInfo = (delegate* unmanaged[Cdecl]<IntPtr>)GetFunctionByName(nameof(Py_GetBuildInfo), GetUnmanagedDll(_PythonDll));
             PyRun_SimpleStringFlags = (delegate* unmanaged[Cdecl]<StrPtr, in PyCompilerFlags, int>)GetFunctionByName(nameof(PyRun_SimpleStringFlags), GetUnmanagedDll(_PythonDll));
-            PyRun_StringFlags = (delegate* unmanaged[Cdecl]<StrPtr, RunFlagType, BorrowedReference, BorrowedReference, in PyCompilerFlags, NewReference>)GetFunctionByName(nameof(PyRun_StringFlags), GetUnmanagedDll(_PythonDll));
+            PyRun_StringFlags = (delegate* unmanaged[Cdecl]<StrPtr, RunFlagType, BorrowedReference, BorrowedReference, PyCompilerFlags, NewReference>)GetFunctionByName(nameof(PyRun_StringFlags), GetUnmanagedDll(_PythonDll));
             PyEval_EvalCode = (delegate* unmanaged[Cdecl]<BorrowedReference, BorrowedReference, BorrowedReference, NewReference>)GetFunctionByName(nameof(PyEval_EvalCode), GetUnmanagedDll(_PythonDll));
-            Py_CompileStringObject = (delegate* unmanaged[Cdecl]<StrPtr, BorrowedReference, int, in PyCompilerFlags, int, NewReference>)GetFunctionByName(nameof(Py_CompileStringObject), GetUnmanagedDll(_PythonDll));
+            Py_CompileStringObject = (delegate* unmanaged[Cdecl]<StrPtr, BorrowedReference, int, PyCompilerFlags, int, NewReference>)GetFunctionByName(nameof(Py_CompileStringObject), GetUnmanagedDll(_PythonDll));
             PyImport_ExecCodeModule = (delegate* unmanaged[Cdecl]<StrPtr, BorrowedReference, NewReference>)GetFunctionByName(nameof(PyImport_ExecCodeModule), GetUnmanagedDll(_PythonDll));
             PyObject_HasAttrString = (delegate* unmanaged[Cdecl]<BorrowedReference, StrPtr, int>)GetFunctionByName(nameof(PyObject_HasAttrString), GetUnmanagedDll(_PythonDll));
             PyObject_GetAttrString = (delegate* unmanaged[Cdecl]<BorrowedReference, StrPtr, NewReference>)GetFunctionByName(nameof(PyObject_GetAttrString), GetUnmanagedDll(_PythonDll));
@@ -345,9 +345,9 @@ public unsafe partial class Runtime
         internal static delegate* unmanaged[Cdecl]<IntPtr> Py_GetCompiler { get; }
         internal static delegate* unmanaged[Cdecl]<IntPtr> Py_GetBuildInfo { get; }
         internal static delegate* unmanaged[Cdecl]<StrPtr, in PyCompilerFlags, int> PyRun_SimpleStringFlags { get; }
-        internal static delegate* unmanaged[Cdecl]<StrPtr, RunFlagType, BorrowedReference, BorrowedReference, in PyCompilerFlags, NewReference> PyRun_StringFlags { get; }
+        internal static delegate* unmanaged[Cdecl]<StrPtr, RunFlagType, BorrowedReference, BorrowedReference, PyCompilerFlags, NewReference> PyRun_StringFlags { get; }
         internal static delegate* unmanaged[Cdecl]<BorrowedReference, BorrowedReference, BorrowedReference, NewReference> PyEval_EvalCode { get; }
-        internal static delegate* unmanaged[Cdecl]<StrPtr, BorrowedReference, int, in PyCompilerFlags, int, NewReference> Py_CompileStringObject { get; }
+        internal static delegate* unmanaged[Cdecl]<StrPtr, BorrowedReference, int, PyCompilerFlags, int, NewReference> Py_CompileStringObject { get; }
         internal static delegate* unmanaged[Cdecl]<StrPtr, BorrowedReference, NewReference> PyImport_ExecCodeModule { get; }
         internal static delegate* unmanaged[Cdecl]<BorrowedReference, StrPtr, int> PyObject_HasAttrString { get; }
         internal static delegate* unmanaged[Cdecl]<BorrowedReference, StrPtr, NewReference> PyObject_GetAttrString { get; }

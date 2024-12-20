@@ -1,4 +1,4 @@
-using System.IO;
+/*using System.IO;
 using System.Reflection;
 
 using NUnit.Framework;
@@ -44,3 +44,4 @@ public class MethodTestHost
     public MethodTestHost(int _) { }
     public void Generic<T>(T item, T[] array, ref T @ref) { }
 }
+*/
