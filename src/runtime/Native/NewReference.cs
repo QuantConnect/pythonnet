@@ -15,7 +15,7 @@ namespace Python.Runtime
 
         /// <summary>Creates a <see cref="NewReference"/> pointing to the same object</summary>
         [DebuggerHidden]
-        public NewReference(BorrowedReference reference, bool canBeNull = false)
+        public NewReference(scoped BorrowedReference reference, bool canBeNull = false)
         {
             var address = canBeNull
                 ? reference.DangerousGetAddressOrNull()
@@ -157,15 +157,15 @@ namespace Python.Runtime
 
         [Pure]
         [DebuggerHidden]
-        public static BorrowedReference BorrowNullable(this in NewReference reference)
+        public static BorrowedReference BorrowNullable(this scoped in NewReference reference)
             => new(NewReference.DangerousGetAddressOrNull(reference));
         [Pure]
         [DebuggerHidden]
-        public static BorrowedReference Borrow(this in NewReference reference)
+        public static BorrowedReference Borrow(this scoped in NewReference reference)
             => reference.IsNull() ? throw new NullReferenceException() : reference.BorrowNullable();
         [Pure]
         [DebuggerHidden]
-        public static BorrowedReference BorrowOrThrow(this in NewReference reference)
+        public static BorrowedReference BorrowOrThrow(this scoped in NewReference reference)
             => reference.IsNull() ? throw PythonException.ThrowLastAsClrException() : reference.BorrowNullable();
     }
 }
