@@ -77,6 +77,13 @@ namespace Python.Runtime
                     $"invalid parameter type for sq_contains: should be {Converter.GetTypeByAlias(v)}, found {parameters[0].ParameterType}");
             }
 
+            // If the argument is None, we return false. Python allows using None as key,
+            // but C# doesn't and will throw, so we shortcut here
+            if (arg == null)
+            {
+                return 0;
+            }
+
             return (bool)methodInfo.Invoke(self, new[] { arg }) ? 1 : 0;
         }
     }
