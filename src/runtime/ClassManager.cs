@@ -180,11 +180,6 @@ namespace Python.Runtime
                 impl = new ArrayObject(type);
             }
 
-            else if (type.IsDictionary())
-            {
-                impl = new DictionaryObject(type);
-            }
-
             else if (type.IsKeyValuePairEnumerable())
             {
                 impl = new KeyValuePairEnumerableObject(type);
@@ -210,7 +205,19 @@ namespace Python.Runtime
 
             else if (typeof(IDynamicMetaObjectProvider).IsAssignableFrom(type))
             {
-                impl = new DynamicClassObject(type);
+                if (type.IsLookUp())
+                {
+                    impl = new DynamicClassLookUpObject(type);
+                }
+                else
+                {
+                    impl = new DynamicClassObject(type);
+                }
+            }
+
+            else if (type.IsLookUp())
+            {
+                impl = new LookUpObject(type);
             }
 
             else

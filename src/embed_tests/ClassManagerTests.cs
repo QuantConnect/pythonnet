@@ -1085,11 +1085,13 @@ def is_enum_value_defined():
             }
         }
 
-        private static TestCaseData[] IDictionaryContainsTestCases => new TestCaseData[]
-        {
+        private static TestCaseData[] IDictionaryContainsTestCases =>
+        [
             new(typeof(TestDictionary<string, string>)),
             new(typeof(Dictionary<string, string>)),
-        };
+            new(typeof(TestKeyValueContainer<string, string>)),
+            new(typeof(DynamicClassDictionary<string, string>)),
+        ];
 
         [TestCaseSource(nameof(IDictionaryContainsTestCases))]
         public void IDictionaryContainsMethodIsBound(Type dictType)
@@ -1108,9 +1110,9 @@ def contains(dictionary, key):
 
             using var contains = module.GetAttr("contains");
 
-            var dictionary = (Activator.CreateInstance(dictType) as IDictionary)!;
+            var dictionary = Convert.ChangeType(Activator.CreateInstance(dictType), dictType);
             var key1 = "key1";
-            dictionary.Add(key1, "value1");
+            (dictionary as dynamic).Add(key1, "value1");
 
             using var pyDictionary = dictionary.ToPython();
             using var pyKey1 = key1.ToPython();
@@ -1140,8 +1142,8 @@ def contains(dictionary, key):
 
             using var contains = module.GetAttr("contains");
 
-            var dictionary = (Activator.CreateInstance(dictType) as IDictionary)!;
-            dictionary.Add("key1", "value1");
+            var dictionary = Convert.ChangeType(Activator.CreateInstance(dictType), dictType);
+            (dictionary as dynamic).Add("key1", "value1");
 
             using var pyDictionary = dictionary.ToPython();
 
@@ -1150,9 +1152,9 @@ def contains(dictionary, key):
             Assert.IsFalse(result);
         }
 
-        public class TestDictionary<TValue, TKey> : IDictionary
+        public class TestDictionary<TKey, TValue> : IDictionary
         {
-            private readonly Dictionary<TValue, TKey> _data = new();
+            private readonly Dictionary<TKey, TValue> _data = new();
 
             public object this[object key] { get => ((IDictionary)_data)[key]; set => ((IDictionary)_data)[key] = value; }
 
@@ -1208,6 +1210,36 @@ def contains(dictionary, key):
             public bool ContainsKey(TKey key)
             {
                 return Contains(key);
+            }
+        }
+
+        public class TestKeyValueContainer<TKey, TValue>
+            where TKey: class
+            where TValue: class
+        {
+            private readonly Dictionary<TKey, TValue> _data = new();
+            public int Count => _data.Count;
+            public bool ContainsKey(TKey key)
+            {
+                return _data.ContainsKey(key);
+            }
+            public void Add(TKey key, TValue value)
+            {
+                _data.Add(key, value);
+            }
+        }
+
+        public class DynamicClassDictionary<TKey, TValue> : TestPropertyAccess.DynamicFixture
+        {
+            private readonly Dictionary<TKey, TValue> _data = new();
+            public int Count => _data.Count;
+            public bool ContainsKey(TKey key)
+            {
+                return _data.ContainsKey(key);
+            }
+            public void Add(TKey key, TValue value)
+            {
+                _data.Add(key, value);
             }
         }
     }
