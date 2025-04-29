@@ -421,7 +421,8 @@ class GMT(tzinfo):
                 if (typeDefinition == typeof(List<>)
                     || typeDefinition == typeof(IList<>)
                     || typeDefinition == typeof(IEnumerable<>)
-                    || typeDefinition == typeof(IReadOnlyCollection<>))
+                    || typeDefinition == typeof(IReadOnlyCollection<>)
+                    || typeDefinition == typeof(IReadOnlyList<>))
                 {
                     return ToList(value, obType, out result, setError);
                 }

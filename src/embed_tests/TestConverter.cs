@@ -79,6 +79,21 @@ namespace Python.EmbeddingTest
         }
 
         [Test]
+        public void ReadOnlyList()
+        {
+            var array = new List<Type> { typeof(decimal), typeof(int) };
+            var py = array.ToPython();
+            object result;
+            var converted = Converter.ToManaged(py, typeof(IReadOnlyList<Type>), out result, false);
+
+            Assert.IsTrue(converted);
+            Assert.AreEqual(typeof(List<Type>), result.GetType());
+            Assert.AreEqual(2, ((IReadOnlyList<Type>)result).Count);
+            Assert.AreEqual(typeof(decimal), ((IReadOnlyList<Type>)result).ToList()[0]);
+            Assert.AreEqual(typeof(int), ((IReadOnlyList<Type>)result).ToList()[1]);
+        }
+
+        [Test]
         public void ConvertPyListToArray()
         {
             var array = new List<Type> { typeof(decimal), typeof(int) };
