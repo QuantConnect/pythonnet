@@ -366,7 +366,10 @@ namespace Python.Runtime
         /// </summary>
         public static NewReference tp_iter(BorrowedReference tp)
         {
-            var type = CheckAndGetEnumType(tp);
+            if (!TryGetEnumType(tp, out var type))
+            {
+                return default;
+            }
             var values = Enum.GetValues(type);
             return new Iterator(values.GetEnumerator(), type).Alloc();
         }
@@ -376,7 +379,10 @@ namespace Python.Runtime
         /// </summary>
         public static int mp_length(BorrowedReference tp)
         {
-            var type = CheckAndGetEnumType(tp);
+            if (!TryGetEnumType(tp, out var type))
+            {
+                return -1;
+            }
             return Enum.GetValues(type).Length;
         }
 
@@ -385,7 +391,10 @@ namespace Python.Runtime
         /// </summary>
         public static int sq_contains(BorrowedReference tp, BorrowedReference v)
         {
-            var type = CheckAndGetEnumType(tp);
+            if (!TryGetEnumType(tp, out var type))
+            {
+                return -1;
+            }
 
             if (!Converter.ToManaged(v, type, out var enumValue, false) &&
                 !Converter.ToManaged(v, typeof(int), out enumValue, false) &&
@@ -393,30 +402,36 @@ namespace Python.Runtime
             {
                 Exceptions.SetError(Exceptions.TypeError,
                     $"invalid parameter type for sq_contains: should be {Converter.GetTypeByAlias(v)}, found {type}");
+                return -1;
             }
+
             return Enum.IsDefined(type, enumValue) ? 1 : 0;
         }
 
-        private static Type CheckAndGetEnumType(BorrowedReference tp)
+        private static bool TryGetEnumType(BorrowedReference tp, out Type type)
         {
+            type = null;
             var cb = GetManagedObject(tp) as ClassBase;
             if (cb == null)
             {
                 Exceptions.SetError(Exceptions.TypeError, "invalid object");
+                return false;
             }
 
             if (!cb.type.Valid)
             {
                 Exceptions.SetError(Exceptions.TypeError, "invalid type");
+                return false;
             }
 
-            var type = cb.type.Value;
-            if (!type.IsEnum)
+            if (!cb.type.Value.IsEnum)
             {
-                Exceptions.SetError(Exceptions.TypeError, "uniterable object");
+                Exceptions.SetError(Exceptions.TypeError, "uniterable type");
+                return false;
             }
 
-            return type;
+            type = cb.type.Value;
+            return true;
         }
     }
 }

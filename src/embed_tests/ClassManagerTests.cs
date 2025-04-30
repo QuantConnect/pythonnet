@@ -1056,6 +1056,33 @@ def is_enum_value_defined(value):
                 }
             }
         }
+
+        [Test]
+        public void EnumInterableOperationsNotSupportedForManagedNonEnumTypes()
+        {
+            using (Py.GIL())
+            {
+                var module = PyModule.FromString("EnumInterableOperationsNotSupportedForManagedNonEnumTypes", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+def get_enum_values():
+    return [x for x in ClassManagerTests]
+
+def count_enum_values():
+    return len(ClassManagerTests)
+
+def is_enum_value_defined():
+    return 1 in ClassManagerTests
+                    ");
+
+                Assert.Throws<PythonException>(() => module.InvokeMethod("get_enum_values"));
+                Assert.Throws<PythonException>(() => module.InvokeMethod("count_enum_values"));
+                Assert.Throws<PythonException>(() => module.InvokeMethod("is_enum_value_defined"));
+            }
+        }
     }
 
     public class NestedTestParent
