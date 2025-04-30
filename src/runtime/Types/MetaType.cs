@@ -359,5 +359,64 @@ namespace Python.Runtime
         {
             return DoInstanceCheck(tp, args, true);
         }
+
+        /// <summary>
+        /// Standard iteration support Enums. This allows natural interation
+        /// over the available values an Enum defines.
+        /// </summary>
+        public static NewReference tp_iter(BorrowedReference tp)
+        {
+            var type = CheckAndGetEnumType(tp);
+            var values = Enum.GetValues(type);
+            return new Iterator(values.GetEnumerator(), type).Alloc();
+        }
+
+        /// <summary>
+        /// Implements __len__ for Enum types.
+        /// </summary>
+        public static int mp_length(BorrowedReference tp)
+        {
+            var type = CheckAndGetEnumType(tp);
+            return Enum.GetValues(type).Length;
+        }
+
+        /// <summary>
+        /// Implements __contains__ for Enum types.
+        /// </summary>
+        public static int sq_contains(BorrowedReference tp, BorrowedReference v)
+        {
+            var type = CheckAndGetEnumType(tp);
+
+            if (!Converter.ToManaged(v, type, out var enumValue, false) &&
+                !Converter.ToManaged(v, typeof(int), out enumValue, false) &&
+                !Converter.ToManaged(v, typeof(string), out enumValue, false))
+            {
+                Exceptions.SetError(Exceptions.TypeError,
+                    $"invalid parameter type for sq_contains: should be {Converter.GetTypeByAlias(v)}, found {type}");
+            }
+            return Enum.IsDefined(type, enumValue) ? 1 : 0;
+        }
+
+        private static Type CheckAndGetEnumType(BorrowedReference tp)
+        {
+            var cb = GetManagedObject(tp) as ClassBase;
+            if (cb == null)
+            {
+                Exceptions.SetError(Exceptions.TypeError, "invalid object");
+            }
+
+            if (!cb.type.Valid)
+            {
+                Exceptions.SetError(Exceptions.TypeError, "invalid type");
+            }
+
+            var type = cb.type.Value;
+            if (!type.IsEnum)
+            {
+                Exceptions.SetError(Exceptions.TypeError, "uniterable object");
+            }
+
+            return type;
+        }
     }
 }
