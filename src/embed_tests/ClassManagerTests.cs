@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -1081,6 +1082,164 @@ def is_enum_value_defined():
                 Assert.Throws<PythonException>(() => module.InvokeMethod("get_enum_values"));
                 Assert.Throws<PythonException>(() => module.InvokeMethod("count_enum_values"));
                 Assert.Throws<PythonException>(() => module.InvokeMethod("is_enum_value_defined"));
+            }
+        }
+
+        private static TestCaseData[] IDictionaryContainsTestCases =>
+        [
+            new(typeof(TestDictionary<string, string>)),
+            new(typeof(Dictionary<string, string>)),
+            new(typeof(TestKeyValueContainer<string, string>)),
+            new(typeof(DynamicClassDictionary<string, string>)),
+        ];
+
+        [TestCaseSource(nameof(IDictionaryContainsTestCases))]
+        public void IDictionaryContainsMethodIsBound(Type dictType)
+        {
+            using var _ = Py.GIL();
+
+            var module = PyModule.FromString("IDictionaryContainsMethodIsBound", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+def contains(dictionary, key):
+    return key in dictionary
+");
+
+            using var contains = module.GetAttr("contains");
+
+            var dictionary = Convert.ChangeType(Activator.CreateInstance(dictType), dictType);
+            var key1 = "key1";
+            (dictionary as dynamic).Add(key1, "value1");
+
+            using var pyDictionary = dictionary.ToPython();
+            using var pyKey1 = key1.ToPython();
+
+            var result = contains.Invoke(pyDictionary, pyKey1).As<bool>();
+            Assert.IsTrue(result);
+
+            using var pyKey2 = "key2".ToPython();
+            result = contains.Invoke(pyDictionary, pyKey2).As<bool>();
+            Assert.IsFalse(result);
+        }
+
+        [TestCaseSource(nameof(IDictionaryContainsTestCases))]
+        public void CanCheckIfNoneIsInDictionary(Type dictType)
+        {
+            using var _ = Py.GIL();
+
+            var module = PyModule.FromString("CanCheckIfNoneIsInDictionary", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+def contains(dictionary, key):
+    return key in dictionary
+");
+
+            using var contains = module.GetAttr("contains");
+
+            var dictionary = Convert.ChangeType(Activator.CreateInstance(dictType), dictType);
+            (dictionary as dynamic).Add("key1", "value1");
+
+            using var pyDictionary = dictionary.ToPython();
+
+            var result = false;
+            Assert.DoesNotThrow(() => result = contains.Invoke(pyDictionary, PyObject.None).As<bool>());
+            Assert.IsFalse(result);
+        }
+
+        public class TestDictionary<TKey, TValue> : IDictionary
+        {
+            private readonly Dictionary<TKey, TValue> _data = new();
+
+            public object this[object key] { get => ((IDictionary)_data)[key]; set => ((IDictionary)_data)[key] = value; }
+
+            public bool IsFixedSize => ((IDictionary)_data).IsFixedSize;
+
+            public bool IsReadOnly => ((IDictionary)_data).IsReadOnly;
+
+            public ICollection Keys => ((IDictionary)_data).Keys;
+
+            public ICollection Values => ((IDictionary)_data).Values;
+
+            public int Count => ((ICollection)_data).Count;
+
+            public bool IsSynchronized => ((ICollection)_data).IsSynchronized;
+
+            public object SyncRoot => ((ICollection)_data).SyncRoot;
+
+            public void Add(object key, object value)
+            {
+                ((IDictionary)_data).Add(key, value);
+            }
+
+            public void Clear()
+            {
+                ((IDictionary)_data).Clear();
+            }
+
+            public bool Contains(object key)
+            {
+                return ((IDictionary)_data).Contains(key);
+            }
+
+            public void CopyTo(Array array, int index)
+            {
+                ((ICollection)_data).CopyTo(array, index);
+            }
+
+            public IDictionaryEnumerator GetEnumerator()
+            {
+                return ((IDictionary)_data).GetEnumerator();
+            }
+
+            public void Remove(object key)
+            {
+                ((IDictionary)_data).Remove(key);
+            }
+
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return ((IEnumerable)_data).GetEnumerator();
+            }
+
+            public bool ContainsKey(TKey key)
+            {
+                return Contains(key);
+            }
+        }
+
+        public class TestKeyValueContainer<TKey, TValue>
+            where TKey: class
+            where TValue: class
+        {
+            private readonly Dictionary<TKey, TValue> _data = new();
+            public int Count => _data.Count;
+            public bool ContainsKey(TKey key)
+            {
+                return _data.ContainsKey(key);
+            }
+            public void Add(TKey key, TValue value)
+            {
+                _data.Add(key, value);
+            }
+        }
+
+        public class DynamicClassDictionary<TKey, TValue> : TestPropertyAccess.DynamicFixture
+        {
+            private readonly Dictionary<TKey, TValue> _data = new();
+            public int Count => _data.Count;
+            public bool ContainsKey(TKey key)
+            {
+                return _data.ContainsKey(key);
+            }
+            public void Add(TKey key, TValue value)
+            {
+                _data.Add(key, value);
             }
         }
     }
