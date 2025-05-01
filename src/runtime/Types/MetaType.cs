@@ -392,7 +392,8 @@ namespace Python.Runtime
         /// </summary>
         public static int nb_bool(BorrowedReference tp)
         {
-            return 1;
+            var cb = GetManagedObject(tp) as ClassBase;
+            return cb == null || !cb.type.Valid ? 0 : 1;
         }
 
         /// <summary>
