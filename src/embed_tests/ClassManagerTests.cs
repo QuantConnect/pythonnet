@@ -1003,6 +1003,86 @@ def call(instance):
         }
 
         #endregion
+
+        public enum TestEnum
+        {
+            FirstEnumValue,
+            SecondEnumValue,
+            ThirdEnumValue
+        }
+
+        [Test]
+        public void EnumPythonOperationsCanBePerformedOnManagedEnum()
+        {
+            using (Py.GIL())
+            {
+                var module = PyModule.FromString("EnumPythonOperationsCanBePerformedOnManagedEnum", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+def get_enum_values():
+    return [x for x in ClassManagerTests.TestEnum]
+
+def count_enum_values():
+    return len(ClassManagerTests.TestEnum)
+
+def is_enum_value_defined(value):
+    return value in ClassManagerTests.TestEnum
+                    ");
+
+                using var pyEnumValues = module.InvokeMethod("get_enum_values");
+                var enumValues = pyEnumValues.As<List<TestEnum>>();
+
+                var expectedEnumValues = Enum.GetValues<TestEnum>();
+                CollectionAssert.AreEquivalent(expectedEnumValues, enumValues);
+
+                using var pyEnumCount = module.InvokeMethod("count_enum_values");
+                var enumCount = pyEnumCount.As<int>();
+                Assert.AreEqual(expectedEnumValues.Length, enumCount);
+
+                var validEnumValues = expectedEnumValues
+                    .SelectMany(x => new object[] { x, (int)x, Enum.GetName(x.GetType(), x) })
+                    .Select(x => (x, true));
+                var invalidEnumValues = new object[] { 5, "INVALID_ENUM_VALUE" }.Select(x => (x, false));
+
+                foreach (var (enumValue, isValid) in validEnumValues.Concat(invalidEnumValues))
+                {
+                    using var pyEnumValue = enumValue.ToPython();
+                    using var pyIsDefined = module.InvokeMethod("is_enum_value_defined", pyEnumValue);
+                    var isDefined = pyIsDefined.As<bool>();
+                    Assert.AreEqual(isValid, isDefined, $"Failed for {enumValue} ({enumValue.GetType()})");
+                }
+            }
+        }
+
+        [Test]
+        public void EnumInterableOperationsNotSupportedForManagedNonEnumTypes()
+        {
+            using (Py.GIL())
+            {
+                var module = PyModule.FromString("EnumInterableOperationsNotSupportedForManagedNonEnumTypes", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+def get_enum_values():
+    return [x for x in ClassManagerTests]
+
+def count_enum_values():
+    return len(ClassManagerTests)
+
+def is_enum_value_defined():
+    return 1 in ClassManagerTests
+                    ");
+
+                Assert.Throws<PythonException>(() => module.InvokeMethod("get_enum_values"));
+                Assert.Throws<PythonException>(() => module.InvokeMethod("count_enum_values"));
+                Assert.Throws<PythonException>(() => module.InvokeMethod("is_enum_value_defined"));
+            }
+        }
     }
 
     public class NestedTestParent
