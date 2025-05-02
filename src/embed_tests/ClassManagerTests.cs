@@ -1085,6 +1085,33 @@ def is_enum_value_defined():
             }
         }
 
+        [Test]
+        public void TruthinessCanBeCheckedForTypes()
+        {
+            using (Py.GIL())
+            {
+                var module = PyModule.FromString("TruthinessCanBeCheckedForTypes", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+def throw_if_falsy():
+    if not ClassManagerTests:
+        raise Exception(""ClassManagerTests is falsy"")
+
+def throw_if_not_truthy():
+    if ClassManagerTests:
+        return
+    raise Exception(""ClassManagerTests is not truthy"")
+");
+
+                // Types are always truthy
+                Assert.DoesNotThrow(() => module.InvokeMethod("throw_if_falsy"));
+                Assert.DoesNotThrow(() => module.InvokeMethod("throw_if_not_truthy"));
+            }
+        }
+
         private static TestCaseData[] IDictionaryContainsTestCases =>
         [
             new(typeof(TestDictionary<string, string>)),

@@ -387,6 +387,16 @@ namespace Python.Runtime
         }
 
         /// <summary>
+        /// Implements __bool__ for types, so that Python uses this instead of __len__ as default.
+        /// For types, this is always "true"
+        /// </summary>
+        public static int nb_bool(BorrowedReference tp)
+        {
+            var cb = GetManagedObject(tp) as ClassBase;
+            return cb == null || !cb.type.Valid ? 0 : 1;
+        }
+
+        /// <summary>
         /// Implements __contains__ for Enum types.
         /// </summary>
         public static int sq_contains(BorrowedReference tp, BorrowedReference v)
