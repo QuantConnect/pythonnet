@@ -226,6 +226,11 @@ class GMT(tzinfo):
                 return resultlist.NewReferenceOrNull();
             }
 
+            if (type.IsEnum)
+            {
+                return CLRObject.GetReference(value, type);
+            }
+
             // it the type is a python subclass of a managed type then return the
             // underlying python object rather than construct a new wrapper object.
             var pyderived = value as IPythonDerivedType;

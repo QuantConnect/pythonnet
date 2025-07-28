@@ -383,6 +383,17 @@ namespace Python.Runtime
                 return 3000;
             }
 
+            if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Nullable<>))
+            {
+                // Nullable<T> is a special case, we treat it as the underlying type
+                return ArgPrecedence(Nullable.GetUnderlyingType(t), isOperatorMethod);
+            }
+
+            if (t.IsEnum)
+            {
+                return -2;
+            }
+
             if (t.IsAssignableFrom(typeof(PyObject)) && !isOperatorMethod)
             {
                 return -1;

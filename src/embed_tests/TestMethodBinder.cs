@@ -815,6 +815,20 @@ if result != 5:
                 return "VariableArgumentsMethod(PyObject[])";
             }
 
+            // ----
+
+            public string MethodWithEnumParam(SomeEnu enumValue, string symbol)
+            {
+                return $"MethodWithEnumParam With Enum";
+            }
+
+            public string MethodWithEnumParam(PyObject pyObject, string symbol)
+            {
+                return $"MethodWithEnumParam With PyObject";
+            }
+
+            // ----
+
             public string ConstructorMessage { get; set; }
 
             public OverloadsTestClass(params CSharpModel[] paramsParams)
@@ -1117,6 +1131,26 @@ def get_instance():
             Assert.AreEqual("OverloadsTestClass(PyObject[])", instance.GetAttr("ConstructorMessage").As<string>());
         }
 
+        [Test]
+        public void EnumHasPrecedenceOverPyObject()
+        {
+            using var _ = Py.GIL();
+
+            var module = PyModule.FromString("EnumHasPrecedenceOverPyObject", @$"
+from clr import AddReference
+AddReference(""System"")
+from Python.EmbeddingTest import *
+
+class PythonModel(TestMethodBinder.CSharpModel):
+    pass
+
+def call_method():
+    return TestMethodBinder.OverloadsTestClass().MethodWithEnumParam(TestMethodBinder.SomeEnu.A, ""Some string"")
+");
+
+            var result = module.GetAttr("call_method").Invoke();
+            Assert.AreEqual("MethodWithEnumParam With Enum", result.As<string>());
+        }
 
         // Used to test that we match this function with Py DateTime & Date Objects
         public static int GetMonth(DateTime test)
