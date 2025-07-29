@@ -21,11 +21,18 @@ namespace Python.EmbeddingTest
             PythonEngine.Shutdown();
         }
 
-        public enum Direction
+        public enum VerticalDirection
         {
             Down = -2,
             Flat = 0,
             Up = 2,
+        }
+
+        public enum HorizontalDirection
+        {
+            Left = -2,
+            Flat = 0,
+            Right = 2,
         }
 
         [Test]
@@ -38,20 +45,20 @@ AddReference(""Python.EmbeddingTest"")
 
 from Python.EmbeddingTest import *
 
-def enum_is_right_type(enum_value=EnumTests.Direction.Up):
-    return isinstance(enum_value, EnumTests.Direction)
+def enum_is_right_type(enum_value={nameof(EnumTests)}.{nameof(VerticalDirection)}.{nameof(VerticalDirection.Up)}):
+    return isinstance(enum_value, {nameof(EnumTests)}.{nameof(VerticalDirection)})
 ");
 
             Assert.IsTrue(module.InvokeMethod("enum_is_right_type").As<bool>());
 
             // Also test passing the enum value from C# to Python
-            using var pyEnumValue = Direction.Up.ToPython();
+            using var pyEnumValue = VerticalDirection.Up.ToPython();
             Assert.IsTrue(module.InvokeMethod("enum_is_right_type", pyEnumValue).As<bool>());
         }
 
-        private PyModule GetTestOperatorsModule(string @operator, Direction operand1, double operand2)
+        private PyModule GetTestOperatorsModule(string @operator, VerticalDirection operand1, double operand2)
         {
-            var operand1Str = $"{nameof(EnumTests)}.{nameof(Direction)}.{operand1}";
+            var operand1Str = $"{nameof(EnumTests)}.{nameof(VerticalDirection)}.{operand1}";
             return PyModule.FromString("GetTestOperatorsModule", $@"
 from clr import AddReference
 AddReference(""Python.EmbeddingTest"")
@@ -66,31 +73,31 @@ def operation2():
 ");
         }
 
-        [TestCase("*", Direction.Down, 2, -4, -4)]
-        [TestCase("/", Direction.Down, 2, -1, -1)]
-        [TestCase("+", Direction.Down, 2, 0, 0)]
-        [TestCase("-", Direction.Down, 2, -4, 4)]
-        [TestCase("*", Direction.Flat, 2, 0, 0)]
-        [TestCase("/", Direction.Flat, 2, 0, 0)]
-        [TestCase("+", Direction.Flat, 2, 2, 2)]
-        [TestCase("-", Direction.Flat, 2, -2, 2)]
-        [TestCase("*", Direction.Up, 2, 4, 4)]
-        [TestCase("/", Direction.Up, 2, 1, 1)]
-        [TestCase("+", Direction.Up, 2, 4, 4)]
-        [TestCase("-", Direction.Up, 2, 0, 0)]
-        [TestCase("*", Direction.Down, -2, 4, 4)]
-        [TestCase("/", Direction.Down, -2, 1, 1)]
-        [TestCase("+", Direction.Down, -2, -4, -4)]
-        [TestCase("-", Direction.Down, -2, 0, 0)]
-        [TestCase("*", Direction.Flat, -2, 0, 0)]
-        [TestCase("/", Direction.Flat, -2, 0, 0)]
-        [TestCase("+", Direction.Flat, -2, -2, -2)]
-        [TestCase("-", Direction.Flat, -2, 2, -2)]
-        [TestCase("*", Direction.Up, -2, -4, -4)]
-        [TestCase("/", Direction.Up, -2, -1, -1)]
-        [TestCase("+", Direction.Up, -2, 0, 0)]
-        [TestCase("-", Direction.Up, -2, 4, -4)]
-        public void ArithmeticOperatorsWorkWithoutExplicitCast(string @operator, Direction operand1, double operand2, double expectedResult, double invertedOperationExpectedResult)
+        [TestCase("*", VerticalDirection.Down, 2, -4, -4)]
+        [TestCase("/", VerticalDirection.Down, 2, -1, -1)]
+        [TestCase("+", VerticalDirection.Down, 2, 0, 0)]
+        [TestCase("-", VerticalDirection.Down, 2, -4, 4)]
+        [TestCase("*", VerticalDirection.Flat, 2, 0, 0)]
+        [TestCase("/", VerticalDirection.Flat, 2, 0, 0)]
+        [TestCase("+", VerticalDirection.Flat, 2, 2, 2)]
+        [TestCase("-", VerticalDirection.Flat, 2, -2, 2)]
+        [TestCase("*", VerticalDirection.Up, 2, 4, 4)]
+        [TestCase("/", VerticalDirection.Up, 2, 1, 1)]
+        [TestCase("+", VerticalDirection.Up, 2, 4, 4)]
+        [TestCase("-", VerticalDirection.Up, 2, 0, 0)]
+        [TestCase("*", VerticalDirection.Down, -2, 4, 4)]
+        [TestCase("/", VerticalDirection.Down, -2, 1, 1)]
+        [TestCase("+", VerticalDirection.Down, -2, -4, -4)]
+        [TestCase("-", VerticalDirection.Down, -2, 0, 0)]
+        [TestCase("*", VerticalDirection.Flat, -2, 0, 0)]
+        [TestCase("/", VerticalDirection.Flat, -2, 0, 0)]
+        [TestCase("+", VerticalDirection.Flat, -2, -2, -2)]
+        [TestCase("-", VerticalDirection.Flat, -2, 2, -2)]
+        [TestCase("*", VerticalDirection.Up, -2, -4, -4)]
+        [TestCase("/", VerticalDirection.Up, -2, -1, -1)]
+        [TestCase("+", VerticalDirection.Up, -2, 0, 0)]
+        [TestCase("-", VerticalDirection.Up, -2, 4, -4)]
+        public void ArithmeticOperatorsWorkWithoutExplicitCast(string @operator, VerticalDirection operand1, double operand2, double expectedResult, double invertedOperationExpectedResult)
         {
             using var _ = Py.GIL();
             var module = GetTestOperatorsModule(@operator, operand1, operand2);
@@ -103,69 +110,69 @@ def operation2():
             }
         }
 
-        [TestCase("==", Direction.Down, -2, true)]
-        [TestCase("==", Direction.Down, 0, false)]
-        [TestCase("==", Direction.Down, 2, false)]
-        [TestCase("==", Direction.Flat, -2, false)]
-        [TestCase("==", Direction.Flat, 0, true)]
-        [TestCase("==", Direction.Flat, 2, false)]
-        [TestCase("==", Direction.Up, -2, false)]
-        [TestCase("==", Direction.Up, 0, false)]
-        [TestCase("==", Direction.Up, 2, true)]
-        [TestCase("!=", Direction.Down, -2, false)]
-        [TestCase("!=", Direction.Down, 0, true)]
-        [TestCase("!=", Direction.Down, 2, true)]
-        [TestCase("!=", Direction.Flat, -2, true)]
-        [TestCase("!=", Direction.Flat, 0, false)]
-        [TestCase("!=", Direction.Flat, 2, true)]
-        [TestCase("!=", Direction.Up, -2, true)]
-        [TestCase("!=", Direction.Up, 0, true)]
-        [TestCase("!=", Direction.Up, 2, false)]
-        [TestCase("<", Direction.Down, -3, false)]
-        [TestCase("<", Direction.Down, -2, false)]
-        [TestCase("<", Direction.Down, 0, true)]
-        [TestCase("<", Direction.Down, 2, true)]
-        [TestCase("<", Direction.Flat, -2, false)]
-        [TestCase("<", Direction.Flat, 0, false)]
-        [TestCase("<", Direction.Flat, 2, true)]
-        [TestCase("<", Direction.Up, -2, false)]
-        [TestCase("<", Direction.Up, 0, false)]
-        [TestCase("<", Direction.Up, 2, false)]
-        [TestCase("<", Direction.Up, 3, true)]
-        [TestCase("<=", Direction.Down, -3, false)]
-        [TestCase("<=", Direction.Down, -2, true)]
-        [TestCase("<=", Direction.Down, 0, true)]
-        [TestCase("<=", Direction.Down, 2, true)]
-        [TestCase("<=", Direction.Flat, -2, false)]
-        [TestCase("<=", Direction.Flat, 0, true)]
-        [TestCase("<=", Direction.Flat, 2, true)]
-        [TestCase("<=", Direction.Up, -2, false)]
-        [TestCase("<=", Direction.Up, 0, false)]
-        [TestCase("<=", Direction.Up, 2, true)]
-        [TestCase("<=", Direction.Up, 3, true)]
-        [TestCase(">", Direction.Down, -3, true)]
-        [TestCase(">", Direction.Down, -2, false)]
-        [TestCase(">", Direction.Down, 0, false)]
-        [TestCase(">", Direction.Down, 2, false)]
-        [TestCase(">", Direction.Flat, -2, true)]
-        [TestCase(">", Direction.Flat, 0, false)]
-        [TestCase(">", Direction.Flat, 2, false)]
-        [TestCase(">", Direction.Up, -2, true)]
-        [TestCase(">", Direction.Up, 0, true)]
-        [TestCase(">", Direction.Up, 2, false)]
-        [TestCase(">", Direction.Up, 3, false)]
-        [TestCase(">=", Direction.Down, -3, true)]
-        [TestCase(">=", Direction.Down, -2, true)]
-        [TestCase(">=", Direction.Down, 0, false)]
-        [TestCase(">=", Direction.Down, 2, false)]
-        [TestCase(">=", Direction.Flat, -2, true)]
-        [TestCase(">=", Direction.Flat, 0, true)]
-        [TestCase(">=", Direction.Flat, 2, false)]
-        [TestCase(">=", Direction.Up, -2, true)]
-        [TestCase(">=", Direction.Up, 0, true)]
-        [TestCase(">=", Direction.Up, 2, true)]
-        [TestCase(">=", Direction.Up, 3, false)]
-        public void IntComparisonOperatorsWorkWithoutExplicitCast(string @operator, Direction operand1, int operand2, bool expectedResult)
+        [TestCase("==", VerticalDirection.Down, -2, true)]
+        [TestCase("==", VerticalDirection.Down, 0, false)]
+        [TestCase("==", VerticalDirection.Down, 2, false)]
+        [TestCase("==", VerticalDirection.Flat, -2, false)]
+        [TestCase("==", VerticalDirection.Flat, 0, true)]
+        [TestCase("==", VerticalDirection.Flat, 2, false)]
+        [TestCase("==", VerticalDirection.Up, -2, false)]
+        [TestCase("==", VerticalDirection.Up, 0, false)]
+        [TestCase("==", VerticalDirection.Up, 2, true)]
+        [TestCase("!=", VerticalDirection.Down, -2, false)]
+        [TestCase("!=", VerticalDirection.Down, 0, true)]
+        [TestCase("!=", VerticalDirection.Down, 2, true)]
+        [TestCase("!=", VerticalDirection.Flat, -2, true)]
+        [TestCase("!=", VerticalDirection.Flat, 0, false)]
+        [TestCase("!=", VerticalDirection.Flat, 2, true)]
+        [TestCase("!=", VerticalDirection.Up, -2, true)]
+        [TestCase("!=", VerticalDirection.Up, 0, true)]
+        [TestCase("!=", VerticalDirection.Up, 2, false)]
+        [TestCase("<", VerticalDirection.Down, -3, false)]
+        [TestCase("<", VerticalDirection.Down, -2, false)]
+        [TestCase("<", VerticalDirection.Down, 0, true)]
+        [TestCase("<", VerticalDirection.Down, 2, true)]
+        [TestCase("<", VerticalDirection.Flat, -2, false)]
+        [TestCase("<", VerticalDirection.Flat, 0, false)]
+        [TestCase("<", VerticalDirection.Flat, 2, true)]
+        [TestCase("<", VerticalDirection.Up, -2, false)]
+        [TestCase("<", VerticalDirection.Up, 0, false)]
+        [TestCase("<", VerticalDirection.Up, 2, false)]
+        [TestCase("<", VerticalDirection.Up, 3, true)]
+        [TestCase("<=", VerticalDirection.Down, -3, false)]
+        [TestCase("<=", VerticalDirection.Down, -2, true)]
+        [TestCase("<=", VerticalDirection.Down, 0, true)]
+        [TestCase("<=", VerticalDirection.Down, 2, true)]
+        [TestCase("<=", VerticalDirection.Flat, -2, false)]
+        [TestCase("<=", VerticalDirection.Flat, 0, true)]
+        [TestCase("<=", VerticalDirection.Flat, 2, true)]
+        [TestCase("<=", VerticalDirection.Up, -2, false)]
+        [TestCase("<=", VerticalDirection.Up, 0, false)]
+        [TestCase("<=", VerticalDirection.Up, 2, true)]
+        [TestCase("<=", VerticalDirection.Up, 3, true)]
+        [TestCase(">", VerticalDirection.Down, -3, true)]
+        [TestCase(">", VerticalDirection.Down, -2, false)]
+        [TestCase(">", VerticalDirection.Down, 0, false)]
+        [TestCase(">", VerticalDirection.Down, 2, false)]
+        [TestCase(">", VerticalDirection.Flat, -2, true)]
+        [TestCase(">", VerticalDirection.Flat, 0, false)]
+        [TestCase(">", VerticalDirection.Flat, 2, false)]
+        [TestCase(">", VerticalDirection.Up, -2, true)]
+        [TestCase(">", VerticalDirection.Up, 0, true)]
+        [TestCase(">", VerticalDirection.Up, 2, false)]
+        [TestCase(">", VerticalDirection.Up, 3, false)]
+        [TestCase(">=", VerticalDirection.Down, -3, true)]
+        [TestCase(">=", VerticalDirection.Down, -2, true)]
+        [TestCase(">=", VerticalDirection.Down, 0, false)]
+        [TestCase(">=", VerticalDirection.Down, 2, false)]
+        [TestCase(">=", VerticalDirection.Flat, -2, true)]
+        [TestCase(">=", VerticalDirection.Flat, 0, true)]
+        [TestCase(">=", VerticalDirection.Flat, 2, false)]
+        [TestCase(">=", VerticalDirection.Up, -2, true)]
+        [TestCase(">=", VerticalDirection.Up, 0, true)]
+        [TestCase(">=", VerticalDirection.Up, 2, true)]
+        [TestCase(">=", VerticalDirection.Up, 3, false)]
+        public void IntComparisonOperatorsWorkWithoutExplicitCast(string @operator, VerticalDirection operand1, int operand2, bool expectedResult)
         {
             using var _ = Py.GIL();
             var module = GetTestOperatorsModule(@operator, operand1, operand2);
@@ -178,105 +185,105 @@ def operation2():
             Assert.AreEqual(invertedOperationExpectedResult, module.InvokeMethod("operation2").As<bool>());
         }
 
-        [TestCase("==", Direction.Down, -2.0, true)]
-        [TestCase("==", Direction.Down, -2.00001, false)]
-        [TestCase("==", Direction.Down, -1.99999, false)]
-        [TestCase("==", Direction.Down, 0.0, false)]
-        [TestCase("==", Direction.Down, 2.0, false)]
-        [TestCase("==", Direction.Flat, -2.0, false)]
-        [TestCase("==", Direction.Flat, 0.0, true)]
-        [TestCase("==", Direction.Flat, 0.00001, false)]
-        [TestCase("==", Direction.Flat, -0.00001, false)]
-        [TestCase("==", Direction.Flat, 2.0, false)]
-        [TestCase("==", Direction.Up, -2.0, false)]
-        [TestCase("==", Direction.Up, 0.0, false)]
-        [TestCase("==", Direction.Up, 2.0, true)]
-        [TestCase("==", Direction.Up, 2.00001, false)]
-        [TestCase("==", Direction.Up, 1.99999, false)]
-        [TestCase("!=", Direction.Down, -2.0, false)]
-        [TestCase("!=", Direction.Down, -2.00001, true)]
-        [TestCase("!=", Direction.Down, -1.99999, true)]
-        [TestCase("!=", Direction.Down, 0.0, true)]
-        [TestCase("!=", Direction.Down, 2.0, true)]
-        [TestCase("!=", Direction.Flat, -2.0, true)]
-        [TestCase("!=", Direction.Flat, 0.0, false)]
-        [TestCase("!=", Direction.Flat, 0.00001, true)]
-        [TestCase("!=", Direction.Flat, -0.00001, true)]
-        [TestCase("!=", Direction.Flat, 2.0, true)]
-        [TestCase("!=", Direction.Up, -2.0, true)]
-        [TestCase("!=", Direction.Up, 0.0, true)]
-        [TestCase("!=", Direction.Up, 2.0, false)]
-        [TestCase("!=", Direction.Up, 2.00001, true)]
-        [TestCase("!=", Direction.Up, 1.99999, true)]
-        [TestCase("<", Direction.Down, -3.0, false)]
-        [TestCase("<", Direction.Down, -2.00001, false)]
-        [TestCase("<", Direction.Down, -2.0, false)]
-        [TestCase("<", Direction.Down, -1.99999, true)]
-        [TestCase("<", Direction.Down, 0.0, true)]
-        [TestCase("<", Direction.Down, 2.0, true)]
-        [TestCase("<", Direction.Flat, -2.0, false)]
-        [TestCase("<", Direction.Flat, -0.00001, false)]
-        [TestCase("<", Direction.Flat, 0.0, false)]
-        [TestCase("<", Direction.Flat, 0.00001, true)]
-        [TestCase("<", Direction.Flat, 2.0, true)]
-        [TestCase("<", Direction.Up, -2.0, false)]
-        [TestCase("<", Direction.Up, 0.0, false)]
-        [TestCase("<", Direction.Up, 1.99999, false)]
-        [TestCase("<", Direction.Up, 2.0, false)]
-        [TestCase("<", Direction.Up, 2.00001, true)]
-        [TestCase("<", Direction.Up, 3.0, true)]
-        [TestCase("<=", Direction.Down, -3.0, false)]
-        [TestCase("<=", Direction.Down, -2.00001, false)]
-        [TestCase("<=", Direction.Down, -2.0, true)]
-        [TestCase("<=", Direction.Down, -1.99999, true)]
-        [TestCase("<=", Direction.Down, 0.0, true)]
-        [TestCase("<=", Direction.Down, 2.0, true)]
-        [TestCase("<=", Direction.Flat, -2.0, false)]
-        [TestCase("<=", Direction.Flat, -0.00001, false)]
-        [TestCase("<=", Direction.Flat, 0.0, true)]
-        [TestCase("<=", Direction.Flat, 0.00001, true)]
-        [TestCase("<=", Direction.Flat, 2.0, true)]
-        [TestCase("<=", Direction.Up, -2.0, false)]
-        [TestCase("<=", Direction.Up, 0.0, false)]
-        [TestCase("<=", Direction.Up, 1.99999, false)]
-        [TestCase("<=", Direction.Up, 2.0, true)]
-        [TestCase("<=", Direction.Up, 2.00001, true)]
-        [TestCase("<=", Direction.Up, 3.0, true)]
-        [TestCase(">", Direction.Down, -3.0, true)]
-        [TestCase(">", Direction.Down, -2.00001, true)]
-        [TestCase(">", Direction.Down, -2.0, false)]
-        [TestCase(">", Direction.Down, -1.99999, false)]
-        [TestCase(">", Direction.Down, 0.0, false)]
-        [TestCase(">", Direction.Down, 2.0, false)]
-        [TestCase(">", Direction.Flat, -2.0, true)]
-        [TestCase(">", Direction.Flat, -0.00001, true)]
-        [TestCase(">", Direction.Flat, 0.0, false)]
-        [TestCase(">", Direction.Flat, 0.00001, false)]
-        [TestCase(">", Direction.Flat, 2.0, false)]
-        [TestCase(">", Direction.Up, -2.0, true)]
-        [TestCase(">", Direction.Up, 0.0, true)]
-        [TestCase(">", Direction.Up, 1.99999, true)]
-        [TestCase(">", Direction.Up, 2.0, false)]
-        [TestCase(">", Direction.Up, 2.00001, false)]
-        [TestCase(">", Direction.Up, 3.0, false)]
-        [TestCase(">=", Direction.Down, -3.0, true)]
-        [TestCase(">=", Direction.Down, -2.00001, true)]
-        [TestCase(">=", Direction.Down, -2.0, true)]
-        [TestCase(">=", Direction.Down, -1.99999, false)]
-        [TestCase(">=", Direction.Down, 0.0, false)]
-        [TestCase(">=", Direction.Down, 2.0, false)]
-        [TestCase(">=", Direction.Flat, -2.0, true)]
-        [TestCase(">=", Direction.Flat, -0.00001, true)]
-        [TestCase(">=", Direction.Flat, 0.0, true)]
-        [TestCase(">=", Direction.Flat, 0.00001, false)]
-        [TestCase(">=", Direction.Flat, 2.0, false)]
-        [TestCase(">=", Direction.Up, -2.0, true)]
-        [TestCase(">=", Direction.Up, 0.0, true)]
-        [TestCase(">=", Direction.Up, 1.99999, true)]
-        [TestCase(">=", Direction.Up, 2.0, true)]
-        [TestCase(">=", Direction.Up, 2.00001, false)]
-        [TestCase(">=", Direction.Up, 3.0, false)]
-        public void FloatComparisonOperatorsWorkWithoutExplicitCast(string @operator, Direction operand1, double operand2, bool expectedResult)
+        [TestCase("==", VerticalDirection.Down, -2.0, true)]
+        [TestCase("==", VerticalDirection.Down, -2.00001, false)]
+        [TestCase("==", VerticalDirection.Down, -1.99999, false)]
+        [TestCase("==", VerticalDirection.Down, 0.0, false)]
+        [TestCase("==", VerticalDirection.Down, 2.0, false)]
+        [TestCase("==", VerticalDirection.Flat, -2.0, false)]
+        [TestCase("==", VerticalDirection.Flat, 0.0, true)]
+        [TestCase("==", VerticalDirection.Flat, 0.00001, false)]
+        [TestCase("==", VerticalDirection.Flat, -0.00001, false)]
+        [TestCase("==", VerticalDirection.Flat, 2.0, false)]
+        [TestCase("==", VerticalDirection.Up, -2.0, false)]
+        [TestCase("==", VerticalDirection.Up, 0.0, false)]
+        [TestCase("==", VerticalDirection.Up, 2.0, true)]
+        [TestCase("==", VerticalDirection.Up, 2.00001, false)]
+        [TestCase("==", VerticalDirection.Up, 1.99999, false)]
+        [TestCase("!=", VerticalDirection.Down, -2.0, false)]
+        [TestCase("!=", VerticalDirection.Down, -2.00001, true)]
+        [TestCase("!=", VerticalDirection.Down, -1.99999, true)]
+        [TestCase("!=", VerticalDirection.Down, 0.0, true)]
+        [TestCase("!=", VerticalDirection.Down, 2.0, true)]
+        [TestCase("!=", VerticalDirection.Flat, -2.0, true)]
+        [TestCase("!=", VerticalDirection.Flat, 0.0, false)]
+        [TestCase("!=", VerticalDirection.Flat, 0.00001, true)]
+        [TestCase("!=", VerticalDirection.Flat, -0.00001, true)]
+        [TestCase("!=", VerticalDirection.Flat, 2.0, true)]
+        [TestCase("!=", VerticalDirection.Up, -2.0, true)]
+        [TestCase("!=", VerticalDirection.Up, 0.0, true)]
+        [TestCase("!=", VerticalDirection.Up, 2.0, false)]
+        [TestCase("!=", VerticalDirection.Up, 2.00001, true)]
+        [TestCase("!=", VerticalDirection.Up, 1.99999, true)]
+        [TestCase("<", VerticalDirection.Down, -3.0, false)]
+        [TestCase("<", VerticalDirection.Down, -2.00001, false)]
+        [TestCase("<", VerticalDirection.Down, -2.0, false)]
+        [TestCase("<", VerticalDirection.Down, -1.99999, true)]
+        [TestCase("<", VerticalDirection.Down, 0.0, true)]
+        [TestCase("<", VerticalDirection.Down, 2.0, true)]
+        [TestCase("<", VerticalDirection.Flat, -2.0, false)]
+        [TestCase("<", VerticalDirection.Flat, -0.00001, false)]
+        [TestCase("<", VerticalDirection.Flat, 0.0, false)]
+        [TestCase("<", VerticalDirection.Flat, 0.00001, true)]
+        [TestCase("<", VerticalDirection.Flat, 2.0, true)]
+        [TestCase("<", VerticalDirection.Up, -2.0, false)]
+        [TestCase("<", VerticalDirection.Up, 0.0, false)]
+        [TestCase("<", VerticalDirection.Up, 1.99999, false)]
+        [TestCase("<", VerticalDirection.Up, 2.0, false)]
+        [TestCase("<", VerticalDirection.Up, 2.00001, true)]
+        [TestCase("<", VerticalDirection.Up, 3.0, true)]
+        [TestCase("<=", VerticalDirection.Down, -3.0, false)]
+        [TestCase("<=", VerticalDirection.Down, -2.00001, false)]
+        [TestCase("<=", VerticalDirection.Down, -2.0, true)]
+        [TestCase("<=", VerticalDirection.Down, -1.99999, true)]
+        [TestCase("<=", VerticalDirection.Down, 0.0, true)]
+        [TestCase("<=", VerticalDirection.Down, 2.0, true)]
+        [TestCase("<=", VerticalDirection.Flat, -2.0, false)]
+        [TestCase("<=", VerticalDirection.Flat, -0.00001, false)]
+        [TestCase("<=", VerticalDirection.Flat, 0.0, true)]
+        [TestCase("<=", VerticalDirection.Flat, 0.00001, true)]
+        [TestCase("<=", VerticalDirection.Flat, 2.0, true)]
+        [TestCase("<=", VerticalDirection.Up, -2.0, false)]
+        [TestCase("<=", VerticalDirection.Up, 0.0, false)]
+        [TestCase("<=", VerticalDirection.Up, 1.99999, false)]
+        [TestCase("<=", VerticalDirection.Up, 2.0, true)]
+        [TestCase("<=", VerticalDirection.Up, 2.00001, true)]
+        [TestCase("<=", VerticalDirection.Up, 3.0, true)]
+        [TestCase(">", VerticalDirection.Down, -3.0, true)]
+        [TestCase(">", VerticalDirection.Down, -2.00001, true)]
+        [TestCase(">", VerticalDirection.Down, -2.0, false)]
+        [TestCase(">", VerticalDirection.Down, -1.99999, false)]
+        [TestCase(">", VerticalDirection.Down, 0.0, false)]
+        [TestCase(">", VerticalDirection.Down, 2.0, false)]
+        [TestCase(">", VerticalDirection.Flat, -2.0, true)]
+        [TestCase(">", VerticalDirection.Flat, -0.00001, true)]
+        [TestCase(">", VerticalDirection.Flat, 0.0, false)]
+        [TestCase(">", VerticalDirection.Flat, 0.00001, false)]
+        [TestCase(">", VerticalDirection.Flat, 2.0, false)]
+        [TestCase(">", VerticalDirection.Up, -2.0, true)]
+        [TestCase(">", VerticalDirection.Up, 0.0, true)]
+        [TestCase(">", VerticalDirection.Up, 1.99999, true)]
+        [TestCase(">", VerticalDirection.Up, 2.0, false)]
+        [TestCase(">", VerticalDirection.Up, 2.00001, false)]
+        [TestCase(">", VerticalDirection.Up, 3.0, false)]
+        [TestCase(">=", VerticalDirection.Down, -3.0, true)]
+        [TestCase(">=", VerticalDirection.Down, -2.00001, true)]
+        [TestCase(">=", VerticalDirection.Down, -2.0, true)]
+        [TestCase(">=", VerticalDirection.Down, -1.99999, false)]
+        [TestCase(">=", VerticalDirection.Down, 0.0, false)]
+        [TestCase(">=", VerticalDirection.Down, 2.0, false)]
+        [TestCase(">=", VerticalDirection.Flat, -2.0, true)]
+        [TestCase(">=", VerticalDirection.Flat, -0.00001, true)]
+        [TestCase(">=", VerticalDirection.Flat, 0.0, true)]
+        [TestCase(">=", VerticalDirection.Flat, 0.00001, false)]
+        [TestCase(">=", VerticalDirection.Flat, 2.0, false)]
+        [TestCase(">=", VerticalDirection.Up, -2.0, true)]
+        [TestCase(">=", VerticalDirection.Up, 0.0, true)]
+        [TestCase(">=", VerticalDirection.Up, 1.99999, true)]
+        [TestCase(">=", VerticalDirection.Up, 2.0, true)]
+        [TestCase(">=", VerticalDirection.Up, 2.00001, false)]
+        [TestCase(">=", VerticalDirection.Up, 3.0, false)]
+        public void FloatComparisonOperatorsWorkWithoutExplicitCast(string @operator, VerticalDirection operand1, double operand2, bool expectedResult)
         {
             using var _ = Py.GIL();
             var module = GetTestOperatorsModule(@operator, operand1, operand2);
@@ -294,7 +301,7 @@ def operation2():
             get
             {
                 var operators = new[] { "==", "!=", "<", "<=", ">", ">=" };
-                var enumValues = Enum.GetValues<Direction>();
+                var enumValues = Enum.GetValues<VerticalDirection>();
 
                 foreach (var enumValue in enumValues)
                 {
@@ -312,7 +319,7 @@ def operation2():
         }
 
         [TestCaseSource(nameof(SameEnumTypeComparisonOperatorsTestCases))]
-        public void SameEnumTypeComparisonOperatorsWorkWithoutExplicitCast(string @operator, Direction operand1, Direction operand2, bool expectedResult)
+        public void SameEnumTypeComparisonOperatorsWorkWithoutExplicitCast(string @operator, VerticalDirection operand1, VerticalDirection operand2, bool expectedResult)
         {
             using var _ = Py.GIL();
             var module = PyModule.FromString("SameEnumTypeComparisonOperatorsWorkWithoutExplicitCast", $@"
@@ -322,31 +329,31 @@ AddReference(""Python.EmbeddingTest"")
 from Python.EmbeddingTest import *
 
 def operation():
-    return {nameof(EnumTests)}.{nameof(Direction)}.{operand1} {@operator} {nameof(EnumTests)}.{nameof(Direction)}.{operand2}
+    return {nameof(EnumTests)}.{nameof(VerticalDirection)}.{operand1} {@operator} {nameof(EnumTests)}.{nameof(VerticalDirection)}.{operand2}
 ");
 
             Assert.AreEqual(expectedResult, module.InvokeMethod("operation").As<bool>());
         }
 
-        [TestCase("==", Direction.Down, "Down", true)]
-        [TestCase("==", Direction.Down, "Flat", false)]
-        [TestCase("==", Direction.Down, "Up", false)]
-        [TestCase("==", Direction.Flat, "Down", false)]
-        [TestCase("==", Direction.Flat, "Flat", true)]
-        [TestCase("==", Direction.Flat, "Up", false)]
-        [TestCase("==", Direction.Up, "Down", false)]
-        [TestCase("==", Direction.Up, "Flat", false)]
-        [TestCase("==", Direction.Up, "Up", true)]
-        [TestCase("!=", Direction.Down, "Down", false)]
-        [TestCase("!=", Direction.Down, "Flat", true)]
-        [TestCase("!=", Direction.Down, "Up", true)]
-        [TestCase("!=", Direction.Flat, "Down", true)]
-        [TestCase("!=", Direction.Flat, "Flat", false)]
-        [TestCase("!=", Direction.Flat, "Up", true)]
-        [TestCase("!=", Direction.Up, "Down", true)]
-        [TestCase("!=", Direction.Up, "Flat", true)]
-        [TestCase("!=", Direction.Up, "Up", false)]
-        public void EnumComparisonOperatorsWorkWithString(string @operator, Direction operand1, string operand2, bool expectedResult)
+        [TestCase("==", VerticalDirection.Down, "Down", true)]
+        [TestCase("==", VerticalDirection.Down, "Flat", false)]
+        [TestCase("==", VerticalDirection.Down, "Up", false)]
+        [TestCase("==", VerticalDirection.Flat, "Down", false)]
+        [TestCase("==", VerticalDirection.Flat, "Flat", true)]
+        [TestCase("==", VerticalDirection.Flat, "Up", false)]
+        [TestCase("==", VerticalDirection.Up, "Down", false)]
+        [TestCase("==", VerticalDirection.Up, "Flat", false)]
+        [TestCase("==", VerticalDirection.Up, "Up", true)]
+        [TestCase("!=", VerticalDirection.Down, "Down", false)]
+        [TestCase("!=", VerticalDirection.Down, "Flat", true)]
+        [TestCase("!=", VerticalDirection.Down, "Up", true)]
+        [TestCase("!=", VerticalDirection.Flat, "Down", true)]
+        [TestCase("!=", VerticalDirection.Flat, "Flat", false)]
+        [TestCase("!=", VerticalDirection.Flat, "Up", true)]
+        [TestCase("!=", VerticalDirection.Up, "Down", true)]
+        [TestCase("!=", VerticalDirection.Up, "Flat", true)]
+        [TestCase("!=", VerticalDirection.Up, "Up", false)]
+        public void EnumComparisonOperatorsWorkWithString(string @operator, VerticalDirection operand1, string operand2, bool expectedResult)
         {
             using var _ = Py.GIL();
             var module = PyModule.FromString("EnumComparisonOperatorsWorkWithString", $@"
@@ -356,14 +363,62 @@ AddReference(""Python.EmbeddingTest"")
 from Python.EmbeddingTest import *
 
 def operation1():
-    return {nameof(EnumTests)}.{nameof(Direction)}.{operand1} {@operator} ""{operand2}""
+    return {nameof(EnumTests)}.{nameof(VerticalDirection)}.{operand1} {@operator} ""{operand2}""
 
 def operation2():
-    return ""{operand2}"" {@operator} {nameof(EnumTests)}.{nameof(Direction)}.{operand1}
+    return ""{operand2}"" {@operator} {nameof(EnumTests)}.{nameof(VerticalDirection)}.{operand1}
 ");
 
             Assert.AreEqual(expectedResult, module.InvokeMethod("operation1").As<bool>());
             Assert.AreEqual(expectedResult, module.InvokeMethod("operation2").As<bool>());
+        }
+
+        public static IEnumerable<TestCaseData> OtherEnumsComparisonOperatorsTestCases
+        {
+            get
+            {
+                var operators = new[] { "==", "!=", "<", "<=", ">", ">=" };
+                var enumValues = Enum.GetValues<VerticalDirection>();
+                var enum2Values = Enum.GetValues<HorizontalDirection>();
+
+                foreach (var enumValue in enumValues)
+                {
+                    foreach (var enum2Value in enum2Values)
+                    {
+                        var intEnumValue = Convert.ToInt64(enumValue);
+                        var intEnum2Value = Convert.ToInt64(enum2Value);
+
+                        yield return new TestCaseData("==", enumValue, enum2Value, intEnumValue == intEnum2Value, intEnum2Value == intEnumValue);
+                        yield return new TestCaseData("!=", enumValue, enum2Value, intEnumValue != intEnum2Value, intEnum2Value != intEnumValue);
+                        yield return new TestCaseData("<", enumValue, enum2Value, intEnumValue < intEnum2Value, intEnum2Value < intEnumValue);
+                        yield return new TestCaseData("<=", enumValue, enum2Value, intEnumValue <= intEnum2Value, intEnum2Value <= intEnumValue);
+                        yield return new TestCaseData(">", enumValue, enum2Value, intEnumValue > intEnum2Value, intEnum2Value > intEnumValue);
+                        yield return new TestCaseData(">=", enumValue, enum2Value, intEnumValue >= intEnum2Value, intEnum2Value >= intEnumValue);
+                    }
+                }
+            }
+        }
+
+        [TestCaseSource(nameof(OtherEnumsComparisonOperatorsTestCases))]
+        public void OtherEnumsComparisonOperatorsWorkWithoutExplicitCast(string @operator, VerticalDirection operand1, HorizontalDirection operand2, bool expectedResult, bool invertedOperationExpectedResult)
+        {
+            using var _ = Py.GIL();
+            var module = PyModule.FromString("OtherEnumsComparisonOperatorsWorkWithoutExplicitCast", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+def operation1():
+    return {nameof(EnumTests)}.{nameof(VerticalDirection)}.{operand1} {@operator} {nameof(EnumTests)}.{nameof(HorizontalDirection)}.{operand2}
+
+def operation2():
+    return {nameof(EnumTests)}.{nameof(HorizontalDirection)}.{operand2} {@operator} {nameof(EnumTests)}.{nameof(VerticalDirection)}.{operand1}
+");
+
+            Assert.AreEqual(expectedResult, module.InvokeMethod("operation1").As<bool>());
+            Assert.AreEqual(invertedOperationExpectedResult, module.InvokeMethod("operation2").As<bool>());
+
         }
     }
 }

@@ -489,5 +489,163 @@ namespace Python.Runtime
         }
 
         #endregion
+
+        #region Other Enum comparison operators
+
+        private static bool IsEnum(object b, out Type type)
+        {
+            type = b.GetType();
+            if (type.IsEnum)
+            {
+                return true;
+            }
+            using var _ = Py.GIL();
+            Exceptions.RaiseTypeError($"No method matched to compare {typeof(T).Name} and {type.Name}");
+
+            return false;
+        }
+
+        public static bool op_Equality(T a, object b)
+        {
+            if (!IsEnum(b, out var bType))
+            {
+                return false;
+            }
+            if (bType.GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_Equality(a, Convert.ToUInt64(b));
+            }
+            return op_Equality(a, Convert.ToInt64(b));
+        }
+
+        public static bool op_Equality(object a, T b)
+        {
+            if (!IsEnum(a, out var aType))
+            {
+                return false;
+            }
+
+            if (aType.GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_Equality(b, Convert.ToUInt64(a));
+            }
+            return op_Equality(b, Convert.ToInt64(a));
+        }
+
+        public static bool op_Inequality(T a, object b)
+        {
+            return !op_Equality(a, b);
+        }
+
+        public static bool op_Inequality(object a, T b)
+        {
+            return !op_Equality(a, b);
+        }
+
+        public static bool op_LessThan(T a, object b)
+        {
+            if (!IsEnum(b, out var bType))
+            {
+                return false;
+            }
+            if (bType.GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_LessThan(a, Convert.ToUInt64(b));
+            }
+            return op_LessThan(a, Convert.ToInt64(b));
+        }
+
+        public static bool op_LessThan(object a, T b)
+        {
+            if (!IsEnum(a, out var aType))
+            {
+                return false;
+            }
+            if (aType.GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_LessThan(Convert.ToUInt64(a), b);
+            }
+            return op_LessThan(Convert.ToInt64(a), b);
+        }
+
+        public static bool op_GreaterThan(T a, object b)
+        {
+            if (!IsEnum(b, out var bType))
+            {
+                return false;
+            }
+            if (bType.GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_GreaterThan(a, Convert.ToUInt64(b));
+            }
+            return op_GreaterThan(a, Convert.ToInt64(b));
+        }
+
+        public static bool op_GreaterThan(object a, T b)
+        {
+            if (!IsEnum(a, out var aType))
+            {
+                return false;
+            }
+            if (aType.GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_GreaterThan(Convert.ToUInt64(a), b);
+            }
+            return op_GreaterThan(Convert.ToInt64(a), b);
+        }
+
+        public static bool op_LessThanOrEqual(T a, object b)
+        {
+            if (!IsEnum(b, out var bType))
+            {
+                return false;
+            }
+            if (bType.GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_LessThanOrEqual(a, Convert.ToUInt64(b));
+            }
+            return op_LessThanOrEqual(a, Convert.ToInt64(b));
+        }
+
+        public static bool op_LessThanOrEqual(object a, T b)
+        {
+            if (!IsEnum(a, out var aType))
+            {
+                return false;
+            }
+            if (aType.GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_LessThanOrEqual(Convert.ToUInt64(a), b);
+            }
+            return op_LessThanOrEqual(Convert.ToInt64(a), b);
+        }
+
+        public static bool op_GreaterThanOrEqual(T a, object b)
+        {
+            if (!IsEnum(b, out var bType))
+            {
+                return false;
+            }
+            if (bType.GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_GreaterThanOrEqual(a, Convert.ToUInt64(b));
+            }
+            return op_GreaterThanOrEqual(a, Convert.ToInt64(b));
+        }
+
+        public static bool op_GreaterThanOrEqual(object a, T b)
+        {
+            if (!IsEnum(a, out var aType))
+            {
+                return false;
+            }
+            if (aType.GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_GreaterThanOrEqual(Convert.ToUInt64(a), b);
+            }
+            return op_GreaterThanOrEqual(Convert.ToInt64(a), b);
+        }
+
+        #endregion
     }
 }
