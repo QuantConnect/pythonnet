@@ -77,11 +77,13 @@ namespace Python.Runtime
     [Ops]
     internal static class EnumOps<T> where T : Enum
     {
+        private static bool IsUnsigned = typeof(T).GetEnumUnderlyingType() == typeof(UInt64);
+
         [ForbidPythonThreads]
 #pragma warning disable IDE1006 // Naming Styles - must match Python
         public static PyInt __int__(T value)
 #pragma warning restore IDE1006 // Naming Styles
-            => typeof(T).GetEnumUnderlyingType() == typeof(UInt64)
+            => IsUnsigned
             ? new PyInt(Convert.ToUInt64(value))
             : new PyInt(Convert.ToInt64(value));
 
@@ -89,7 +91,7 @@ namespace Python.Runtime
 
         public static double op_Addition(T a, double b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 return Convert.ToUInt64(a) + b;
             }
@@ -103,7 +105,7 @@ namespace Python.Runtime
 
         public static double op_Subtraction(T a, double b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 return Convert.ToUInt64(a) - b;
             }
@@ -112,12 +114,16 @@ namespace Python.Runtime
 
         public static double op_Subtraction(double a, T b)
         {
-            return op_Subtraction(b, a);
+            if (IsUnsigned)
+            {
+                return a - Convert.ToUInt64(b);
+            }
+            return a - Convert.ToInt64(b);
         }
 
         public static double op_Multiply(T a, double b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 return Convert.ToUInt64(a) * b;
             }
@@ -131,7 +137,7 @@ namespace Python.Runtime
 
         public static double op_Division(T a, double b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 return Convert.ToUInt64(a) / b;
             }
@@ -140,7 +146,11 @@ namespace Python.Runtime
 
         public static double op_Division(double a, T b)
         {
-            return op_Division(b, a);
+            if (IsUnsigned)
+            {
+                return a / Convert.ToUInt64(b);
+            }
+            return a / Convert.ToInt64(b);
         }
 
         #endregion
@@ -149,7 +159,7 @@ namespace Python.Runtime
 
         public static bool op_Equality(T a, long b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 var uvalue = Convert.ToUInt64(a);
                 return b >= 0 && ((ulong)b) == uvalue;
@@ -159,7 +169,7 @@ namespace Python.Runtime
 
         public static bool op_Equality(T a, ulong b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 var uvalue = Convert.ToUInt64(a);
                 return b == uvalue;
@@ -200,7 +210,7 @@ namespace Python.Runtime
 
         public static bool op_LessThan(T a, long b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 var uvalue = Convert.ToUInt64(a);
                 return b >= 0 && ((ulong)b) > uvalue;
@@ -210,7 +220,7 @@ namespace Python.Runtime
 
         public static bool op_LessThan(T a, ulong b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 var uvalue = Convert.ToUInt64(a);
                 return b > uvalue;
@@ -231,7 +241,7 @@ namespace Python.Runtime
 
         public static bool op_GreaterThan(T a, long b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 var uvalue = Convert.ToUInt64(a);
                 return b >= 0 && ((ulong)b) < uvalue;
@@ -241,7 +251,7 @@ namespace Python.Runtime
 
         public static bool op_GreaterThan(T a, ulong b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 var uvalue = Convert.ToUInt64(a);
                 return b < uvalue;
@@ -262,7 +272,7 @@ namespace Python.Runtime
 
         public static bool op_LessThanOrEqual(T a, long b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 var uvalue = Convert.ToUInt64(a);
                 return b >= 0 && ((ulong)b) >= uvalue;
@@ -272,7 +282,7 @@ namespace Python.Runtime
 
         public static bool op_LessThanOrEqual(T a, ulong b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 var uvalue = Convert.ToUInt64(a);
                 return b >= uvalue;
@@ -293,7 +303,7 @@ namespace Python.Runtime
 
         public static bool op_GreaterThanOrEqual(T a, long b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 var uvalue = Convert.ToUInt64(a);
                 return b >= 0 && ((ulong)b) <= uvalue;
@@ -303,7 +313,7 @@ namespace Python.Runtime
 
         public static bool op_GreaterThanOrEqual(T a, ulong b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 var uvalue = Convert.ToUInt64(a);
                 return b <= uvalue;
@@ -328,7 +338,7 @@ namespace Python.Runtime
 
         public static bool op_Equality(T a, double b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 return Convert.ToUInt64(a) == b;
             }
@@ -352,7 +362,7 @@ namespace Python.Runtime
 
         public static bool op_LessThan(T a, double b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 return Convert.ToUInt64(a) < b;
             }
@@ -366,7 +376,7 @@ namespace Python.Runtime
 
         public static bool op_GreaterThan(T a, double b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 return Convert.ToUInt64(a) > b;
             }
@@ -380,7 +390,7 @@ namespace Python.Runtime
 
         public static bool op_LessThanOrEqual(T a, double b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 return Convert.ToUInt64(a) <= b;
             }
@@ -394,7 +404,7 @@ namespace Python.Runtime
 
         public static bool op_GreaterThanOrEqual(T a, double b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 return Convert.ToUInt64(a) >= b;
             }
@@ -422,7 +432,7 @@ namespace Python.Runtime
 
         public static bool op_LessThan(T a, T b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 return Convert.ToUInt64(a) < Convert.ToUInt64(b);
             }
@@ -431,7 +441,7 @@ namespace Python.Runtime
 
         public static bool op_GreaterThan(T a, T b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 return Convert.ToUInt64(a) > Convert.ToUInt64(b);
             }
@@ -440,7 +450,7 @@ namespace Python.Runtime
 
         public static bool op_LessThanOrEqual(T a, T b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 return Convert.ToUInt64(a) <= Convert.ToUInt64(b);
             }
@@ -449,7 +459,7 @@ namespace Python.Runtime
 
         public static bool op_GreaterThanOrEqual(T a, T b)
         {
-            if (typeof(T).GetEnumUnderlyingType() == typeof(UInt64))
+            if (IsUnsigned)
             {
                 return Convert.ToUInt64(a) >= Convert.ToUInt64(b);
             }

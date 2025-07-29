@@ -66,25 +66,41 @@ def operation2():
 ");
         }
 
-        [TestCase(" *", Direction.Down, 2, -4)]
-        [TestCase("/", Direction.Down, 2, -1)]
-        [TestCase("+", Direction.Down, 2, 0)]
-        [TestCase("-", Direction.Down, 2, -4)]
-        [TestCase("*", Direction.Flat, 2, 0)]
-        [TestCase("/", Direction.Flat, 2, 0)]
-        [TestCase("+", Direction.Flat, 2, 2)]
-        [TestCase("-", Direction.Flat, 2, -2)]
-        [TestCase("*", Direction.Up, 2, 4)]
-        [TestCase("/", Direction.Up, 2, 1)]
-        [TestCase("+", Direction.Up, 2, 4)]
-        [TestCase("-", Direction.Up, 2, 0)]
-        public void ArithmeticOperatorsWorkWithoutExplicitCast(string @operator, Direction operand1, double operand2, double expectedResult)
+        [TestCase("*", Direction.Down, 2, -4, -4)]
+        [TestCase("/", Direction.Down, 2, -1, -1)]
+        [TestCase("+", Direction.Down, 2, 0, 0)]
+        [TestCase("-", Direction.Down, 2, -4, 4)]
+        [TestCase("*", Direction.Flat, 2, 0, 0)]
+        [TestCase("/", Direction.Flat, 2, 0, 0)]
+        [TestCase("+", Direction.Flat, 2, 2, 2)]
+        [TestCase("-", Direction.Flat, 2, -2, 2)]
+        [TestCase("*", Direction.Up, 2, 4, 4)]
+        [TestCase("/", Direction.Up, 2, 1, 1)]
+        [TestCase("+", Direction.Up, 2, 4, 4)]
+        [TestCase("-", Direction.Up, 2, 0, 0)]
+        [TestCase("*", Direction.Down, -2, 4, 4)]
+        [TestCase("/", Direction.Down, -2, 1, 1)]
+        [TestCase("+", Direction.Down, -2, -4, -4)]
+        [TestCase("-", Direction.Down, -2, 0, 0)]
+        [TestCase("*", Direction.Flat, -2, 0, 0)]
+        [TestCase("/", Direction.Flat, -2, 0, 0)]
+        [TestCase("+", Direction.Flat, -2, -2, -2)]
+        [TestCase("-", Direction.Flat, -2, 2, -2)]
+        [TestCase("*", Direction.Up, -2, -4, -4)]
+        [TestCase("/", Direction.Up, -2, -1, -1)]
+        [TestCase("+", Direction.Up, -2, 0, 0)]
+        [TestCase("-", Direction.Up, -2, 4, -4)]
+        public void ArithmeticOperatorsWorkWithoutExplicitCast(string @operator, Direction operand1, double operand2, double expectedResult, double invertedOperationExpectedResult)
         {
             using var _ = Py.GIL();
             var module = GetTestOperatorsModule(@operator, operand1, operand2);
 
             Assert.AreEqual(expectedResult, module.InvokeMethod("operation1").As<double>());
-            Assert.AreEqual(expectedResult, module.InvokeMethod("operation2").As<double>());
+
+            if (Convert.ToInt64(operand1) != 0 || @operator != "/")
+            {
+                Assert.AreEqual(invertedOperationExpectedResult, module.InvokeMethod("operation2").As<double>());
+            }
         }
 
         [TestCase("==", Direction.Down, -2, true)]
