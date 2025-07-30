@@ -18,6 +18,13 @@ namespace Python.Runtime
     [SuppressUnmanagedCodeSecurity]
     internal class Converter
     {
+        /// <summary>
+        /// We use a cache of the enum values references so that we treat them as singletons in Python.
+        /// We just try to mimic Python enums behavior, since Python enum values are singletons,
+        /// so the `is` identity comparison operator works for C# enums as well.
+        /// </summary>
+
+        private static readonly Dictionary<Type, Dictionary<object, PyObject>> _enumCache = new();
         private Converter()
         {
         }
@@ -228,7 +235,18 @@ class GMT(tzinfo):
 
             if (type.IsEnum)
             {
-                return CLRObject.GetReference(value, type);
+                if (!_enumCache.TryGetValue(type, out var cache))
+                {
+                    cache = new();
+                    _enumCache[type] = cache;
+                }
+
+                if (!cache.TryGetValue(value, out var cachedValue))
+                {
+                    cache[value] = cachedValue = CLRObject.GetReference(value, type).MoveToPyObject();
+                }
+
+                return cachedValue.NewReferenceOrNull();
             }
 
             // it the type is a python subclass of a managed type then return the

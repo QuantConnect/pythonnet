@@ -418,7 +418,82 @@ def operation2():
 
             Assert.AreEqual(expectedResult, module.InvokeMethod("operation1").As<bool>());
             Assert.AreEqual(invertedOperationExpectedResult, module.InvokeMethod("operation2").As<bool>());
+        }
 
+        private static IEnumerable<TestCaseData> IdentityComparisonTestCases
+        {
+            get
+            {
+                var enumValues = Enum.GetValues<VerticalDirection>();
+                foreach (var enumValue1 in enumValues)
+                {
+                    foreach (var enumValue2 in enumValues)
+                    {
+                        if (enumValue2 != enumValue1)
+                        {
+                            yield return new TestCaseData(enumValue1, enumValue2);
+                        }
+                    }
+                }
+            }
+        }
+
+        [TestCaseSource(nameof(IdentityComparisonTestCases))]
+        public void CSharpEnumsAreSingletonsInPthonAndIdentityComparisonWorks(VerticalDirection enumValue1, VerticalDirection enumValue2)
+        {
+            var enumValue1Str = $"{nameof(EnumTests)}.{nameof(VerticalDirection)}.{enumValue1}";
+            var enumValue2Str = $"{nameof(EnumTests)}.{nameof(VerticalDirection)}.{enumValue2}";
+            using var _ = Py.GIL();
+            var module = PyModule.FromString("TESTTTT", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+def are_same1():
+    return {enumValue1Str} is {enumValue1Str}
+
+def are_same2():
+    enum_value = {enumValue1Str}
+    return enum_value is {enumValue1Str}
+
+def are_same3():
+    enum_value = {enumValue1Str}
+    return {enumValue1Str} is enum_value
+
+def are_same4():
+    enum_value1 = {enumValue1Str}
+    enum_value2 = {enumValue1Str}
+    return enum_value1 is enum_value2
+
+def are_not_same1():
+    return {enumValue1Str} is not {enumValue2Str}
+
+def are_not_same2():
+    enum_value = {enumValue1Str}
+    return enum_value is not {enumValue2Str}
+
+def are_not_same3():
+    enum_value = {enumValue2Str}
+    return {enumValue1Str} is not enum_value
+
+def are_not_same4():
+    enum_value1 = {enumValue1Str}
+    enum_value2 = {enumValue2Str}
+    return enum_value1 is not enum_value2
+
+
+");
+
+            Assert.IsTrue(module.InvokeMethod("are_same1").As<bool>());
+            Assert.IsTrue(module.InvokeMethod("are_same2").As<bool>());
+            Assert.IsTrue(module.InvokeMethod("are_same3").As<bool>());
+            Assert.IsTrue(module.InvokeMethod("are_same4").As<bool>());
+
+            Assert.IsTrue(module.InvokeMethod("are_not_same1").As<bool>());
+            Assert.IsTrue(module.InvokeMethod("are_not_same2").As<bool>());
+            Assert.IsTrue(module.InvokeMethod("are_not_same3").As<bool>());
+            Assert.IsTrue(module.InvokeMethod("are_not_same4").As<bool>());
         }
     }
 }
