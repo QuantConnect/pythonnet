@@ -9,6 +9,9 @@ namespace Python.EmbeddingTest
 {
     public class EnumTests
     {
+        private static VerticalDirection[] VerticalDirectionEnumValues = Enum.GetValues<VerticalDirection>();
+        private static HorizontalDirection[] HorizontalDirectionEnumValues = Enum.GetValues<HorizontalDirection>();
+
         [OneTimeSetUp]
         public void SetUp()
         {
@@ -301,11 +304,10 @@ def operation2():
             get
             {
                 var operators = new[] { "==", "!=", "<", "<=", ">", ">=" };
-                var enumValues = Enum.GetValues<VerticalDirection>();
 
-                foreach (var enumValue in enumValues)
+                foreach (var enumValue in VerticalDirectionEnumValues)
                 {
-                    foreach (var enumValue2 in enumValues)
+                    foreach (var enumValue2 in VerticalDirectionEnumValues)
                     {
                         yield return new TestCaseData("==", enumValue, enumValue2, enumValue == enumValue2);
                         yield return new TestCaseData("!=", enumValue, enumValue2, enumValue != enumValue2);
@@ -378,12 +380,10 @@ def operation2():
             get
             {
                 var operators = new[] { "==", "!=", "<", "<=", ">", ">=" };
-                var enumValues = Enum.GetValues<VerticalDirection>();
-                var enum2Values = Enum.GetValues<HorizontalDirection>();
 
-                foreach (var enumValue in enumValues)
+                foreach (var enumValue in VerticalDirectionEnumValues)
                 {
-                    foreach (var enum2Value in enum2Values)
+                    foreach (var enum2Value in HorizontalDirectionEnumValues)
                     {
                         var intEnumValue = Convert.ToInt64(enumValue);
                         var intEnum2Value = Convert.ToInt64(enum2Value);
@@ -424,10 +424,9 @@ def operation2():
         {
             get
             {
-                var enumValues = Enum.GetValues<VerticalDirection>();
-                foreach (var enumValue1 in enumValues)
+                foreach (var enumValue1 in VerticalDirectionEnumValues)
                 {
-                    foreach (var enumValue2 in enumValues)
+                    foreach (var enumValue2 in VerticalDirectionEnumValues)
                     {
                         if (enumValue2 != enumValue1)
                         {
@@ -443,8 +442,9 @@ def operation2():
         {
             var enumValue1Str = $"{nameof(EnumTests)}.{nameof(VerticalDirection)}.{enumValue1}";
             var enumValue2Str = $"{nameof(EnumTests)}.{nameof(VerticalDirection)}.{enumValue2}";
+
             using var _ = Py.GIL();
-            var module = PyModule.FromString("TESTTTT", $@"
+            var module = PyModule.FromString("CSharpEnumsAreSingletonsInPthonAndIdentityComparisonWorks", $@"
 from clr import AddReference
 AddReference(""Python.EmbeddingTest"")
 
@@ -494,6 +494,55 @@ def are_not_same4():
             Assert.IsTrue(module.InvokeMethod("are_not_same2").As<bool>());
             Assert.IsTrue(module.InvokeMethod("are_not_same3").As<bool>());
             Assert.IsTrue(module.InvokeMethod("are_not_same4").As<bool>());
+        }
+
+        [Test]
+        public void IdentityComparisonBetweenDifferentEnumTypesIsNeverTrue(
+            [ValueSource(nameof(VerticalDirectionEnumValues))] VerticalDirection enumValue1,
+            [ValueSource(nameof(HorizontalDirectionEnumValues))] HorizontalDirection enumValue2)
+        {
+            var enumValue1Str = $"{nameof(EnumTests)}.{nameof(VerticalDirection)}.{enumValue1}";
+            var enumValue2Str = $"{nameof(EnumTests)}.{nameof(HorizontalDirection)}.{enumValue2}";
+
+            using var _ = Py.GIL();
+            var module = PyModule.FromString("IdentityComparisonBetweenDifferentEnumTypesIsNeverTrue", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+enum_value1 = {enumValue1Str}
+enum_value2 = {enumValue2Str}
+
+def are_same1():
+    return {enumValue1Str} is {enumValue2Str}
+
+def are_same2():
+    return enum_value1 is {enumValue2Str}
+
+def are_same3():
+    return {enumValue2Str} is enum_value1
+
+def are_same4():
+    return enum_value2 is {enumValue1Str}
+
+def are_same5():
+    return {enumValue1Str} is enum_value2
+
+def are_same6():
+    return enum_value1 is enum_value2
+
+def are_same7():
+    return enum_value2 is enum_value1
+");
+
+            Assert.IsFalse(module.InvokeMethod("are_same1").As<bool>());
+            Assert.IsFalse(module.InvokeMethod("are_same2").As<bool>());
+            Assert.IsFalse(module.InvokeMethod("are_same3").As<bool>());
+            Assert.IsFalse(module.InvokeMethod("are_same4").As<bool>());
+            Assert.IsFalse(module.InvokeMethod("are_same5").As<bool>());
+            Assert.IsFalse(module.InvokeMethod("are_same6").As<bool>());
+            Assert.IsFalse(module.InvokeMethod("are_same7").As<bool>());
         }
     }
 }

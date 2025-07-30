@@ -24,7 +24,7 @@ namespace Python.Runtime
         /// so the `is` identity comparison operator works for C# enums as well.
         /// </summary>
 
-        private static readonly Dictionary<Type, Dictionary<object, PyObject>> _enumCache = new();
+        private static readonly Dictionary<object, PyObject> _enumCache = new();
         private Converter()
         {
         }
@@ -235,15 +235,9 @@ class GMT(tzinfo):
 
             if (type.IsEnum)
             {
-                if (!_enumCache.TryGetValue(type, out var cache))
+                if (!_enumCache.TryGetValue(value, out var cachedValue))
                 {
-                    cache = new();
-                    _enumCache[type] = cache;
-                }
-
-                if (!cache.TryGetValue(value, out var cachedValue))
-                {
-                    cache[value] = cachedValue = CLRObject.GetReference(value, type).MoveToPyObject();
+                    _enumCache[value] = cachedValue = CLRObject.GetReference(value, type).MoveToPyObject();
                 }
 
                 return cachedValue.NewReferenceOrNull();
