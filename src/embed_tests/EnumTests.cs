@@ -42,7 +42,7 @@ namespace Python.EmbeddingTest
         public void CSharpEnumsBehaveAsEnumsInPython()
         {
             using var _ = Py.GIL();
-            var module = PyModule.FromString("CSharpEnumsBehaveAsEnumsInPython", $@"
+            using var module = PyModule.FromString("CSharpEnumsBehaveAsEnumsInPython", $@"
 from clr import AddReference
 AddReference(""Python.EmbeddingTest"")
 
@@ -103,7 +103,7 @@ def operation2():
         public void ArithmeticOperatorsWorkWithoutExplicitCast(string @operator, VerticalDirection operand1, double operand2, double expectedResult, double invertedOperationExpectedResult)
         {
             using var _ = Py.GIL();
-            var module = GetTestOperatorsModule(@operator, operand1, operand2);
+            using var module = GetTestOperatorsModule(@operator, operand1, operand2);
 
             Assert.AreEqual(expectedResult, module.InvokeMethod("operation1").As<double>());
 
@@ -178,7 +178,7 @@ def operation2():
         public void IntComparisonOperatorsWorkWithoutExplicitCast(string @operator, VerticalDirection operand1, int operand2, bool expectedResult)
         {
             using var _ = Py.GIL();
-            var module = GetTestOperatorsModule(@operator, operand1, operand2);
+            using var module = GetTestOperatorsModule(@operator, operand1, operand2);
 
             Assert.AreEqual(expectedResult, module.InvokeMethod("operation1").As<bool>());
 
@@ -289,7 +289,7 @@ def operation2():
         public void FloatComparisonOperatorsWorkWithoutExplicitCast(string @operator, VerticalDirection operand1, double operand2, bool expectedResult)
         {
             using var _ = Py.GIL();
-            var module = GetTestOperatorsModule(@operator, operand1, operand2);
+            using var module = GetTestOperatorsModule(@operator, operand1, operand2);
 
             Assert.AreEqual(expectedResult, module.InvokeMethod("operation1").As<bool>());
 
@@ -324,7 +324,7 @@ def operation2():
         public void SameEnumTypeComparisonOperatorsWorkWithoutExplicitCast(string @operator, VerticalDirection operand1, VerticalDirection operand2, bool expectedResult)
         {
             using var _ = Py.GIL();
-            var module = PyModule.FromString("SameEnumTypeComparisonOperatorsWorkWithoutExplicitCast", $@"
+            using var module = PyModule.FromString("SameEnumTypeComparisonOperatorsWorkWithoutExplicitCast", $@"
 from clr import AddReference
 AddReference(""Python.EmbeddingTest"")
 
@@ -358,7 +358,7 @@ def operation():
         public void EnumComparisonOperatorsWorkWithString(string @operator, VerticalDirection operand1, string operand2, bool expectedResult)
         {
             using var _ = Py.GIL();
-            var module = PyModule.FromString("EnumComparisonOperatorsWorkWithString", $@"
+            using var module = PyModule.FromString("EnumComparisonOperatorsWorkWithString", $@"
 from clr import AddReference
 AddReference(""Python.EmbeddingTest"")
 
@@ -403,7 +403,7 @@ def operation2():
         public void OtherEnumsComparisonOperatorsWorkWithoutExplicitCast(string @operator, VerticalDirection operand1, HorizontalDirection operand2, bool expectedResult, bool invertedOperationExpectedResult)
         {
             using var _ = Py.GIL();
-            var module = PyModule.FromString("OtherEnumsComparisonOperatorsWorkWithoutExplicitCast", $@"
+            using var module = PyModule.FromString("OtherEnumsComparisonOperatorsWorkWithoutExplicitCast", $@"
 from clr import AddReference
 AddReference(""Python.EmbeddingTest"")
 
@@ -444,7 +444,7 @@ def operation2():
             var enumValue2Str = $"{nameof(EnumTests)}.{nameof(VerticalDirection)}.{enumValue2}";
 
             using var _ = Py.GIL();
-            var module = PyModule.FromString("CSharpEnumsAreSingletonsInPthonAndIdentityComparisonWorks", $@"
+            using var module = PyModule.FromString("CSharpEnumsAreSingletonsInPthonAndIdentityComparisonWorks", $@"
 from clr import AddReference
 AddReference(""Python.EmbeddingTest"")
 
@@ -505,7 +505,7 @@ def are_not_same4():
             var enumValue2Str = $"{nameof(EnumTests)}.{nameof(HorizontalDirection)}.{enumValue2}";
 
             using var _ = Py.GIL();
-            var module = PyModule.FromString("IdentityComparisonBetweenDifferentEnumTypesIsNeverTrue", $@"
+            using var module = PyModule.FromString("IdentityComparisonBetweenDifferentEnumTypesIsNeverTrue", $@"
 from clr import AddReference
 AddReference(""Python.EmbeddingTest"")
 
@@ -543,6 +543,90 @@ def are_same7():
             Assert.IsFalse(module.InvokeMethod("are_same5").As<bool>());
             Assert.IsFalse(module.InvokeMethod("are_same6").As<bool>());
             Assert.IsFalse(module.InvokeMethod("are_same7").As<bool>());
+        }
+
+        private PyModule GetCSharpObjectsComparisonTestModule(string @operator)
+        {
+            return PyModule.FromString("GetCSharpObjectsComparisonTestModule", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+enum_value = {nameof(EnumTests)}.{nameof(VerticalDirection)}.{VerticalDirection.Up}
+
+def compare_with_none1():
+    return enum_value {@operator} None
+
+def compare_with_none2():
+    return None {@operator} enum_value
+
+def compare_with_csharp_object1(csharp_object):
+    return enum_value {@operator} csharp_object
+
+def compare_with_csharp_object2(csharp_object):
+    return csharp_object {@operator} enum_value
+");
+        }
+
+        [TestCase("==", false)]
+        [TestCase("!=", true)]
+        public void EqualityComparisonWithNull(string @operator, bool expectedResult)
+        {
+            using var _ = Py.GIL();
+            using var module = GetCSharpObjectsComparisonTestModule(@operator);
+
+            Assert.AreEqual(expectedResult, module.InvokeMethod("compare_with_none1").As<bool>());
+            Assert.AreEqual(expectedResult, module.InvokeMethod("compare_with_none2").As<bool>());
+
+            using var pyNull = ((TestClass)null).ToPython();
+            Assert.AreEqual(expectedResult, module.InvokeMethod("compare_with_csharp_object1", pyNull).As<bool>());
+            Assert.AreEqual(expectedResult, module.InvokeMethod("compare_with_csharp_object2", pyNull).As<bool>());
+        }
+
+        [Test]
+        public void SortingComparisonWithNullThrows([Values("<", "<=", ">", ">=")] string @operator)
+        {
+            using var _ = Py.GIL();
+            using var module = GetCSharpObjectsComparisonTestModule(@operator);
+
+            using var pyNull = ((TestClass)null).ToPython();
+
+            var exception = Assert.Throws<PythonException>(() => module.InvokeMethod("compare_with_csharp_object1", pyNull));
+            Assert.IsTrue(exception.Message.Contains("Cannot compare"));
+            Assert.IsTrue(exception.Message.Contains("with null"));
+        }
+
+        private static IEnumerable<TestCaseData> ComparisonWithNonEnumObjectsTestCases
+        {
+            get
+            {
+                foreach (var op in new[] { "==", "!=" })
+                {
+                    yield return new TestCaseData(op, new[] { "No method matched to compare" });
+                }
+
+                foreach (var op in new[] { "<", "<=", ">", ">=" })
+                {
+                    yield return new TestCaseData(op, new[] { "Cannot compare", "with null" });
+                }
+            }
+        }
+
+        [Test]
+        public void ComparisonOperatorsWithNonEnumObjectsThrows([Values("==", "!=", "<", "<=", ">", ">=")] string @operator)
+        {
+            using var _ = Py.GIL();
+            using var module = GetCSharpObjectsComparisonTestModule(@operator);
+
+            using var pyCSharpObject = new TestClass().ToPython();
+
+            var exception = Assert.Throws<PythonException>(() => module.InvokeMethod("compare_with_csharp_object1", pyCSharpObject));
+            Assert.IsTrue(exception.Message.Contains("No method matched"), $"Expected exception message to contain 'No method matched' but got: {exception.Message}");
+        }
+
+        public class TestClass
+        {
         }
     }
 }

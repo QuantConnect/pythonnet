@@ -492,26 +492,43 @@ namespace Python.Runtime
 
         #region Other Enum comparison operators
 
-        private static bool IsEnum(object b, out Type type)
+        private static bool IsEnum(object b, out Type type, out Type underlyingType, bool throwOnNull = false)
         {
+            type = null;
+            underlyingType = null;
+            if (b == null)
+            {
+                if (throwOnNull)
+                {
+                    using (Py.GIL())
+                    {
+                        Exceptions.RaiseTypeError($"Cannot compare {typeof(T).Name} with null");
+                        PythonException.ThrowLastAsClrException();
+                    }
+                }
+                return false;
+            }
+
             type = b.GetType();
             if (type.IsEnum)
             {
+                underlyingType = type.GetEnumUnderlyingType();
                 return true;
             }
             using var _ = Py.GIL();
             Exceptions.RaiseTypeError($"No method matched to compare {typeof(T).Name} and {type.Name}");
+            PythonException.ThrowLastAsClrException();
 
             return false;
         }
 
         public static bool op_Equality(T a, object b)
         {
-            if (!IsEnum(b, out var bType))
+            if (!IsEnum(b, out var bType, out var underlyingType))
             {
                 return false;
             }
-            if (bType.GetEnumUnderlyingType() == typeof(UInt64))
+            if (underlyingType == typeof(UInt64))
             {
                 return op_Equality(a, Convert.ToUInt64(b));
             }
@@ -520,16 +537,7 @@ namespace Python.Runtime
 
         public static bool op_Equality(object a, T b)
         {
-            if (!IsEnum(a, out var aType))
-            {
-                return false;
-            }
-
-            if (aType.GetEnumUnderlyingType() == typeof(UInt64))
-            {
-                return op_Equality(b, Convert.ToUInt64(a));
-            }
-            return op_Equality(b, Convert.ToInt64(a));
+            return op_Equality(b, a);
         }
 
         public static bool op_Inequality(T a, object b)
@@ -539,16 +547,17 @@ namespace Python.Runtime
 
         public static bool op_Inequality(object a, T b)
         {
-            return !op_Equality(a, b);
+            return !op_Equality(b, a);
         }
 
         public static bool op_LessThan(T a, object b)
         {
-            if (!IsEnum(b, out var bType))
+            if (!IsEnum(b, out var bType, out var underlyingType, throwOnNull: true))
             {
+                // False although it means nothing: an exception will be raised
                 return false;
             }
-            if (bType.GetEnumUnderlyingType() == typeof(UInt64))
+            if (underlyingType == typeof(UInt64))
             {
                 return op_LessThan(a, Convert.ToUInt64(b));
             }
@@ -557,24 +566,17 @@ namespace Python.Runtime
 
         public static bool op_LessThan(object a, T b)
         {
-            if (!IsEnum(a, out var aType))
-            {
-                return false;
-            }
-            if (aType.GetEnumUnderlyingType() == typeof(UInt64))
-            {
-                return op_LessThan(Convert.ToUInt64(a), b);
-            }
-            return op_LessThan(Convert.ToInt64(a), b);
+            return op_GreaterThan(b, a);
         }
 
         public static bool op_GreaterThan(T a, object b)
         {
-            if (!IsEnum(b, out var bType))
+            if (!IsEnum(b, out var bType, out var underlyingType, throwOnNull: true))
             {
+                // False although it means nothing: an exception will be raised
                 return false;
             }
-            if (bType.GetEnumUnderlyingType() == typeof(UInt64))
+            if (underlyingType == typeof(UInt64))
             {
                 return op_GreaterThan(a, Convert.ToUInt64(b));
             }
@@ -583,24 +585,17 @@ namespace Python.Runtime
 
         public static bool op_GreaterThan(object a, T b)
         {
-            if (!IsEnum(a, out var aType))
-            {
-                return false;
-            }
-            if (aType.GetEnumUnderlyingType() == typeof(UInt64))
-            {
-                return op_GreaterThan(Convert.ToUInt64(a), b);
-            }
-            return op_GreaterThan(Convert.ToInt64(a), b);
+            return op_LessThan(b, a);
         }
 
         public static bool op_LessThanOrEqual(T a, object b)
         {
-            if (!IsEnum(b, out var bType))
+            if (!IsEnum(b, out var bType, out var underlyingType, throwOnNull: true))
             {
+                // False although it means nothing: an exception will be raised
                 return false;
             }
-            if (bType.GetEnumUnderlyingType() == typeof(UInt64))
+            if (underlyingType == typeof(UInt64))
             {
                 return op_LessThanOrEqual(a, Convert.ToUInt64(b));
             }
@@ -609,24 +604,17 @@ namespace Python.Runtime
 
         public static bool op_LessThanOrEqual(object a, T b)
         {
-            if (!IsEnum(a, out var aType))
-            {
-                return false;
-            }
-            if (aType.GetEnumUnderlyingType() == typeof(UInt64))
-            {
-                return op_LessThanOrEqual(Convert.ToUInt64(a), b);
-            }
-            return op_LessThanOrEqual(Convert.ToInt64(a), b);
+            return op_GreaterThanOrEqual(b, a);
         }
 
         public static bool op_GreaterThanOrEqual(T a, object b)
         {
-            if (!IsEnum(b, out var bType))
+            if (!IsEnum(b, out var bType, out var underlyingType, throwOnNull: true))
             {
+                // False although it means nothing: an exception will be raised
                 return false;
             }
-            if (bType.GetEnumUnderlyingType() == typeof(UInt64))
+            if (underlyingType == typeof(UInt64))
             {
                 return op_GreaterThanOrEqual(a, Convert.ToUInt64(b));
             }
@@ -635,15 +623,7 @@ namespace Python.Runtime
 
         public static bool op_GreaterThanOrEqual(object a, T b)
         {
-            if (!IsEnum(a, out var aType))
-            {
-                return false;
-            }
-            if (aType.GetEnumUnderlyingType() == typeof(UInt64))
-            {
-                return op_GreaterThanOrEqual(Convert.ToUInt64(a), b);
-            }
-            return op_GreaterThanOrEqual(Convert.ToInt64(a), b);
+            return op_LessThanOrEqual(b, a);
         }
 
         #endregion
