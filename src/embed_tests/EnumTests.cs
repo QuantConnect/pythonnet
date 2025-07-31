@@ -586,7 +586,7 @@ def compare_with_csharp_object2(csharp_object):
 
         [TestCase("==", false)]
         [TestCase("!=", true)]
-        public void ComparisonOperatorsWithNonEnumObjectsThrows(string @operator, bool expectedResult)
+        public void EqualityOperatorsWithNonEnumObjects(string @operator, bool expectedResult)
         {
             using var _ = Py.GIL();
             using var module = GetCSharpObjectsComparisonTestModule(@operator);
