@@ -1,6 +1,8 @@
 using System;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
+
 using static Python.Runtime.OpsHelper;
 
 namespace Python.Runtime
@@ -444,6 +446,11 @@ namespace Python.Runtime
 
         public static bool op_Equality(T a, Enum b)
         {
+            if (b == null)
+            {
+                return false;
+            }
+
             if (b.GetType().GetEnumUnderlyingType() == typeof(UInt64))
             {
                 return op_Equality(a, Convert.ToUInt64(b));
@@ -466,8 +473,23 @@ namespace Python.Runtime
             return !op_Equality(b, a);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void ThrowOnNull(object obj, string @operator)
+        {
+            if (obj == null)
+            {
+                using (Py.GIL())
+                {
+                    Exceptions.RaiseTypeError($"'{@operator}' not supported between instances of '{typeof(T).Name}' and null/None");
+                    PythonException.ThrowLastAsClrException();
+                }
+            }
+        }
+
         public static bool op_LessThan(T a, Enum b)
         {
+            ThrowOnNull(b, "<");
+
             if (b.GetType().GetEnumUnderlyingType() == typeof(UInt64))
             {
                 return op_LessThan(a, Convert.ToUInt64(b));
@@ -477,11 +499,14 @@ namespace Python.Runtime
 
         public static bool op_LessThan(Enum a, T b)
         {
+            ThrowOnNull(a, "<");
             return op_GreaterThan(b, a);
         }
 
         public static bool op_GreaterThan(T a, Enum b)
         {
+            ThrowOnNull(b, ">");
+
             if (b.GetType().GetEnumUnderlyingType() == typeof(UInt64))
             {
                 return op_GreaterThan(a, Convert.ToUInt64(b));
@@ -491,11 +516,14 @@ namespace Python.Runtime
 
         public static bool op_GreaterThan(Enum a, T b)
         {
+            ThrowOnNull(a, ">");
             return op_LessThan(b, a);
         }
 
         public static bool op_LessThanOrEqual(T a, Enum b)
         {
+            ThrowOnNull(b, "<=");
+
             if (b.GetType().GetEnumUnderlyingType() == typeof(UInt64))
             {
                 return op_LessThanOrEqual(a, Convert.ToUInt64(b));
@@ -505,11 +533,14 @@ namespace Python.Runtime
 
         public static bool op_LessThanOrEqual(Enum a, T b)
         {
+            ThrowOnNull(a, "<=");
             return op_GreaterThanOrEqual(b, a);
         }
 
         public static bool op_GreaterThanOrEqual(T a, Enum b)
         {
+            ThrowOnNull(b, ">=");
+
             if (b.GetType().GetEnumUnderlyingType() == typeof(UInt64))
             {
                 return op_GreaterThanOrEqual(a, Convert.ToUInt64(b));
@@ -519,7 +550,32 @@ namespace Python.Runtime
 
         public static bool op_GreaterThanOrEqual(Enum a, T b)
         {
+            ThrowOnNull(a, ">=");
             return op_LessThanOrEqual(b, a);
+        }
+
+        #endregion
+
+        #region Object equality operators
+
+        public static bool op_Equality(T a, object b)
+        {
+            return false;
+        }
+
+        public static bool op_Equality(object a, T b)
+        {
+            return false;
+        }
+
+        public static bool op_Inequality(T a, object b)
+        {
+            return true;
+        }
+
+        public static bool op_Inequality(object a, T b)
+        {
+            return true;
         }
 
         #endregion
