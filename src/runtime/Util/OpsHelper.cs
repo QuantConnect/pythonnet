@@ -1,6 +1,7 @@
 using System;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 using static Python.Runtime.OpsHelper;
 
@@ -35,7 +36,7 @@ namespace Python.Runtime
     }
 
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
-    internal class OpsAttribute: Attribute { }
+    internal class OpsAttribute : Attribute { }
 
     [Ops]
     internal static class FlagEnumOps<T> where T : Enum
@@ -78,12 +79,505 @@ namespace Python.Runtime
     [Ops]
     internal static class EnumOps<T> where T : Enum
     {
+        private static bool IsUnsigned = typeof(T).GetEnumUnderlyingType() == typeof(UInt64);
+
         [ForbidPythonThreads]
 #pragma warning disable IDE1006 // Naming Styles - must match Python
         public static PyInt __int__(T value)
 #pragma warning restore IDE1006 // Naming Styles
-            => typeof(T).GetEnumUnderlyingType() == typeof(UInt64)
+            => IsUnsigned
             ? new PyInt(Convert.ToUInt64(value))
             : new PyInt(Convert.ToInt64(value));
+
+        #region Arithmetic operators
+
+        public static double op_Addition(T a, double b)
+        {
+            if (IsUnsigned)
+            {
+                return Convert.ToUInt64(a) + b;
+            }
+            return Convert.ToInt64(a) + b;
+        }
+
+        public static double op_Addition(double a, T b)
+        {
+            return op_Addition(b, a);
+        }
+
+        public static double op_Subtraction(T a, double b)
+        {
+            if (IsUnsigned)
+            {
+                return Convert.ToUInt64(a) - b;
+            }
+            return Convert.ToInt64(a) - b;
+        }
+
+        public static double op_Subtraction(double a, T b)
+        {
+            if (IsUnsigned)
+            {
+                return a - Convert.ToUInt64(b);
+            }
+            return a - Convert.ToInt64(b);
+        }
+
+        public static double op_Multiply(T a, double b)
+        {
+            if (IsUnsigned)
+            {
+                return Convert.ToUInt64(a) * b;
+            }
+            return Convert.ToInt64(a) * b;
+        }
+
+        public static double op_Multiply(double a, T b)
+        {
+            return op_Multiply(b, a);
+        }
+
+        public static double op_Division(T a, double b)
+        {
+            if (IsUnsigned)
+            {
+                return Convert.ToUInt64(a) / b;
+            }
+            return Convert.ToInt64(a) / b;
+        }
+
+        public static double op_Division(double a, T b)
+        {
+            if (IsUnsigned)
+            {
+                return a / Convert.ToUInt64(b);
+            }
+            return a / Convert.ToInt64(b);
+        }
+
+        #endregion
+
+        #region Int comparison operators
+
+        public static bool op_Equality(T a, long b)
+        {
+            if (IsUnsigned)
+            {
+                var uvalue = Convert.ToUInt64(a);
+                return b >= 0 && ((ulong)b) == uvalue;
+            }
+            return Convert.ToInt64(a) == b;
+        }
+
+        public static bool op_Equality(T a, ulong b)
+        {
+            if (IsUnsigned)
+            {
+                var uvalue = Convert.ToUInt64(a);
+                return b == uvalue;
+            }
+            var ivalue = Convert.ToInt64(a);
+            return ivalue >= 0 && ((ulong)ivalue) == b;
+        }
+
+        public static bool op_Equality(long a, T b)
+        {
+            return op_Equality(b, a);
+        }
+
+        public static bool op_Equality(ulong a, T b)
+        {
+            return op_Equality(b, a);
+        }
+
+        public static bool op_Inequality(T a, long b)
+        {
+            return !op_Equality(a, b);
+        }
+
+        public static bool op_Inequality(T a, ulong b)
+        {
+            return !op_Equality(a, b);
+        }
+
+        public static bool op_Inequality(long a, T b)
+        {
+            return !op_Equality(b, a);
+        }
+
+        public static bool op_Inequality(ulong a, T b)
+        {
+            return !op_Equality(b, a);
+        }
+
+        public static bool op_LessThan(T a, long b)
+        {
+            if (IsUnsigned)
+            {
+                var uvalue = Convert.ToUInt64(a);
+                return b >= 0 && ((ulong)b) > uvalue;
+            }
+            return Convert.ToInt64(a) < b;
+        }
+
+        public static bool op_LessThan(T a, ulong b)
+        {
+            if (IsUnsigned)
+            {
+                var uvalue = Convert.ToUInt64(a);
+                return b > uvalue;
+            }
+            var ivalue = Convert.ToInt64(a);
+            return ivalue >= 0 && ((ulong)ivalue) < b;
+        }
+
+        public static bool op_LessThan(long a, T b)
+        {
+            return op_GreaterThan(b, a);
+        }
+
+        public static bool op_LessThan(ulong a, T b)
+        {
+            return op_GreaterThan(b, a);
+        }
+
+        public static bool op_GreaterThan(T a, long b)
+        {
+            if (IsUnsigned)
+            {
+                var uvalue = Convert.ToUInt64(a);
+                return b >= 0 && ((ulong)b) < uvalue;
+            }
+            return Convert.ToInt64(a) > b;
+        }
+
+        public static bool op_GreaterThan(T a, ulong b)
+        {
+            if (IsUnsigned)
+            {
+                var uvalue = Convert.ToUInt64(a);
+                return b < uvalue;
+            }
+            var ivalue = Convert.ToInt64(a);
+            return ivalue >= 0 && ((ulong)ivalue) > b;
+        }
+
+        public static bool op_GreaterThan(long a, T b)
+        {
+            return op_LessThan(b, a);
+        }
+
+        public static bool op_GreaterThan(ulong a, T b)
+        {
+            return op_LessThan(b, a);
+        }
+
+        public static bool op_LessThanOrEqual(T a, long b)
+        {
+            if (IsUnsigned)
+            {
+                var uvalue = Convert.ToUInt64(a);
+                return b >= 0 && ((ulong)b) >= uvalue;
+            }
+            return Convert.ToInt64(a) <= b;
+        }
+
+        public static bool op_LessThanOrEqual(T a, ulong b)
+        {
+            if (IsUnsigned)
+            {
+                var uvalue = Convert.ToUInt64(a);
+                return b >= uvalue;
+            }
+            var ivalue = Convert.ToInt64(a);
+            return ivalue >= 0 && ((ulong)ivalue) <= b;
+        }
+
+        public static bool op_LessThanOrEqual(long a, T b)
+        {
+            return op_GreaterThanOrEqual(b, a);
+        }
+
+        public static bool op_LessThanOrEqual(ulong a, T b)
+        {
+            return op_GreaterThanOrEqual(b, a);
+        }
+
+        public static bool op_GreaterThanOrEqual(T a, long b)
+        {
+            if (IsUnsigned)
+            {
+                var uvalue = Convert.ToUInt64(a);
+                return b >= 0 && ((ulong)b) <= uvalue;
+            }
+            return Convert.ToInt64(a) >= b;
+        }
+
+        public static bool op_GreaterThanOrEqual(T a, ulong b)
+        {
+            if (IsUnsigned)
+            {
+                var uvalue = Convert.ToUInt64(a);
+                return b <= uvalue;
+            }
+            var ivalue = Convert.ToInt64(a);
+            return ivalue >= 0 && ((ulong)ivalue) >= b;
+        }
+
+        public static bool op_GreaterThanOrEqual(long a, T b)
+        {
+            return op_LessThanOrEqual(b, a);
+        }
+
+        public static bool op_GreaterThanOrEqual(ulong a, T b)
+        {
+            return op_LessThanOrEqual(b, a);
+        }
+
+        #endregion
+
+        #region Double comparison operators
+
+        public static bool op_Equality(T a, double b)
+        {
+            if (IsUnsigned)
+            {
+                return Convert.ToUInt64(a) == b;
+            }
+            return Convert.ToInt64(a) == b;
+        }
+
+        public static bool op_Equality(double a, T b)
+        {
+            return op_Equality(b, a);
+        }
+
+        public static bool op_Inequality(T a, double b)
+        {
+            return !op_Equality(a, b);
+        }
+
+        public static bool op_Inequality(double a, T b)
+        {
+            return !op_Equality(b, a);
+        }
+
+        public static bool op_LessThan(T a, double b)
+        {
+            if (IsUnsigned)
+            {
+                return Convert.ToUInt64(a) < b;
+            }
+            return Convert.ToInt64(a) < b;
+        }
+
+        public static bool op_LessThan(double a, T b)
+        {
+            return op_GreaterThan(b, a);
+        }
+
+        public static bool op_GreaterThan(T a, double b)
+        {
+            if (IsUnsigned)
+            {
+                return Convert.ToUInt64(a) > b;
+            }
+            return Convert.ToInt64(a) > b;
+        }
+
+        public static bool op_GreaterThan(double a, T b)
+        {
+            return op_LessThan(b, a);
+        }
+
+        public static bool op_LessThanOrEqual(T a, double b)
+        {
+            if (IsUnsigned)
+            {
+                return Convert.ToUInt64(a) <= b;
+            }
+            return Convert.ToInt64(a) <= b;
+        }
+
+        public static bool op_LessThanOrEqual(double a, T b)
+        {
+            return op_GreaterThanOrEqual(b, a);
+        }
+
+        public static bool op_GreaterThanOrEqual(T a, double b)
+        {
+            if (IsUnsigned)
+            {
+                return Convert.ToUInt64(a) >= b;
+            }
+            return Convert.ToInt64(a) >= b;
+        }
+
+        public static bool op_GreaterThanOrEqual(double a, T b)
+        {
+            return op_LessThanOrEqual(b, a);
+        }
+
+        #endregion
+
+        #region String comparison operators
+        public static bool op_Equality(T a, string b)
+        {
+            return a.ToString().Equals(b, StringComparison.InvariantCultureIgnoreCase);
+        }
+        public static bool op_Equality(string a, T b)
+        {
+            return op_Equality(b, a);
+        }
+
+        public static bool op_Inequality(T a, string b)
+        {
+            return !op_Equality(a, b);
+        }
+
+        public static bool op_Inequality(string a, T b)
+        {
+            return !op_Equality(b, a);
+        }
+
+        #endregion
+
+        #region Enum comparison operators
+
+        public static bool op_Equality(T a, Enum b)
+        {
+            if (b == null)
+            {
+                return false;
+            }
+
+            if (b.GetType().GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_Equality(a, Convert.ToUInt64(b));
+            }
+            return op_Equality(a, Convert.ToInt64(b));
+        }
+
+        public static bool op_Equality(Enum a, T b)
+        {
+            return op_Equality(b, a);
+        }
+
+        public static bool op_Inequality(T a, Enum b)
+        {
+            return !op_Equality(a, b);
+        }
+
+        public static bool op_Inequality(Enum a, T b)
+        {
+            return !op_Equality(b, a);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void ThrowOnNull(object obj, string @operator)
+        {
+            if (obj == null)
+            {
+                using (Py.GIL())
+                {
+                    Exceptions.RaiseTypeError($"'{@operator}' not supported between instances of '{typeof(T).Name}' and null/None");
+                    PythonException.ThrowLastAsClrException();
+                }
+            }
+        }
+
+        public static bool op_LessThan(T a, Enum b)
+        {
+            ThrowOnNull(b, "<");
+
+            if (b.GetType().GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_LessThan(a, Convert.ToUInt64(b));
+            }
+            return op_LessThan(a, Convert.ToInt64(b));
+        }
+
+        public static bool op_LessThan(Enum a, T b)
+        {
+            ThrowOnNull(a, "<");
+            return op_GreaterThan(b, a);
+        }
+
+        public static bool op_GreaterThan(T a, Enum b)
+        {
+            ThrowOnNull(b, ">");
+
+            if (b.GetType().GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_GreaterThan(a, Convert.ToUInt64(b));
+            }
+            return op_GreaterThan(a, Convert.ToInt64(b));
+        }
+
+        public static bool op_GreaterThan(Enum a, T b)
+        {
+            ThrowOnNull(a, ">");
+            return op_LessThan(b, a);
+        }
+
+        public static bool op_LessThanOrEqual(T a, Enum b)
+        {
+            ThrowOnNull(b, "<=");
+
+            if (b.GetType().GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_LessThanOrEqual(a, Convert.ToUInt64(b));
+            }
+            return op_LessThanOrEqual(a, Convert.ToInt64(b));
+        }
+
+        public static bool op_LessThanOrEqual(Enum a, T b)
+        {
+            ThrowOnNull(a, "<=");
+            return op_GreaterThanOrEqual(b, a);
+        }
+
+        public static bool op_GreaterThanOrEqual(T a, Enum b)
+        {
+            ThrowOnNull(b, ">=");
+
+            if (b.GetType().GetEnumUnderlyingType() == typeof(UInt64))
+            {
+                return op_GreaterThanOrEqual(a, Convert.ToUInt64(b));
+            }
+            return op_GreaterThanOrEqual(a, Convert.ToInt64(b));
+        }
+
+        public static bool op_GreaterThanOrEqual(Enum a, T b)
+        {
+            ThrowOnNull(a, ">=");
+            return op_LessThanOrEqual(b, a);
+        }
+
+        #endregion
+
+        #region Object equality operators
+
+        public static bool op_Equality(T a, object b)
+        {
+            return false;
+        }
+
+        public static bool op_Equality(object a, T b)
+        {
+            return false;
+        }
+
+        public static bool op_Inequality(T a, object b)
+        {
+            return true;
+        }
+
+        public static bool op_Inequality(object a, T b)
+        {
+            return true;
+        }
+
+        #endregion
     }
 }
