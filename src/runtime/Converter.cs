@@ -515,6 +515,12 @@ class GMT(tzinfo):
                 return true;
             }
 
+            if (typeof(MulticastDelegate).IsAssignableFrom(obType) && Runtime.PyCallable_Check(value) != 0 &&
+                TryConvertToDelegate(value, obType, out result))
+            {
+                return true;
+            }
+
             if (obType.IsGenericType && obType.GetGenericTypeDefinition() == typeof(Nullable<>))
             {
                 if (value == Runtime.PyNone)
@@ -720,6 +726,67 @@ class GMT(tzinfo):
                 return false;
             }
             return ToPrimitive(explicitlyCoerced.Borrow(), obType, out result, false, out var _);
+        }
+
+        /// <summary>
+        /// Tries to convert the given Python object into a managed delegate
+        /// </summary>
+        /// <param name="pyValue">Python object to be converted</param>
+        /// <param name="delegateType">The wanted delegate type</param>
+        /// <param name="result">Managed delegate</param>
+        /// <returns>True if successful conversion</returns>
+        internal static bool TryConvertToDelegate(BorrowedReference pyValue, Type delegateType, out object result)
+        {
+            result = null;
+
+            if (!typeof(MulticastDelegate).IsAssignableFrom(delegateType))
+            {
+                return false;
+            }
+
+            if (pyValue.IsNull)
+            {
+                return true;
+            }
+
+            var code = string.Empty;
+            var types = delegateType.GetGenericArguments();
+
+            using var _ = Py.GIL();
+            using var locals = new PyDict();
+            try
+            {
+                for (var i = 0; i < types.Length; i++)
+                {
+                    var iString = i.ToString(CultureInfo.InvariantCulture);
+                    code += $",t{iString}";
+                    locals.SetItem($"t{iString}", types[i].ToPython());
+                }
+
+                using var pyCallable = new PyObject(pyValue);
+                locals.SetItem("pyCallable", pyCallable);
+
+                if (types.Length > 0)
+                {
+                    var name = delegateType.FullName.Substring(0, delegateType.FullName.IndexOf('`'));
+                    code = $"import System; delegate = {name}[{code.Substring(1)}](pyCallable)";
+                }
+                else
+                {
+                    var name = delegateType.FullName;
+                    code = $"import System; delegate = {name}(pyCallable)";
+                }
+
+                PythonEngine.Exec(code, null, locals);
+                result = locals.GetItem("delegate").AsManagedObject(delegateType);
+
+                return true;
+            }
+            catch
+            {
+            }
+
+            return false;
         }
 
         /// Determine if the comparing class is a subclass of a generic type
