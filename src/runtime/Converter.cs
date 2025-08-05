@@ -505,19 +505,17 @@ class GMT(tzinfo):
                     result = cb.type.Value;
                     return true;
                 }
-                // shouldn't happen
-                return false;
+                // Method bindings will be handled below along with actual Python callables
+                if (mt is not MethodBinding)
+                {
+                    // shouldn't happen
+                    return false;
+                }
             }
 
             if (value == Runtime.PyNone && !obType.IsValueType)
             {
                 result = null;
-                return true;
-            }
-
-            if (typeof(MulticastDelegate).IsAssignableFrom(obType) && Runtime.PyCallable_Check(value) != 0 &&
-                TryConvertToDelegate(value, obType, out result))
-            {
                 return true;
             }
 
@@ -549,6 +547,11 @@ class GMT(tzinfo):
             if (obType.IsEnum)
             {
                 return ToEnum(value, obType, out result, setError, out usedImplicit);
+            }
+
+            if (Runtime.PyCallable_Check(value) != 0 && TryConvertToDelegate(value, obType, out result))
+            {
+                return true;
             }
 
             // Conversion to 'Object' is done based on some reasonable default
@@ -768,13 +771,13 @@ class GMT(tzinfo):
 
                 if (types.Length > 0)
                 {
-                    var name = delegateType.FullName.Substring(0, delegateType.FullName.IndexOf('`'));
-                    code = $"import System; delegate = {name}[{code.Substring(1)}](pyCallable)";
+                    var name = delegateType.Name.Substring(0, delegateType.Name.IndexOf('`'));
+                    code = $"from System import {name}; delegate = {name}[{code.Substring(1)}](pyCallable)";
                 }
                 else
                 {
-                    var name = delegateType.FullName;
-                    code = $"import System; delegate = {name}(pyCallable)";
+                    var name = delegateType.Name;
+                    code = $"from System import {name}; delegate = {name}(pyCallable)";
                 }
 
                 PythonEngine.Exec(code, null, locals);

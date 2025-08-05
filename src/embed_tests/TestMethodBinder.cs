@@ -67,7 +67,7 @@ class PythonModel(TestMethodBinder.CSharpModel):
         public static dynamic Numpy;
 
         [OneTimeSetUp]
-        public void SetUp()
+        public void OneTimeSetUp()
         {
             PythonEngine.Initialize();
             using var _ = Py.GIL();
@@ -87,6 +87,14 @@ class PythonModel(TestMethodBinder.CSharpModel):
         public void Dispose()
         {
             PythonEngine.Shutdown();
+        }
+
+        [SetUp]
+        public void SetUp()
+        {
+            CSharpModel.LastDelegateCalled = null;
+            CSharpModel.LastFuncCalled = null;
+            CSharpModel.MethodCalled = null;
         }
 
         [Test]
@@ -1152,8 +1160,13 @@ def call_method():
             Assert.AreEqual("MethodWithEnumParam With Enum", result.As<string>());
         }
 
-        [Test]
-        public void BindsPythonToCSharpFuncDelegates()
+        [TestCase("call_method_with_func1", "MethodWithFunc1", "func1")]
+        [TestCase("call_method_with_func2", "MethodWithFunc2", "func2")]
+        [TestCase("call_method_with_func3", "MethodWithFunc3", "func3")]
+        [TestCase("call_method_with_func1_lambda", "MethodWithFunc1", "func1")]
+        [TestCase("call_method_with_func2_lambda", "MethodWithFunc2", "func2")]
+        [TestCase("call_method_with_func3_lambda", "MethodWithFunc3", "func3")]
+        public void BindsPythonToCSharpFuncDelegates(string pythonFuncToCall, string expectedCSharpMethodCalled, string expectedPythonFuncCalled)
         {
             using var _ = Py.GIL();
 
@@ -1202,61 +1215,28 @@ def call_method_with_func3_lambda():
     return TestMethodBinder.CSharpModel.MethodWithFunc3(lambda model1, model2: func3(model1, model2))
 ");
 
+            CSharpModel managedResult = null;
+            Assert.DoesNotThrow(() =>
+            {
+                using var result = module.GetAttr(pythonFuncToCall).Invoke();
+                managedResult = result.As<CSharpModel>();
+            });
+
+            Assert.IsNotNull(managedResult);
+            Assert.AreEqual(expectedCSharpMethodCalled, CSharpModel.LastDelegateCalled);
+
             using var pythonModel = module.GetAttr("PythonModel");
-
-            var assertCalledMethods = (string csharpCalledMethod, string pythonCalledMethod) =>
-            {
-                Assert.AreEqual(csharpCalledMethod, CSharpModel.LastDelegateCalled);
-                var lastDelegateCalled = pythonModel.GetAttr("last_delegate_called");
-                Assert.AreEqual(pythonCalledMethod, lastDelegateCalled.As<string>());
-                lastDelegateCalled.Dispose();
-            };
-
-            Assert.DoesNotThrow(() =>
-            {
-                using var result = module.GetAttr("call_method_with_func1").Invoke();
-                var managedResult = result.As<CSharpModel>();
-            });
-            assertCalledMethods("MethodWithFunc1", "func1");
-
-            Assert.DoesNotThrow(() =>
-            {
-                using var result = module.GetAttr("call_method_with_func2").Invoke();
-                var managedResult = result.As<CSharpModel>();
-            });
-            assertCalledMethods("MethodWithFunc2", "func2");
-
-            Assert.DoesNotThrow(() =>
-            {
-                using var result = module.GetAttr("call_method_with_func3").Invoke();
-                var managedResult = result.As<CSharpModel>();
-            });
-            assertCalledMethods("MethodWithFunc3", "func3");
-
-            Assert.DoesNotThrow(() =>
-            {
-                using var result = module.GetAttr("call_method_with_func1_lambda").Invoke();
-                var managedResult = result.As<CSharpModel>();
-            });
-            assertCalledMethods("MethodWithFunc1", "func1");
-
-            Assert.DoesNotThrow(() =>
-            {
-                using var result = module.GetAttr("call_method_with_func2_lambda").Invoke();
-                var managedResult = result.As<CSharpModel>();
-            });
-            assertCalledMethods("MethodWithFunc2", "func2");
-
-            Assert.DoesNotThrow(() =>
-            {
-                using var result = module.GetAttr("call_method_with_func3_lambda").Invoke();
-                var managedResult = result.As<CSharpModel>();
-            });
-            assertCalledMethods("MethodWithFunc3", "func3");
+            using var lastDelegateCalled = pythonModel.GetAttr("last_delegate_called");
+            Assert.AreEqual(expectedPythonFuncCalled, lastDelegateCalled.As<string>());
         }
 
-        [Test]
-        public void BindsPythonToCSharpActionDelegates()
+        [TestCase("call_method_with_action1", "MethodWithAction1", "action1")]
+        [TestCase("call_method_with_action2", "MethodWithAction2", "action2")]
+        [TestCase("call_method_with_action3", "MethodWithAction3", "action3")]
+        [TestCase("call_method_with_action1_lambda", "MethodWithAction1", "action1")]
+        [TestCase("call_method_with_action2_lambda", "MethodWithAction2", "action2")]
+        [TestCase("call_method_with_action3_lambda", "MethodWithAction3", "action3")]
+        public void BindsPythonToCSharpActionDelegates(string pythonFuncToCall, string expectedCSharpMethodCalled, string expectedPythonFuncCalled)
         {
             using var _ = Py.GIL();
 
@@ -1305,51 +1285,79 @@ def call_method_with_action3_lambda():
     return TestMethodBinder.CSharpModel.MethodWithAction3(lambda model1, model2: action3(model1, model2))
 ");
 
+            Assert.DoesNotThrow(() =>
+            {
+                using var result = module.GetAttr(pythonFuncToCall).Invoke();
+            });
+
+            Assert.AreEqual(expectedCSharpMethodCalled, CSharpModel.LastDelegateCalled);
+
             using var pythonModel = module.GetAttr("PythonModel");
+            using var lastDelegateCalled = pythonModel.GetAttr("last_delegate_called");
+            Assert.AreEqual(expectedPythonFuncCalled, lastDelegateCalled.As<string>());
+        }
 
-            var assertCalledMethods = (string csharpCalledMethod, string pythonCalledMethod) =>
+        [TestCase("call_method_with_func1", "MethodWithFunc1", "TestFunc1")]
+        [TestCase("call_method_with_func2", "MethodWithFunc2", "TestFunc2")]
+        [TestCase("call_method_with_func3", "MethodWithFunc3", "TestFunc3")]
+        public void BindsCSharpFuncFromPythonToCSharpFuncDelegates(string pythonFuncToCall, string expectedMethodCalled, string expectedInnerMethodCalled)
+        {
+            using var _ = Py.GIL();
+
+            var module = PyModule.FromString("BindsCSharpFuncFromPythonToCSharpFuncDelegates", @$"
+from clr import AddReference
+AddReference(""System"")
+from Python.EmbeddingTest import *
+
+def call_method_with_func1():
+    return TestMethodBinder.CSharpModel.MethodWithFunc1(TestMethodBinder.CSharpModel.TestFunc1)
+
+def call_method_with_func2():
+    return TestMethodBinder.CSharpModel.MethodWithFunc2(TestMethodBinder.CSharpModel.TestFunc2)
+
+def call_method_with_func3():
+    return TestMethodBinder.CSharpModel.MethodWithFunc3(TestMethodBinder.CSharpModel.TestFunc3)
+");
+
+            CSharpModel managedResult = null;
+            Assert.DoesNotThrow(() =>
             {
-                Assert.AreEqual(csharpCalledMethod, CSharpModel.LastDelegateCalled);
-                var lastDelegateCalled = pythonModel.GetAttr("last_delegate_called");
-                Assert.AreEqual(pythonCalledMethod, lastDelegateCalled.As<string>());
-                lastDelegateCalled.Dispose();
-            };
+                using var result = module.GetAttr(pythonFuncToCall).Invoke();
+                managedResult = result.As<CSharpModel>();
+            });
+            Assert.IsNotNull(managedResult);
+            Assert.AreEqual(expectedMethodCalled, CSharpModel.LastDelegateCalled);
+            Assert.AreEqual(expectedInnerMethodCalled, CSharpModel.LastFuncCalled);
+        }
+
+        [TestCase("call_method_with_action1", "MethodWithAction1", "TestAction1")]
+        [TestCase("call_method_with_action2", "MethodWithAction2", "TestAction2")]
+        [TestCase("call_method_with_action3", "MethodWithAction3", "TestAction3")]
+        public void BindsCSharpActionFromPythonToCSharpActionDelegates(string pythonFuncToCall, string expectedMethodCalled, string expectedInnerMethodCalled)
+        {
+            using var _ = Py.GIL();
+
+            var module = PyModule.FromString("BindsCSharpActionFromPythonToCSharpActionDelegates", @$"
+from clr import AddReference
+AddReference(""System"")
+from Python.EmbeddingTest import *
+
+def call_method_with_action1():
+    return TestMethodBinder.CSharpModel.MethodWithAction1(TestMethodBinder.CSharpModel.TestAction1)
+
+def call_method_with_action2():
+    return TestMethodBinder.CSharpModel.MethodWithAction2(TestMethodBinder.CSharpModel.TestAction2)
+
+def call_method_with_action3():
+    return TestMethodBinder.CSharpModel.MethodWithAction3(TestMethodBinder.CSharpModel.TestAction3)
+");
 
             Assert.DoesNotThrow(() =>
             {
-                using var result = module.GetAttr("call_method_with_action1").Invoke();
+                using var result = module.GetAttr(pythonFuncToCall).Invoke();
             });
-            assertCalledMethods("MethodWithAction1", "action1");
-
-            Assert.DoesNotThrow(() =>
-            {
-                using var result = module.GetAttr("call_method_with_action2").Invoke();
-            });
-            assertCalledMethods("MethodWithAction2", "action2");
-
-            Assert.DoesNotThrow(() =>
-            {
-                using var result = module.GetAttr("call_method_with_action3").Invoke();
-            });
-            assertCalledMethods("MethodWithAction3", "action3");
-
-            Assert.DoesNotThrow(() =>
-            {
-                using var result = module.GetAttr("call_method_with_action1_lambda").Invoke();
-            });
-            assertCalledMethods("MethodWithAction1", "action1");
-
-            Assert.DoesNotThrow(() =>
-            {
-                using var result = module.GetAttr("call_method_with_action2_lambda").Invoke();
-            });
-            assertCalledMethods("MethodWithAction2", "action2");
-
-            Assert.DoesNotThrow(() =>
-            {
-                using var result = module.GetAttr("call_method_with_action3_lambda").Invoke();
-            });
-            assertCalledMethods("MethodWithAction3", "action3");
+            Assert.AreEqual(expectedMethodCalled, CSharpModel.LastDelegateCalled);
+            Assert.AreEqual(expectedInnerMethodCalled, CSharpModel.LastFuncCalled);
         }
 
         // Used to test that we match this function with Py DateTime & Date Objects
@@ -1489,7 +1497,8 @@ def call_method_with_action3_lambda():
                 AssertErrorNotOccurred();
             }
 
-            public static string LastDelegateCalled { get; private set; }
+            public static string LastDelegateCalled { get; set; }
+            public static string LastFuncCalled { get; set; }
 
             public static CSharpModel MethodWithFunc1(Func<CSharpModel> func)
             {
@@ -1531,6 +1540,55 @@ def call_method_with_action3_lambda():
                 AssertErrorNotOccurred();
                 LastDelegateCalled = "MethodWithAction3";
                 action(new CSharpModel(), new CSharpModel());
+            }
+
+            public static CSharpModel TestFunc1()
+            {
+                LastFuncCalled = "TestFunc1";
+                return new CSharpModel();
+            }
+
+            public static CSharpModel TestFunc2(CSharpModel model)
+            {
+                if (model == null)
+                {
+                    throw new ArgumentNullException(nameof(model));
+                }
+                LastFuncCalled = "TestFunc2";
+                return model;
+            }
+
+            public static CSharpModel TestFunc3(CSharpModel model1, CSharpModel model2)
+            {
+                if (model1 == null || model2 == null)
+                {
+                    throw new ArgumentNullException(model1 == null ? nameof(model1) : nameof(model2));
+                }
+                LastFuncCalled = "TestFunc3";
+                return model1;
+            }
+
+            public static void TestAction1()
+            {
+                LastFuncCalled = "TestAction1";
+            }
+
+            public static void TestAction2(CSharpModel model)
+            {
+                if (model == null)
+                {
+                    throw new ArgumentNullException(nameof(model));
+                }
+                LastFuncCalled = "TestAction2";
+            }
+
+            public static void TestAction3(CSharpModel model1, CSharpModel model2)
+            {
+                if (model1 == null || model2 == null)
+                {
+                    throw new ArgumentNullException(model1 == null ? nameof(model1) : nameof(model2));
+                }
+                LastFuncCalled = "TestAction3";
             }
         }
 
