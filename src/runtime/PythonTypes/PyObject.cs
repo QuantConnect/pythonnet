@@ -225,17 +225,7 @@ namespace Python.Runtime
         public bool TrySafeAs<T>(out T result)
         {
             using var _ = Py.GIL();
-            if (TryAsManagedObject(typeof(T), out var obj))
-            {
-                if (obj is T t)
-                {
-                    result = t;
-                    return true;
-                }
-            }
-
-            result = default!;
-            return false;
+            return TryAs(out result);
         }
 
         internal bool IsDisposed => rawPtr == IntPtr.Zero;

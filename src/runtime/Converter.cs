@@ -9,6 +9,7 @@ using System.Security;
 using System.Text;
 
 using Python.Runtime.Native;
+using System.Linq;
 
 namespace Python.Runtime
 {
@@ -508,7 +509,6 @@ class GMT(tzinfo):
                 // Method bindings will be handled below along with actual Python callables
                 if (mt is not MethodBinding)
                 {
-                    // shouldn't happen
                     return false;
                 }
             }
@@ -549,7 +549,7 @@ class GMT(tzinfo):
                 return ToEnum(value, obType, out result, setError, out usedImplicit);
             }
 
-            if (Runtime.PyCallable_Check(value) != 0 && TryConvertToDelegate(value, obType, out result))
+            if (TryConvertToDelegate(value, obType, out result))
             {
                 return true;
             }
@@ -742,7 +742,7 @@ class GMT(tzinfo):
         {
             result = null;
 
-            if (!typeof(MulticastDelegate).IsAssignableFrom(delegateType))
+            if (!typeof(MulticastDelegate).IsAssignableFrom(delegateType) || Runtime.PyCallable_Check(pyValue) == 0)
             {
                 return false;
             }
@@ -755,24 +755,22 @@ class GMT(tzinfo):
             var code = string.Empty;
             var types = delegateType.GetGenericArguments();
 
-            using var _ = Py.GIL();
             using var locals = new PyDict();
             try
             {
-                for (var i = 0; i < types.Length; i++)
-                {
-                    var iString = i.ToString(CultureInfo.InvariantCulture);
-                    code += $",t{iString}";
-                    locals.SetItem($"t{iString}", types[i].ToPython());
-                }
-
                 using var pyCallable = new PyObject(pyValue);
                 locals.SetItem("pyCallable", pyCallable);
 
                 if (types.Length > 0)
                 {
+                    code = string.Join(',', types.Select((type, i) =>
+                    {
+                        var t = $"t{i}";
+                        locals.SetItem(t, type.ToPython());
+                        return t;
+                    }));
                     var name = delegateType.Name.Substring(0, delegateType.Name.IndexOf('`'));
-                    code = $"from System import {name}; delegate = {name}[{code.Substring(1)}](pyCallable)";
+                    code = $"from System import {name}; delegate = {name}[{code}](pyCallable)";
                 }
                 else
                 {
