@@ -95,6 +95,7 @@ class PythonModel(TestMethodBinder.CSharpModel):
             CSharpModel.LastDelegateCalled = null;
             CSharpModel.LastFuncCalled = null;
             CSharpModel.MethodCalled = null;
+            CSharpModel.ProvidedArgument = null;
         }
 
         [Test]
@@ -1360,6 +1361,47 @@ def call_method_with_action3():
             Assert.AreEqual(expectedInnerMethodCalled, CSharpModel.LastFuncCalled);
         }
 
+        [Test]
+        public void NumericArgumentsTakePrecedenceOverEnums()
+        {
+            using var _ = Py.GIL();
+
+            var module = PyModule.FromString("NumericArgumentsTakePrecedenceOverEnums", @$"
+from clr import AddReference
+AddReference(""System"")
+from Python.EmbeddingTest import *
+from System import DayOfWeek
+
+def call_method_with_int():
+    TestMethodBinder.CSharpModel().NumericalArgumentMethod(1)
+
+def call_method_with_float():
+    TestMethodBinder.CSharpModel().NumericalArgumentMethod(0.1)
+
+def call_method_with_numpy_float():
+    TestMethodBinder.CSharpModel().NumericalArgumentMethod(TestMethodBinder.Numpy.float64(0.1))
+
+def call_method_with_enum():
+    TestMethodBinder.CSharpModel().NumericalArgumentMethod(DayOfWeek.MONDAY)
+");
+
+            module.GetAttr("call_method_with_int").Invoke();
+            Assert.AreEqual(typeof(int), CSharpModel.ProvidedArgument.GetType());
+            Assert.AreEqual(1, CSharpModel.ProvidedArgument);
+
+            module.GetAttr("call_method_with_float").Invoke();
+            Assert.AreEqual(typeof(double), CSharpModel.ProvidedArgument.GetType());
+            Assert.AreEqual(0.1d, CSharpModel.ProvidedArgument);
+
+            module.GetAttr("call_method_with_numpy_float").Invoke();
+            Assert.AreEqual(typeof(decimal), CSharpModel.ProvidedArgument.GetType());
+            Assert.AreEqual(0.1m, CSharpModel.ProvidedArgument);
+
+            module.GetAttr("call_method_with_enum").Invoke();
+            Assert.AreEqual(typeof(DayOfWeek), CSharpModel.ProvidedArgument.GetType());
+            Assert.AreEqual(DayOfWeek.Monday, CSharpModel.ProvidedArgument);
+        }
+
         // Used to test that we match this function with Py DateTime & Date Objects
         public static int GetMonth(DateTime test)
         {
@@ -1439,6 +1481,10 @@ def call_method_with_action3():
                 ProvidedArgument = value;
             }
             public void NumericalArgumentMethod(decimal value)
+            {
+                ProvidedArgument = value;
+            }
+            public void NumericalArgumentMethod(DayOfWeek value)
             {
                 ProvidedArgument = value;
             }
