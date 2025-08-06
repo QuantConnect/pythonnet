@@ -25,7 +25,7 @@ namespace Python.Runtime
         /// Trace stack for PyObject's construction
         /// </summary>
         public StackTrace Traceback { get; } = new StackTrace(1);
-#endif  
+#endif
 
         protected internal IntPtr rawPtr = IntPtr.Zero;
         internal readonly int run = Runtime.GetRun();
@@ -163,7 +163,7 @@ namespace Python.Runtime
         /// </remarks>
         public object? AsManagedObject(Type t)
         {
-            if (!Converter.ToManaged(obj, t, out var result, true))
+            if (!TryAsManagedObject(t, out var result))
             {
                 throw new InvalidCastException("cannot convert object to target type",
                     PythonException.FetchCurrentOrNull(out _));
@@ -176,6 +176,57 @@ namespace Python.Runtime
         /// value of the Python object.
         /// </summary>
         public T As<T>() => (T)this.AsManagedObject(typeof(T))!;
+
+        /// <summary>
+        /// Tries to convert the Python object to a managed object of the specified type.
+        /// </summary>
+        public bool TryAsManagedObject(Type t, out object? result)
+        {
+            return Converter.ToManaged(obj, t, out result, true);
+        }
+
+        /// <summary>
+        /// Tries to convert the Python object to a managed object of the specified type.
+        /// </summary>
+        public bool TryAs<T>(out T result)
+        {
+            if (TryAsManagedObject(typeof(T), out var obj))
+            {
+                if (obj is T t)
+                {
+                    result = t;
+                    return true;
+                }
+            }
+
+            result = default!;
+            return false;
+        }
+
+        /// <summary>
+        /// Return a managed object of the given type, based on the
+        /// value of the Python object.
+        /// </summary>
+        /// <remarks>
+        /// This method will act in a safe way by acquiring the GIL.
+        /// </remarks>
+        public T SafeAs<T>()
+        {
+            using var _ = Py.GIL();
+            return As<T>();
+        }
+
+        /// <summary>
+        /// Tries to convert the Python object to a managed object of the specified type.
+        /// </summary>
+        /// <remarks>
+        /// This method will act in a safe way by acquiring the GIL.
+        /// </remarks>
+        public bool TrySafeAs<T>(out T result)
+        {
+            using var _ = Py.GIL();
+            return TryAs(out result);
+        }
 
         internal bool IsDisposed => rawPtr == IntPtr.Zero;
 
@@ -235,7 +286,7 @@ namespace Python.Runtime
         {
             GC.SuppressFinalize(this);
             Dispose(true);
-            
+
         }
 
         internal StolenReference Steal()

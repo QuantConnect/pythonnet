@@ -9,6 +9,7 @@ using System.Security;
 using System.Text;
 
 using Python.Runtime.Native;
+using System.Linq;
 
 namespace Python.Runtime
 {
@@ -505,8 +506,11 @@ class GMT(tzinfo):
                     result = cb.type.Value;
                     return true;
                 }
-                // shouldn't happen
-                return false;
+                // Method bindings will be handled below along with actual Python callables
+                if (mt is not MethodBinding)
+                {
+                    return false;
+                }
             }
 
             if (value == Runtime.PyNone && !obType.IsValueType)
@@ -543,6 +547,11 @@ class GMT(tzinfo):
             if (obType.IsEnum)
             {
                 return ToEnum(value, obType, out result, setError, out usedImplicit);
+            }
+
+            if (TryConvertToDelegate(value, obType, out result))
+            {
+                return true;
             }
 
             // Conversion to 'Object' is done based on some reasonable default
@@ -720,6 +729,65 @@ class GMT(tzinfo):
                 return false;
             }
             return ToPrimitive(explicitlyCoerced.Borrow(), obType, out result, false, out var _);
+        }
+
+        /// <summary>
+        /// Tries to convert the given Python object into a managed delegate
+        /// </summary>
+        /// <param name="pyValue">Python object to be converted</param>
+        /// <param name="delegateType">The wanted delegate type</param>
+        /// <param name="result">Managed delegate</param>
+        /// <returns>True if successful conversion</returns>
+        internal static bool TryConvertToDelegate(BorrowedReference pyValue, Type delegateType, out object result)
+        {
+            result = null;
+
+            if (!typeof(MulticastDelegate).IsAssignableFrom(delegateType) || Runtime.PyCallable_Check(pyValue) == 0)
+            {
+                return false;
+            }
+
+            if (pyValue.IsNull)
+            {
+                return true;
+            }
+
+            var code = string.Empty;
+            var types = delegateType.GetGenericArguments();
+
+            using var locals = new PyDict();
+            try
+            {
+                using var pyCallable = new PyObject(pyValue);
+                locals.SetItem("pyCallable", pyCallable);
+
+                if (types.Length > 0)
+                {
+                    code = string.Join(',', types.Select((type, i) =>
+                    {
+                        var t = $"t{i}";
+                        locals.SetItem(t, type.ToPython());
+                        return t;
+                    }));
+                    var name = delegateType.Name.Substring(0, delegateType.Name.IndexOf('`'));
+                    code = $"from System import {name}; delegate = {name}[{code}](pyCallable)";
+                }
+                else
+                {
+                    var name = delegateType.Name;
+                    code = $"from System import {name}; delegate = {name}(pyCallable)";
+                }
+
+                PythonEngine.Exec(code, null, locals);
+                result = locals.GetItem("delegate").AsManagedObject(delegateType);
+
+                return true;
+            }
+            catch
+            {
+            }
+
+            return false;
         }
 
         /// Determine if the comparing class is a subclass of a generic type

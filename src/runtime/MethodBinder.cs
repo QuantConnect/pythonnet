@@ -389,14 +389,24 @@ namespace Python.Runtime
                 return ArgPrecedence(Nullable.GetUnderlyingType(t), isOperatorMethod);
             }
 
+            // Enums precedence is higher tan PyObject but lower than numbers.
+            // PyObject precedence is higher and objects.
+            // Strings precedence is higher than objects.
+            // So we have:
+            //  - String: 50
+            //  - Object: 40
+            //  - PyObject: 39
+            //  - Enum: 38
+            //  - Numbers: 2 -> 29
+
             if (t.IsEnum)
             {
-                return -2;
+                return 38;
             }
 
             if (t.IsAssignableFrom(typeof(PyObject)) && !isOperatorMethod)
             {
-                return -1;
+                return 39;
             }
 
             if (t.IsArray)
@@ -414,7 +424,7 @@ namespace Python.Runtime
             switch (tc)
             {
                 case TypeCode.Object:
-                    return 1;
+                    return 40;
 
                 // we place higher precision methods at the top
                 case TypeCode.Decimal:
@@ -444,10 +454,10 @@ namespace Python.Runtime
                     return 29;
 
                 case TypeCode.String:
-                    return 30;
+                    return 50;
 
                 case TypeCode.Boolean:
-                    return 40;
+                    return 60;
             }
 
             return 2000;
