@@ -13,24 +13,18 @@ namespace Python.Runtime
 
         internal EnumObject(Type type) : base(type)
         {
-            if (!type.IsEnum)
-            {
-                throw new ArgumentException($"{nameof(EnumObject)} can only handle Enum types. Received {type.Name}", nameof(type));
-            }
-
             _isUnsigned = type.GetEnumUnderlyingType() == typeof(UInt64);
         }
 
         /// <summary>
         /// Standard comparison implementation for instances of enum types.
         /// </summary>
-        public new static NewReference tp_richcompare(BorrowedReference ob, BorrowedReference other, int op)
+        public static NewReference tp_richcompare(BorrowedReference ob, BorrowedReference other, int op)
         {
             object rightInstance;
             CLRObject leftClrObject;
             int comparisonResult;
-            var leftType = Runtime.PyObject_TYPE(ob);
-            var leftClass = (EnumObject)GetManagedObject(leftType)!;
+            EnumObject leftClass;
 
             switch (op)
             {
@@ -56,6 +50,7 @@ namespace Python.Runtime
                         return new NewReference(pyfalse);
                     }
 
+                    leftClass = (EnumObject)GetManagedObject(Runtime.PyObject_TYPE(ob))!;
                     if (rightInstance != null &&
                         TryCompare(leftClrObject.inst as Enum, rightInstance, leftClass._isUnsigned, out comparisonResult) &&
                         comparisonResult == 0)
@@ -81,6 +76,7 @@ namespace Python.Runtime
                         return Exceptions.RaiseTypeError($"Cannot compare {leftClrObject.inst.GetType()} to None");
                     }
 
+                    leftClass = (EnumObject)GetManagedObject(Runtime.PyObject_TYPE(ob))!;
                     try
                     {
                         if (!TryCompare(leftClrObject.inst as Enum, rightInstance, leftClass._isUnsigned, out comparisonResult))
