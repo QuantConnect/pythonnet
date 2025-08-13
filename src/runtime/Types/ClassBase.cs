@@ -156,42 +156,7 @@ namespace Python.Runtime
                     try
                     {
                         int cmp = co1Comp.CompareTo(co2Inst);
-
-                        BorrowedReference pyCmp;
-                        if (cmp < 0)
-                        {
-                            if (op == Runtime.Py_LT || op == Runtime.Py_LE)
-                            {
-                                pyCmp = Runtime.PyTrue;
-                            }
-                            else
-                            {
-                                pyCmp = Runtime.PyFalse;
-                            }
-                        }
-                        else if (cmp == 0)
-                        {
-                            if (op == Runtime.Py_LE || op == Runtime.Py_GE)
-                            {
-                                pyCmp = Runtime.PyTrue;
-                            }
-                            else
-                            {
-                                pyCmp = Runtime.PyFalse;
-                            }
-                        }
-                        else
-                        {
-                            if (op == Runtime.Py_GE || op == Runtime.Py_GT)
-                            {
-                                pyCmp = Runtime.PyTrue;
-                            }
-                            else
-                            {
-                                pyCmp = Runtime.PyFalse;
-                            }
-                        }
-                        return new NewReference(pyCmp);
+                        return new NewReference(GetComparisonResult(op, cmp));
                     }
                     catch (ArgumentException e)
                     {
@@ -202,7 +167,53 @@ namespace Python.Runtime
             }
         }
 
-        private static bool TryGetSecondCompareOperandInstance(BorrowedReference left, BorrowedReference right, out CLRObject co1, out object co2Inst)
+        /// <summary>
+        /// Get the result of a comparison operation based on the operator and the comparison result.
+        /// </summary>
+        /// <remarks>
+        /// This method is used to determine the result of a comparison operation, excluding equality and inequality.
+        /// </remarks>
+        protected static BorrowedReference GetComparisonResult(int op, int comparisonResult)
+        {
+            BorrowedReference pyCmp;
+            if (comparisonResult < 0)
+            {
+                if (op == Runtime.Py_LT || op == Runtime.Py_LE)
+                {
+                    pyCmp = Runtime.PyTrue;
+                }
+                else
+                {
+                    pyCmp = Runtime.PyFalse;
+                }
+            }
+            else if (comparisonResult == 0)
+            {
+                if (op == Runtime.Py_LE || op == Runtime.Py_GE)
+                {
+                    pyCmp = Runtime.PyTrue;
+                }
+                else
+                {
+                    pyCmp = Runtime.PyFalse;
+                }
+            }
+            else
+            {
+                if (op == Runtime.Py_GE || op == Runtime.Py_GT)
+                {
+                    pyCmp = Runtime.PyTrue;
+                }
+                else
+                {
+                    pyCmp = Runtime.PyFalse;
+                }
+            }
+
+            return pyCmp;
+        }
+
+        protected static bool TryGetSecondCompareOperandInstance(BorrowedReference left, BorrowedReference right, out CLRObject co1, out object co2Inst)
         {
             co2Inst = null;
 
