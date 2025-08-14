@@ -220,6 +220,11 @@ namespace Python.Runtime
                 impl = new LookUpObject(type);
             }
 
+            else if (type.IsEnum)
+            {
+                impl = new EnumObject(type);
+            }
+
             else
             {
                 impl = new ClassObject(type);
