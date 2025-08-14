@@ -9,11 +9,8 @@ namespace Python.Runtime
     [Serializable]
     internal class EnumObject : ClassBase
     {
-        private bool _isUnsigned;
-
         internal EnumObject(Type type) : base(type)
         {
-            _isUnsigned = type.GetEnumUnderlyingType() == typeof(UInt64);
         }
 
         /// <summary>
@@ -24,7 +21,6 @@ namespace Python.Runtime
             object rightInstance;
             CLRObject leftClrObject;
             int comparisonResult;
-            EnumObject leftClass;
 
             switch (op)
             {
@@ -50,9 +46,8 @@ namespace Python.Runtime
                         return new NewReference(pyfalse);
                     }
 
-                    leftClass = (EnumObject)GetManagedObject(Runtime.PyObject_TYPE(ob))!;
                     if (rightInstance != null &&
-                        TryCompare(leftClrObject.inst as Enum, rightInstance, leftClass._isUnsigned, out comparisonResult) &&
+                        TryCompare(leftClrObject.inst as Enum, rightInstance, out comparisonResult) &&
                         comparisonResult == 0)
                     {
                         return new NewReference(pytrue);
@@ -76,10 +71,9 @@ namespace Python.Runtime
                         return Exceptions.RaiseTypeError($"Cannot compare {leftClrObject.inst.GetType()} to None");
                     }
 
-                    leftClass = (EnumObject)GetManagedObject(Runtime.PyObject_TYPE(ob))!;
                     try
                     {
-                        if (!TryCompare(leftClrObject.inst as Enum, rightInstance, leftClass._isUnsigned, out comparisonResult))
+                        if (!TryCompare(leftClrObject.inst as Enum, rightInstance, out comparisonResult))
                         {
                             return Exceptions.RaiseTypeError($"Cannot compare {leftClrObject.inst.GetType()} with {rightInstance.GetType()}");
                         }
@@ -100,39 +94,22 @@ namespace Python.Runtime
         /// Tries comparing the give enum to the right operand by converting it to the appropriate type if possible
         /// </summary>
         /// <returns>True if the right operand was converted to a supported type and the comparison was performed successfully</returns>
-        private static bool TryCompare(Enum left, object right, bool isUnsigned, out int result)
+        private static bool TryCompare(Enum left, object right, out int result)
         {
             result = int.MinValue;
             var conversionSuccessful = true;
+            var leftType = left.GetType();
+            var rightType = right.GetType();
             // Same enum comparison:
-            if (left.GetType() == right.GetType())
+            if (leftType == rightType)
             {
                 result = left.CompareTo(right);
             }
             // Comparison with other enum types
-            else if (right.GetType().IsEnum)
+            else if (rightType.IsEnum)
             {
-                result = Compare(left, right as Enum, isUnsigned);
-            }
-            else if (right is double rightDouble)
-            {
-                result = Compare(left, rightDouble, isUnsigned);
-            }
-            else if (right is long rightLong)
-            {
-                result = Compare(left, rightLong, isUnsigned);
-            }
-            else if (right is ulong rightULong)
-            {
-                result = Compare(left, rightULong, isUnsigned);
-            }
-            else if (right is int rightInt)
-            {
-                result = Compare(left, rightInt, isUnsigned);
-            }
-            else if (right is uint rightUInt)
-            {
-                result = Compare(left, rightUInt, isUnsigned);
+                var leftIsUnsigned = leftType.GetEnumUnderlyingType() == typeof(UInt64);
+                result = Compare(left, right as Enum, leftIsUnsigned);
             }
             else if (right is string rightString)
             {
@@ -140,7 +117,31 @@ namespace Python.Runtime
             }
             else
             {
-                conversionSuccessful = false;
+                var leftIsUnsigned = leftType.GetEnumUnderlyingType() == typeof(UInt64);
+                if (right is double rightDouble)
+                {
+                    result = Compare(left, rightDouble, leftIsUnsigned);
+                }
+                else if (right is long rightLong)
+                {
+                    result = Compare(left, rightLong, leftIsUnsigned);
+                }
+                else if (right is ulong rightULong)
+                {
+                    result = Compare(left, rightULong, leftIsUnsigned);
+                }
+                else if (right is int rightInt)
+                {
+                    result = Compare(left, rightInt, leftIsUnsigned);
+                }
+                else if (right is uint rightUInt)
+                {
+                    result = Compare(left, rightUInt, leftIsUnsigned);
+                }
+                else
+                {
+                    conversionSuccessful = false;
+                }
             }
 
             return conversionSuccessful;
