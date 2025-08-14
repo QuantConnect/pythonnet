@@ -99,49 +99,39 @@ namespace Python.Runtime
             result = int.MinValue;
             var conversionSuccessful = true;
             var leftType = left.GetType();
-            var rightType = right.GetType();
-            // Same enum comparison:
-            if (leftType == rightType)
+            var leftIsUnsigned = () => leftType.GetEnumUnderlyingType() == typeof(UInt64);
+
+            switch (right)
             {
-                result = left.CompareTo(right);
-            }
-            // Comparison with other enum types
-            else if (rightType.IsEnum)
-            {
-                var leftIsUnsigned = leftType.GetEnumUnderlyingType() == typeof(UInt64);
-                result = Compare(left, right as Enum, leftIsUnsigned);
-            }
-            else if (right is string rightString)
-            {
-                result = left.ToString().CompareTo(rightString);
-            }
-            else
-            {
-                var leftIsUnsigned = leftType.GetEnumUnderlyingType() == typeof(UInt64);
-                if (right is double rightDouble)
-                {
-                    result = Compare(left, rightDouble, leftIsUnsigned);
-                }
-                else if (right is long rightLong)
-                {
-                    result = Compare(left, rightLong, leftIsUnsigned);
-                }
-                else if (right is ulong rightULong)
-                {
-                    result = Compare(left, rightULong, leftIsUnsigned);
-                }
-                else if (right is int rightInt)
-                {
-                    result = Compare(left, rightInt, leftIsUnsigned);
-                }
-                else if (right is uint rightUInt)
-                {
-                    result = Compare(left, rightUInt, leftIsUnsigned);
-                }
-                else
-                {
+                case Enum when leftType == right.GetType():
+                    // Same enum type
+                    result = left.CompareTo(right);
+                    break;
+                case Enum rightEnum:
+                    // Different enum type
+                    result = Compare(left, rightEnum, leftIsUnsigned());
+                    break;
+                case string rightString:
+                    result = left.ToString().CompareTo(rightString);
+                    break;
+                case double rightDouble:
+                    result = Compare(left, rightDouble, leftIsUnsigned());
+                    break;
+                case long rightLong:
+                    result = Compare(left, rightLong, leftIsUnsigned());
+                    break;
+                case ulong rightULong:
+                    result = Compare(left, rightULong, leftIsUnsigned());
+                    break;
+                case int rightInt:
+                    result = Compare(left, (long)rightInt, leftIsUnsigned());
+                    break;
+                case uint rightUInt:
+                    result = Compare(left, (ulong)rightUInt, leftIsUnsigned());
+                    break;
+                default:
                     conversionSuccessful = false;
-                }
+                    break;
             }
 
             return conversionSuccessful;
