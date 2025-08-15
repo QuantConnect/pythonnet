@@ -546,7 +546,7 @@ namespace Python.Runtime
                     var margs = new object[clrArgCount];
 
                     int paramsArrayIndex = paramsArray ? pi.Length - 1 : -1; // -1 indicates no paramsArray
-                    var usedImplicitConversion = false;
+                    int implicitConversions = 0;
                     var kwargsMatched = 0;
 
                     // Conversion loop for each parameter
@@ -658,10 +658,14 @@ namespace Python.Runtime
                                     else if (matches.Count == 0)
                                     {
                                         // accepts non-decimal numbers in decimal parameters
-                                        if (underlyingType == typeof(decimal))
+                                        if (underlyingType == typeof(decimal) || underlyingType == typeof(double))
                                         {
                                             clrtype = parameter.ParameterType;
-                                            usedImplicitConversion |= typematch = Converter.ToManaged(op, clrtype, out arg, false);
+                                            typematch = Converter.ToManaged(op, clrtype, out arg, false);
+                                            if (typematch)
+                                            {
+                                                implicitConversions++;
+                                            }
                                         }
                                         if (!typematch)
                                         {
@@ -669,7 +673,11 @@ namespace Python.Runtime
                                             var opImplicit = parameter.ParameterType.GetMethod("op_Implicit", new[] { clrtype });
                                             if (opImplicit != null)
                                             {
-                                                usedImplicitConversion |= typematch = opImplicit.ReturnType == parameter.ParameterType;
+                                                typematch = opImplicit.ReturnType == parameter.ParameterType;
+                                                if (typematch)
+                                                {
+                                                    implicitConversions++;
+                                                }
                                                 clrtype = parameter.ParameterType;
                                             }
                                         }
@@ -739,13 +747,10 @@ namespace Python.Runtime
                         }
                     }
 
-                    var match = new MatchedMethod(kwargsMatched, margs, outs, methodInformation);
-                    if (usedImplicitConversion)
+                    var match = new MatchedMethod(kwargsMatched, margs, outs, methodInformation, implicitConversions);
+                    if (implicitConversions > 0)
                     {
-                        if (matchesUsingImplicitConversion == null)
-                        {
-                            matchesUsingImplicitConversion = new List<MatchedMethod>();
-                        }
+                        matchesUsingImplicitConversion ??= new List<MatchedMethod>();
                         matchesUsingImplicitConversion.Add(match);
                     }
                     else
@@ -767,11 +772,22 @@ namespace Python.Runtime
                 // we solve the ambiguity by taking the one with the highest precedence but only
                 // considering the actual arguments passed, ignoring the optional arguments for
                 // which the default values were used
-                var bestMatch = matchesTouse
-                    .GroupBy(x => x.KwargsMatched)
-                    .OrderByDescending(x => x.Key)
-                    .First()
-                    .MinBy(x => GetMatchedArgumentsPrecedence(x.MethodInformation, pyArgCount, kwArgDict?.Keys));
+                MatchedMethod bestMatch;
+                if (matchesTouse.Count == 1)
+                {
+                    bestMatch = matchesTouse[0];
+                }
+                else
+                {
+                    bestMatch = matchesTouse
+                        .GroupBy(x => x.KwargsMatched)
+                        .OrderByDescending(x => x.Key)
+                        .First()
+                        .GroupBy(x => x.ImplicitOperations)
+                        .OrderBy(x => x.Key)
+                        .First()
+                        .MinBy(x => GetMatchedArgumentsPrecedence(x.MethodInformation, pyArgCount, kwArgDict?.Keys));
+                }
 
                 var margs = bestMatch.ManagedArgs;
                 var outs = bestMatch.Outs;
@@ -1135,15 +1151,17 @@ namespace Python.Runtime
             public int KwargsMatched { get; }
             public object?[] ManagedArgs { get; }
             public int Outs { get; }
+            public int ImplicitOperations { get; }
             public MethodInformation MethodInformation { get; }
             public MethodBase Method => MethodInformation.MethodBase;
 
-            public MatchedMethod(int kwargsMatched, object?[] margs, int outs, MethodInformation methodInformation)
+            public MatchedMethod(int kwargsMatched, object?[] margs, int outs, MethodInformation methodInformation, int implicitOperations)
             {
                 KwargsMatched = kwargsMatched;
                 ManagedArgs = margs;
                 Outs = outs;
                 MethodInformation = methodInformation;
+                ImplicitOperations = implicitOperations;
             }
         }
 
