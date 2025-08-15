@@ -1448,7 +1448,7 @@ def call_method_with_enum():
                 return true;
             }
 
-            public virtual string OnlyClass(TestImplicitConversion data)
+            public virtual string OnlyClass(TestImplicitConversion data, double anotherArgument = 0)
             {
                 return "OnlyClass impl";
             }
@@ -1458,12 +1458,12 @@ def call_method_with_enum():
                 return "OnlyString impl: " + data;
             }
 
-            public virtual string InvokeModel(string data)
+            public virtual string InvokeModel(string data, double anotherArgument = 0)
             {
                 return "string impl: " + data;
             }
 
-            public virtual string InvokeModel(TestImplicitConversion data)
+            public virtual string InvokeModel(TestImplicitConversion data, double anotherArgument = 0)
             {
                 return "TestImplicitConversion impl";
             }
