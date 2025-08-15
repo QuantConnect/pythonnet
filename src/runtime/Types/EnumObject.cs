@@ -7,7 +7,7 @@ namespace Python.Runtime
     /// Managed class that provides the implementation for reflected enum types.
     /// </summary>
     [Serializable]
-    internal class EnumObject : ClassBase
+    internal class EnumObject : ClassObject
     {
         internal EnumObject(Type type) : base(type)
         {
