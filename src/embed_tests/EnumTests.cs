@@ -621,6 +621,30 @@ def compare_with_csharp_object2(csharp_object):
             Assert.Throws<PythonException>(() => module.InvokeMethod("compare_with_csharp_object2", pyNull));
         }
 
+        [TestCase(VerticalDirection.Down)]
+        [TestCase(VerticalDirection.Flat)]
+        [TestCase(VerticalDirection.Up)]
+        public void CanInstantiateEnumFromInt(VerticalDirection expectedEnumValue)
+        {
+            using var _ = Py.GIL();
+            using var module = PyModule.FromString("CanInstantiateEnumFromInt", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+def get_enum(int_value):
+    return {nameof(EnumTests)}.{nameof(VerticalDirection)}(int_value)
+
+");
+
+            using var pyEnumIntValue = ((int)expectedEnumValue).ToPython();
+            PyObject pyEnumValue = null;
+            Assert.DoesNotThrow(() => pyEnumValue = module.InvokeMethod("get_enum", pyEnumIntValue));
+            var enumValue = pyEnumValue.As<VerticalDirection>();
+            Assert.AreEqual(expectedEnumValue, enumValue);
+        }
+
         public class TestClass
         {
         }
