@@ -17,7 +17,36 @@ namespace Python.Runtime
 {
     public static class RuntimeData
     {
-        private static Type? _formatterType;
+
+        public readonly static Func<IFormatter> DefaultFormatterFactory = () =>
+        {
+            try
+            {
+                var res = new BinaryFormatter();
+                res.Serialize(new MemoryStream(), 1); // test if BinaryFormatter is usable
+                return res;
+            }
+            catch
+            {
+                return new NoopFormatter();
+            }
+        };
+
+        private static Func<IFormatter> _formatterFactory { get; set; } = DefaultFormatterFactory;
+
+        public static Func<IFormatter> FormatterFactory
+        {
+            get => _formatterFactory;
+            set
+            {
+                if (value == null)
+                    throw new ArgumentNullException(nameof(value));
+
+                _formatterFactory = value;
+            }
+        }
+
+        private static Type? _formatterType = null;
         public static Type? FormatterType
         {
             get => _formatterType;
@@ -206,7 +235,7 @@ namespace Python.Runtime
         {
             return FormatterType != null ?
                 (IFormatter)Activator.CreateInstance(FormatterType)
-                : new BinaryFormatter();
+                : FormatterFactory();
         }
     }
 }
