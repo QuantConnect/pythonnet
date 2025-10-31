@@ -83,11 +83,9 @@ namespace Python.Runtime
 
         [ForbidPythonThreads]
 #pragma warning disable IDE1006 // Naming Styles - must match Python
-        public static PyInt __int__(T value)
+        public static object __int__(T value)
 #pragma warning restore IDE1006 // Naming Styles
-            => IsUnsigned
-            ? new PyInt(Convert.ToUInt64(value))
-            : new PyInt(Convert.ToInt64(value));
+            => IsUnsigned ? Convert.ToUInt64(value) : Convert.ToInt64(value);
 
         #region Arithmetic operators
 
