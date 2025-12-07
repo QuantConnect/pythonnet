@@ -13,6 +13,7 @@
         "__slots__",
         "__self__",
         "__annotations__",
+        "__dictoffset__",
 
         "__init__",
         "__repr__",
