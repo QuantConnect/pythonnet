@@ -1404,6 +1404,7 @@ def call_method_with_enum():
 
         [TestCase("call_non_generic_method", "GenericOverloadTestMethod")]
         [TestCase("call_generic_method", "GenericOverloadTestMethod<T>")]
+        [TestCase("call_generic_class_method", "GenericOverloadTestClass<T>.GenericOverloadTestMethod")]
         public void ResolvesToGenericOnlyWhenExplicitlyCalled(string pythonFuncToCall, string expectedMethodCalled)
         {
             using var _ = Py.GIL();
@@ -1418,6 +1419,9 @@ def call_non_generic_method():
 
 def call_generic_method():
     return TestMethodBinder.CSharpModel.GenericOverloadTestMethod[TestMethodBinder.CSharpModel](TestMethodBinder.CSharpModel(), 'Test')
+
+def call_generic_class_method():
+    return GenericOverloadTestClass[TestMethodBinder.CSharpModel].GenericOverloadTestMethod(TestMethodBinder.CSharpModel(), 'Test')
 ");
 
             Assert.DoesNotThrow(() =>
@@ -1819,6 +1823,16 @@ def call_generic_method():
         {
             A = 1,
             B = 2,
+        }
+    }
+
+    public class GenericOverloadTestClass<T>
+    {
+        public static T GenericOverloadTestMethod(T testArg1, string testArg2, decimal testArgs3 = 0m)
+        {
+            TestMethodBinder.CSharpModel.LastFuncCalled = "GenericOverloadTestClass<T>.GenericOverloadTestMethod";
+            return default;
+
         }
     }
 }
