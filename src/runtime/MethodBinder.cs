@@ -780,6 +780,8 @@ namespace Python.Runtime
                 else
                 {
                     bestMatch = matchesTouse
+                        .GroupBy(x => x.Method.IsGenericMethod)
+                        .MinBy(x => x.Key)
                         .GroupBy(x => x.KwargsMatched)
                         .OrderByDescending(x => x.Key)
                         .First()

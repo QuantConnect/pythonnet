@@ -1402,6 +1402,31 @@ def call_method_with_enum():
             Assert.AreEqual(DayOfWeek.Monday, CSharpModel.ProvidedArgument);
         }
 
+        [TestCase("call_non_generic_method", "GenericOverloadTestMethod")]
+        [TestCase("call_generic_method", "GenericOverloadTestMethod<T>")]
+        public void ResolvesToGenericOnlyWhenExplicitlyCalled(string pythonFuncToCall, string expectedMethodCalled)
+        {
+            using var _ = Py.GIL();
+
+            var module = PyModule.FromString($"ResolvesToGenericOnlyWhenExplicitlyCalled_{pythonFuncToCall}", @$"
+from clr import AddReference
+AddReference(""System"")
+from Python.EmbeddingTest import *
+
+def call_non_generic_method():
+    return TestMethodBinder.CSharpModel.GenericOverloadTestMethod(TestMethodBinder.CSharpModel(), 'Test')
+
+def call_generic_method():
+    return TestMethodBinder.CSharpModel.GenericOverloadTestMethod[TestMethodBinder.CSharpModel](TestMethodBinder.CSharpModel(), 'Test')
+");
+
+            Assert.DoesNotThrow(() =>
+            {
+                using var result = module.GetAttr(pythonFuncToCall).Invoke();
+            });
+            Assert.AreEqual(expectedMethodCalled, CSharpModel.LastFuncCalled);
+        }
+
         // Used to test that we match this function with Py DateTime & Date Objects
         public static int GetMonth(DateTime test)
         {
@@ -1635,6 +1660,18 @@ def call_method_with_enum():
                     throw new ArgumentNullException(model1 == null ? nameof(model1) : nameof(model2));
                 }
                 LastFuncCalled = "TestAction3";
+            }
+
+            public static string GenericOverloadTestMethod(CSharpModel testArg1, string testArg2, decimal testArgs3 = 0m)
+            {
+                LastFuncCalled = "GenericOverloadTestMethod";
+                return string.Empty;
+            }
+
+            public static T GenericOverloadTestMethod<T>(CSharpModel testArg1, string testArg2, decimal testArgs3 = 0m)
+            {
+                LastFuncCalled = "GenericOverloadTestMethod<T>";
+                return default;
             }
         }
 
