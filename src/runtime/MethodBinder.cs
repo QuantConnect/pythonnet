@@ -780,13 +780,11 @@ namespace Python.Runtime
                 else
                 {
                     bestMatch = matchesTouse
-                        .GroupBy(x => x.KwargsMatched)
-                        .OrderByDescending(x => x.Key)
-                        .First()
-                        .GroupBy(x => x.ImplicitOperations)
-                        .OrderBy(x => x.Key)
-                        .First()
-                        .MinBy(x => GetMatchedArgumentsPrecedence(x.MethodInformation, pyArgCount, kwArgDict?.Keys));
+                        .OrderBy(x => x.Method.IsGenericMethod)
+                        .ThenByDescending(x => x.KwargsMatched)
+                        .ThenBy(x => x.ImplicitOperations)
+                        .ThenBy(x => GetMatchedArgumentsPrecedence(x.MethodInformation, pyArgCount, kwArgDict?.Keys))
+                        .First();
                 }
 
                 var margs = bestMatch.ManagedArgs;
