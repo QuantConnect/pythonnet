@@ -20,9 +20,9 @@ namespace Python.Runtime
             {
                 PythonBaseTypeProviders =
                 {
-                    DefaultBaseTypeProvider.Instance
-                    // see https://github.com/pythonnet/pythonnet/issues/1785
-                    // new CollectionMixinsProvider(new Lazy<PyObject>(() => Py.Import("clr._extras.collections"))),
+                    DefaultBaseTypeProvider.Instance,
+                    new CollectionMixinsProvider(new Lazy<PyObject>(() => Py.Import("clr._extras.collections"))),
+                    new DynamicObjectMixinsProvider(new Lazy<PyObject>(() => Py.Import("clr._extras.dlr"))),
                 },
             };
         }
