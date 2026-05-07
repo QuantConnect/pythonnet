@@ -24,7 +24,13 @@ namespace Python.Runtime.Slots
                 return true;
             }
 
-            return IsEnumerableWithCount(clrType, out _);
+            if (typeof(IEnumerable).IsAssignableFrom(clrType))
+            {
+                var p = clrType.GetProperty("Count");
+                return p != null;
+        }
+
+            return false;
         }
 
         /// <summary>
@@ -48,9 +54,10 @@ namespace Python.Runtime.Slots
 
             Type clrType = co.inst.GetType();
 
-            // now look for things that implement ICollection<T> directly (non-explicitly)
+            // now look for things that implement ICollection<T> directly (non-explicitly) or IEnumerable
             PropertyInfo p = clrType.GetProperty("Count");
-            if (p != null && clrType.GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(ICollection<>)))
+            if (p != null &&
+                (clrType.GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(ICollection<>)) || typeof(IEnumerable).IsAssignableFrom(clrType)))
             {
                 return (int)p.GetValue(co.inst, null);
             }
@@ -63,29 +70,8 @@ namespace Python.Runtime.Slots
                 return (int)p.GetValue(co.inst, null);
             }
 
-            // now for IEnumerable implementation
-            if (IsEnumerableWithCount(clrType, out var countProperty))
-            {
-                return (int)countProperty.GetValue(co.inst, null);
-            }
-
             Exceptions.SetError(Exceptions.TypeError, $"object of type '{clrType.Name}' has no len()");
             return -1;
-        }
-
-        private static bool IsEnumerableWithCount(Type clrType, out PropertyInfo countProperty)
-        {
-            countProperty = null;
-            var isEnumerable = typeof(IEnumerable).IsAssignableFrom(clrType) ||
-                clrType.GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IEnumerable<>)) ||
-                clrType.IsInterface && clrType.IsGenericType && clrType.GetGenericTypeDefinition() == typeof(IEnumerable<>);
-            if (isEnumerable)
-            {
-                countProperty = clrType.GetProperty("Count");
-                return countProperty != null && countProperty.PropertyType == typeof(int);
-            }
-
-            return false;
         }
     }
 }
