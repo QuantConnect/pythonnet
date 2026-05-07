@@ -28,7 +28,7 @@ namespace Python.Runtime.Slots
             {
                 var p = clrType.GetProperty("Count");
                 return p != null;
-        }
+            }
 
             return false;
         }
