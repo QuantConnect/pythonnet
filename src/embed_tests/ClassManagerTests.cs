@@ -1179,6 +1179,76 @@ def contains(dictionary, key):
             Assert.IsFalse(result);
         }
 
+        [Test]
+        public void SupportsLenOperatorForIEnumerableWithCountProperty()
+        {
+            using var _ = Py.GIL();
+
+            var module = PyModule.FromString("SupportsLenOperatorForIEnumerableWithCountProperty", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+def length(enumerable):
+    return len(enumerable)
+");
+
+            using var length = module.GetAttr("length");
+
+            Assert.Multiple(() =>
+            {
+                var enumerableWithCount = new EnumerableWithCount();
+                using var pyEnumerableWithCount = enumerableWithCount.ToPython();
+                var count = length.Invoke(pyEnumerableWithCount).As<int>();
+                Assert.AreEqual(enumerableWithCount.Count, count);
+
+                var genericEnumerableWithCount = new GenericEnumerableWithCount();
+                using var pyGenericEnumerableWithCount = genericEnumerableWithCount.ToPython();
+                count = length.Invoke(pyGenericEnumerableWithCount).As<int>();
+                Assert.AreEqual(genericEnumerableWithCount.Count, count);
+
+                var derivedEnumerableWithCount = new DerivedEnumerableWithCount();
+                using var pyDerivedEnumerableWithCount = derivedEnumerableWithCount.ToPython();
+                count = length.Invoke(pyDerivedEnumerableWithCount).As<int>();
+                Assert.AreEqual(derivedEnumerableWithCount.Count, count);
+            });
+        }
+
+        private class EnumerableWithCount : IEnumerable
+        {
+            public int Count => 123;
+            public IEnumerator GetEnumerator()
+            {
+                for (int i = 0; i < Count; i++)
+                {
+                    yield return i;
+                }
+            }
+        }
+
+        private class GenericEnumerableWithCount : IEnumerable<int>
+        {
+            public int Count => 123;
+
+            public IEnumerator<int> GetEnumerator()
+            {
+                for (int i = 0; i < Count; i++)
+                {
+                    yield return i;
+                }
+            }
+
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return GetEnumerator();
+            }
+        }
+
+        private class DerivedEnumerableWithCount : GenericEnumerableWithCount
+        {
+        }
+
         public class TestDictionary<TKey, TValue> : IDictionary
         {
             private readonly Dictionary<TKey, TValue> _data = new();
