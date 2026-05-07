@@ -23,7 +23,8 @@ namespace Python.Runtime.Slots
             {
                 return true;
             }
-            return false;
+
+            return IsEnumerableWithCount(clrType, out _);
         }
 
         /// <summary>
@@ -62,8 +63,29 @@ namespace Python.Runtime.Slots
                 return (int)p.GetValue(co.inst, null);
             }
 
+            // now for IEnumerable implementation
+            if (IsEnumerableWithCount(clrType, out var countProperty))
+            {
+                return (int)countProperty.GetValue(co.inst, null);
+            }
+
             Exceptions.SetError(Exceptions.TypeError, $"object of type '{clrType.Name}' has no len()");
             return -1;
+        }
+
+        private static bool IsEnumerableWithCount(Type clrType, out PropertyInfo countProperty)
+        {
+            countProperty = null;
+            var isEnumerable = typeof(IEnumerable).IsAssignableFrom(clrType) ||
+                clrType.GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IEnumerable<>)) ||
+                clrType.IsInterface && clrType.IsGenericType && clrType.GetGenericTypeDefinition() == typeof(IEnumerable<>);
+            if (isEnumerable)
+            {
+                countProperty = clrType.GetProperty("Count");
+                return countProperty != null && countProperty.PropertyType == typeof(int);
+            }
+
+            return false;
         }
     }
 }
