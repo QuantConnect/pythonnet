@@ -1249,6 +1249,166 @@ def length(enumerable):
         {
         }
 
+        [Test]
+        public void SupportsLenOperatorForICollection()
+        {
+            using var _ = Py.GIL();
+
+            var module = PyModule.FromString("SupportsLenOperatorForICollection", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+def length(enumerable):
+    return len(enumerable)
+");
+
+            using var length = module.GetAttr("length");
+
+            Assert.Multiple(() =>
+            {
+                var collection = new BasicCollection();
+                using var pyCollection = collection.ToPython();
+                var count = length.Invoke(pyCollection).As<int>();
+                Assert.AreEqual(collection.Count, count);
+
+                var genericCollection = new GenericCollection();
+                using var pyGenericCollection = genericCollection.ToPython();
+                count = length.Invoke(pyGenericCollection).As<int>();
+                Assert.AreEqual(genericCollection.Count, count);
+
+                var collectionWithExplicitInterfaceImplementation = new CollectionWithExplicitInterfaceImplementation();
+                using var pyCollectionWithExplicitInterfaceImplementation = collectionWithExplicitInterfaceImplementation.ToPython();
+                count = length.Invoke(pyCollectionWithExplicitInterfaceImplementation).As<int>();
+                Assert.AreEqual(((ICollection<int>)collectionWithExplicitInterfaceImplementation).Count, count);
+            });
+        }
+
+        private class BasicCollection : ICollection
+        {
+            public int Count => 123;
+            public bool IsSynchronized => false;
+            public object SyncRoot => this;
+            public void CopyTo(Array array, int index)
+            {
+                for (int i = 0; i < Count; i++)
+                {
+                    array.SetValue(i, index + i);
+                }
+            }
+            public IEnumerator GetEnumerator()
+            {
+                for (int i = 0; i < Count; i++)
+                {
+                    yield return i;
+                }
+            }
+        }
+
+        private class GenericCollection : ICollection<int>
+        {
+            public int Count => 123;
+            public bool IsSynchronized => false;
+            public object SyncRoot => this;
+
+            public bool IsReadOnly => throw new NotImplementedException();
+
+            public void Add(int item)
+            {
+                throw new NotImplementedException();
+            }
+
+            public void Clear()
+            {
+                throw new NotImplementedException();
+            }
+
+            public bool Contains(int item)
+            {
+                throw new NotImplementedException();
+            }
+
+            public void CopyTo(int[] array, int index)
+            {
+                for (int i = 0; i < Count; i++)
+                {
+                    array[index + i] = i;
+                }
+            }
+            public IEnumerator<int> GetEnumerator()
+            {
+                for (int i = 0; i < Count; i++)
+                {
+                    yield return i;
+                }
+            }
+
+            public bool Remove(int item)
+            {
+                throw new NotImplementedException();
+            }
+
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return GetEnumerator();
+            }
+        }
+
+        private class CollectionWithExplicitInterfaceImplementation : ICollection<int>
+        {
+            public bool IsSynchronized => false;
+            public object SyncRoot => this;
+
+            int ICollection<int>.Count => 123;
+
+            bool ICollection<int>.IsReadOnly => true;
+
+            void ICollection<int>.CopyTo(int[] array, int index)
+            {
+                for (int i = 0; i < ((ICollection<int>)this).Count; i++)
+                {
+                    array[index + i] = i;
+                }
+            }
+            public IEnumerator<int> GetEnumerator()
+            {
+                for (int i = 0; i < ((ICollection<int>)this).Count; i++)
+                {
+                    yield return i;
+                }
+            }
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return GetEnumerator();
+            }
+
+            void ICollection<int>.Add(int item)
+            {
+                throw new NotImplementedException();
+            }
+
+            void ICollection<int>.Clear()
+            {
+                throw new NotImplementedException();
+            }
+
+            bool ICollection<int>.Contains(int item)
+            {
+                throw new NotImplementedException();
+            }
+
+            bool ICollection<int>.Remove(int item)
+            {
+                throw new NotImplementedException();
+            }
+
+            IEnumerator<int> IEnumerable<int>.GetEnumerator()
+            {
+                throw new NotImplementedException();
+            }
+        }
+
         public class TestDictionary<TKey, TValue> : IDictionary
         {
             private readonly Dictionary<TKey, TValue> _data = new();

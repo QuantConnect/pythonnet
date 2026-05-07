@@ -11,7 +11,7 @@ namespace Python.Runtime.Slots
     {
         public static bool CanAssign(Type clrType)
         {
-            if (typeof(ICollection).IsAssignableFrom(clrType))
+            if (typeof(IEnumerable).IsAssignableFrom(clrType) && clrType.GetProperty("Count") != null)
             {
                 return true;
             }
@@ -22,12 +22,6 @@ namespace Python.Runtime.Slots
             if (clrType.IsInterface && clrType.IsGenericType && clrType.GetGenericTypeDefinition() == typeof(ICollection<>))
             {
                 return true;
-            }
-
-            if (typeof(IEnumerable).IsAssignableFrom(clrType))
-            {
-                var p = clrType.GetProperty("Count");
-                return p != null;
             }
 
             return false;
@@ -54,10 +48,9 @@ namespace Python.Runtime.Slots
 
             Type clrType = co.inst.GetType();
 
-            // now look for things that implement ICollection<T> directly (non-explicitly) or IEnumerable
+            // now look for things that implement IEnummerable directly (non-explicitly) or IEnumerable
             PropertyInfo p = clrType.GetProperty("Count");
-            if (p != null &&
-                (clrType.GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(ICollection<>)) || typeof(IEnumerable).IsAssignableFrom(clrType)))
+            if (p != null && typeof(IEnumerable).IsAssignableFrom(clrType))
             {
                 return (int)p.GetValue(co.inst, null);
             }
