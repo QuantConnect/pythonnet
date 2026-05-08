@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 
@@ -9,20 +8,23 @@ namespace Python.Runtime.Slots
 {
     internal static class MpLengthSlot
     {
+        private static Dictionary<Type, MethodInfo> _countGettersCache = new();
+
         public static bool CanAssign(Type clrType)
         {
-            if (typeof(ICollection).IsAssignableFrom(clrType))
+            if (typeof(IEnumerable).IsAssignableFrom(clrType) && TryGetCountGetter(clrType, clrType, out _))
             {
                 return true;
             }
-            if (clrType.GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(ICollection<>)))
+
+            var iface = clrType.GetInterfaces().FirstOrDefault(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(ICollection<>));
+            if (iface != null)
             {
+                // Get and cache the Count getter for this type and interface
+                TryGetCountGetter(clrType, iface, out _);
                 return true;
             }
-            if (clrType.IsInterface && clrType.IsGenericType && clrType.GetGenericTypeDefinition() == typeof(ICollection<>))
-            {
-                return true;
-            }
+
             return false;
         }
 
@@ -46,24 +48,31 @@ namespace Python.Runtime.Slots
             }
 
             Type clrType = co.inst.GetType();
-
-            // now look for things that implement ICollection<T> directly (non-explicitly)
-            PropertyInfo p = clrType.GetProperty("Count");
-            if (p != null && clrType.GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(ICollection<>)))
+            if (TryGetCountGetter(clrType, clrType, out var getter))
             {
-                return (int)p.GetValue(co.inst, null);
-            }
-
-            // finally look for things that implement the interface explicitly
-            var iface = clrType.GetInterfaces().FirstOrDefault(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(ICollection<>));
-            if (iface != null)
-            {
-                p = iface.GetProperty(nameof(ICollection<int>.Count));
-                return (int)p.GetValue(co.inst, null);
+                return (int)getter.Invoke(co.inst, null);
             }
 
             Exceptions.SetError(Exceptions.TypeError, $"object of type '{clrType.Name}' has no len()");
             return -1;
+        }
+
+        /// <summary>
+        /// Will get the Count getter for the given parent type and cache it for the given clr type.
+        /// This allows us to cache the Count getter for the give type when it's defined as a private interface implementation.
+        /// </summary>
+        private static bool TryGetCountGetter(Type clrType, Type parentType, out MethodInfo getter)
+        {
+            if (!_countGettersCache.TryGetValue(clrType, out getter))
+            {
+                var countProperty = parentType.GetProperty("Count");
+                if (countProperty != null)
+                {
+                    _countGettersCache[clrType] = getter = countProperty.GetMethod;
+                }
+            }
+
+            return getter != null;
         }
     }
 }
