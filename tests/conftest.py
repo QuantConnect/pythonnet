@@ -50,7 +50,7 @@ def pytest_configure(config):
 
     # tmpdir_factory.mktemp(f"pythonnet-{runtime_opt}")
 
-    fw = "net6.0" if runtime_opt == "netcore" else "netstandard2.0"
+    fw = "net10.0" if runtime_opt == "netcore" else "netstandard2.0"
 
     check_call(["dotnet", "publish", "-f", fw, "-o", bin_path, test_proj_path])
 
@@ -69,38 +69,25 @@ def pytest_configure(config):
     elif runtime_opt == "netcore":
         from clr_loader import get_coreclr
         rt_config_path = os.path.join(bin_path, "Python.Test.runtimeconfig.json")
-        runtime = get_coreclr(rt_config_path)
+        runtime = get_coreclr(runtime_config=rt_config_path)
         set_runtime(runtime)
 
-    import clr
-    clr.AddReference("Python.Test")
+    os.environ["PYTHONNET_RUNTIME"] = runtime_opt
 
-    soft_mode = False
-    try:
-        os.environ['PYTHONNET_SHUTDOWN_MODE'] == 'Soft'
-    except: pass
+    soft_mode = os.environ.get("PYTHONNET_SHUTDOWN_MODE") == "Soft"
 
-    if config.getoption("--runtime") == "netcore" or soft_mode\
-        :
+    if runtime_opt == "netcore" or soft_mode:
         collect_ignore.append("domain_tests/test_domain_reload.py")
     else:
         domain_tests_dir = os.path.join(os.path.dirname(__file__), "domain_tests")
-        bin_path = os.path.join(domain_tests_dir, "bin")
-        build_cmd = ["dotnet", "build", domain_tests_dir, "-o", bin_path]
+        domain_bin_path = os.path.join(domain_tests_dir, "bin")
+        build_cmd = ["dotnet", "build", domain_tests_dir, "-o", domain_bin_path]
         is_64bits = sys.maxsize > 2**32
         if not is_64bits:
             build_cmd += ["/p:Prefer32Bit=True"]
         check_call(build_cmd)
 
-
-    import os
-    os.environ["PYTHONNET_RUNTIME"] = runtime_opt
-    for k, v in runtime_params.items():
-        os.environ[f"PYTHONNET_{runtime_opt.upper()}_{k.upper()}"] = v
-
     import clr
-
-    sys.path.append(str(bin_path))
     clr.AddReference("Python.Test")
 
 

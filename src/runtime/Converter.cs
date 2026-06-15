@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.ComponentModel;
 using System.Globalization;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
@@ -223,6 +224,19 @@ class GMT(tzinfo):
             }
 
             type = value.GetType();
+
+            // Let user-registered encoders take over conversion of their own
+            // types (e.g. mapping a CLR exception to a Python exception). Gated
+            // so encoders cannot hijack built-in primitive conversions.
+            if (EncodableByUser(type, value))
+            {
+                var encoded = PyObjectConversions.TryEncode(value, type);
+                if (encoded != null)
+                {
+                    return new NewReference(encoded);
+                }
+            }
+
             if (type.IsGenericType && value is IList && !(value is INotifyPropertyChanged))
             {
                 using var resultlist = new PyList();
@@ -433,6 +447,15 @@ class GMT(tzinfo):
                 return true;
             }
 
+            if (obType.IsSubclassOf(typeof(PyObject))
+                && !obType.IsAbstract
+                && obType.GetConstructor(new[] { typeof(PyObject) }) is { } pyObjectCtor)
+            {
+                var untyped = new PyObject(value);
+                result = ToPyObjectSubclass(pyObjectCtor, untyped, setError);
+                return result is not null;
+            }
+
             if (obType.IsGenericType && Runtime.PyObject_TYPE(value) == Runtime.PyListType)
             {
                 var typeDefinition = obType.GetGenericTypeDefinition();
@@ -528,6 +551,14 @@ class GMT(tzinfo):
                 }
                 // Set type to underlying type
                 obType = obType.GetGenericArguments()[0];
+            }
+
+            if (obType == typeof(System.Numerics.BigInteger)
+                && Runtime.PyInt_Check(value))
+            {
+                using var pyInt = new PyInt(value);
+                result = pyInt.ToBigInteger();
+                return true;
             }
 
             if (obType.ContainsGenericParameters)
@@ -691,6 +722,38 @@ class GMT(tzinfo):
             }
 
             return false;
+        }
+
+        static bool EncodableByUser(Type type, object value)
+        {
+            TypeCode typeCode = Type.GetTypeCode(type);
+            return type.IsEnum
+                   || typeCode is TypeCode.DateTime or TypeCode.Decimal
+                   || typeCode == TypeCode.Object && value.GetType() != typeof(object) && value is not Type;
+        }
+
+        static object? ToPyObjectSubclass(ConstructorInfo ctor, PyObject instance, bool setError)
+        {
+            try
+            {
+                return ctor.Invoke(new object[] { instance });
+            }
+            catch (TargetInvocationException ex)
+            {
+                if (setError)
+                {
+                    Exceptions.SetError(ex.InnerException);
+                }
+                return null;
+            }
+            catch (SecurityException ex)
+            {
+                if (setError)
+                {
+                    Exceptions.SetError(ex);
+                }
+                return null;
+            }
         }
 
         /// <remarks>

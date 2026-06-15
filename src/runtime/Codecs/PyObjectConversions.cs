@@ -52,7 +52,16 @@ namespace Python.Runtime
             if (obj == null) throw new ArgumentNullException(nameof(obj));
             if (type == null) throw new ArgumentNullException(nameof(type));
 
-            if (clrToPython.Count == 0)
+            // Skip only when no encoders have been registered. The previous check
+            // tested clrToPython (the resolved-per-type cache) which is empty until
+            // this method itself populates it, so it always short-circuited and no
+            // user encoder was ever consulted.
+            bool anyEncoders;
+            lock (encoders)
+            {
+                anyEncoders = encoders.Any();
+            }
+            if (!anyEncoders)
             {
                 return null;
             }

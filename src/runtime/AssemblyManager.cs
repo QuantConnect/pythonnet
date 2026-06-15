@@ -53,6 +53,16 @@ namespace Python.Runtime
         {
             pypath.Clear();
 
+            // These caches are static and survive a PythonEngine shutdown. On a
+            // re-initialization (e.g. Initialize after Shutdown) the runtime resets
+            // GenericUtil's generic-type mapping, expecting AssemblyManager.Initialize
+            // to rebuild it while re-scanning. Without clearing the dedupe cache here,
+            // ScanAssembly is skipped for already-seen assemblies, so generics are
+            // never re-registered and e.g. `from System import Func` fails for every
+            // test/usage after the first init cycle. Clear so the scan runs fresh.
+            assembliesNamesCache.Clear();
+            assemblies = new ConcurrentQueue<Assembly>();
+
             AppDomain domain = AppDomain.CurrentDomain;
 
             domain.AssemblyLoad += AssemblyLoadHandler;
