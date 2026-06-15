@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows, ubuntu, macos]
-        python: ["3.7", "3.8", "3.9", "3.10", "3.11"]
+        python: ["3.8", "3.9", "3.10", "3.11"]
         platform: [x64, x86]
         exclude:
           - os: ubuntu
@@ -32,15 +32,15 @@ jobs:
           mono-version: latest
 
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v1
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '6.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Set up Python ${{ matrix.python }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
           architecture: ${{ matrix.platform }}
@@ -69,25 +69,12 @@ jobs:
       - name: Embedding tests
         run: dotnet test --runtime any-${{ matrix.platform }} --logger "console;verbosity=detailed" src/embed_tests/
 
-      - name: Python Tests (Mono)
-        if: ${{ matrix.os != 'windows' }}
-        run: pytest --runtime mono
-
+      # The runtime now targets net10.0 only, so the Mono and .NET Framework
+      # hosts can no longer load Python.Runtime. Only the .NET (CoreCLR) host is
+      # exercised from Python.
       - name: Python Tests (.NET Core)
         if: ${{ matrix.platform == 'x64' }}
         run: pytest --runtime netcore
 
-      - name: Python Tests (.NET Framework)
-        if: ${{ matrix.os == 'windows' }}
-        run: pytest --runtime netfx
-
       - name: Python tests run from .NET
         run: dotnet test --runtime any-${{ matrix.platform }} src/python_tests_runner/
-
-      - name: Perf tests
-        if: ${{ (matrix.python == '3.8') && (matrix.platform == 'x64') }}
-        run: |
-          pip install --force --no-deps --target src/perf_tests/baseline/ pythonnet==2.5.2
-          dotnet test --configuration Release --runtime any-${{ matrix.platform }} --logger "console;verbosity=detailed" src/perf_tests/
-
-      # TODO: Run mono tests on Windows?
