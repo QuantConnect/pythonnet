@@ -25,12 +25,6 @@ jobs:
             platform: x86
 
     steps:
-      - name: Set Environment on macOS
-        uses: maxim-lobanov/setup-xamarin@v1
-        if: ${{ matrix.os == 'macos' }}
-        with:
-          mono-version: latest
-
       - name: Checkout code
         uses: actions/checkout@v4
 
