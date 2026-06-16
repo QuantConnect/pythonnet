@@ -26,8 +26,12 @@ namespace Python.EmbeddingTest
         {
             var uri = new Uri("http://example.org").ToPython();
             var uriClass = uri.GetPythonType();
-            var property = uriClass.GetAttr(nameof(Uri.AbsoluteUri));
-            var pyProp = (PropertyObject)ManagedType.GetManagedObject(property.Reference);
+            // Accessing an instance property through the class object invokes the
+            // descriptor protocol, which intentionally raises (an instance property
+            // must be accessed through an instance). To inspect the descriptor
+            // itself, read it from the type's __dict__, which bypasses __get__.
+            using var classDict = uriClass.GetAttr("__dict__");
+            var property = classDict.GetItem(nameof(Uri.AbsoluteUri)); var pyProp = (PropertyObject)ManagedType.GetManagedObject(property.Reference);
             Assert.AreEqual(nameof(Uri.AbsoluteUri), pyProp.info.Value.Name);
         }
 
