@@ -1151,11 +1151,17 @@ class GMT(tzinfo):
                                 goto type_error;
                             }
                             long? num = Runtime.PyLong_AsLongLong(value);
-                            if (num == -1 && Exceptions.ErrorOccurred())
+                            // PyLong_AsLongLong already returns null when the value
+                            // does not fit in a long long (it leaves a Python
+                            // OverflowError set). Comparing the nullable to -1 never
+                            // matched that null, so on 32-bit an overflowing value
+                            // was silently accepted and returned as a null result.
+                            // Check HasValue so the overflow propagates.
+                            if (!num.HasValue)
                             {
                                 goto convert_error;
                             }
-                            result = num;
+                            result = num.Value;
                             return true;
                         }
                         else
