@@ -69,10 +69,9 @@ namespace Python.Runtime
             {
                 if (!getter.IsStatic)
                 {
-                    // Accessing an instance property on the class object itself
-                    // (rather than an instance) yields the descriptor, so the
-                    // property remains inspectable, matching Python semantics.
-                    return new NewReference(ds);
+                    Exceptions.SetError(Exceptions.TypeError,
+                        "instance property must be accessed through a class instance");
+                    return default;
                 }
 
                 try
