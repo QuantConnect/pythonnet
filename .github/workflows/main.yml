@@ -9,10 +9,7 @@ on:
 jobs:
   build-test:
     name: Build and Test
-    # macos-latest is now Apple Silicon (arm64), but this matrix builds/tests x64
-    # (dotnet test --runtime any-x64). Pin macOS to the last Intel runner so the
-    # x64 .NET host is available and setup-python's x64 build is native.
-    runs-on: ${{ matrix.os == 'macos' && 'macos-13' || format('{0}-latest', matrix.os) }}
+    runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 15
 
     strategy:
