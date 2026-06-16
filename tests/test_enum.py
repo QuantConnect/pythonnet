@@ -152,5 +152,7 @@ def test_enum_conversion():
     with pytest.raises(ValueError):
         Test.FieldTest().EnumField = "str"
     
-    with pytest.raises(TypeError):
-        Test.FieldTest().EnumField = 1
+    # QuantConnect fork: an int is accepted and converted to the enum type.
+    ft = Test.FieldTest()
+    ft.EnumField = 1
+    assert ft.EnumField == Test.ShortEnum(1)

@@ -12,6 +12,14 @@ namespace Python.Runtime.Slots
 
         public static bool CanAssign(Type clrType)
         {
+            // Any type implementing the non-generic ICollection (this includes
+            // System.Array, so multi-dimensional arrays, and types that implement
+            // ICollection explicitly) exposes Count and is handled by impl below.
+            if (typeof(ICollection).IsAssignableFrom(clrType))
+            {
+                return true;
+            }
+
             if (typeof(IEnumerable).IsAssignableFrom(clrType) && TryGetCountGetter(clrType, clrType, out _))
             {
                 return true;

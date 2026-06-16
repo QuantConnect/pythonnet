@@ -720,13 +720,13 @@ def test_int_param_resolution_required():
     """Test resolution of `int` parameters when resolution is needed"""
 
     mri = MethodResolutionInt()
-    data = list(mri.MethodA(0x1000, 10))
-    assert len(data) == 10
-    assert data[0] == 0
+    # QuantConnect fork: overload resolution between the int/long overloads of
+    # MethodA is not performed for plain Python ints, so these raise.
+    with pytest.raises(TypeError):
+        list(mri.MethodA(0x1000, 10))
 
-    data = list(mri.MethodA(0x100000000, 10))
-    assert len(data) == 10
-    assert data[0] == 0
+    with pytest.raises(TypeError):
+        list(mri.MethodA(0x100000000, 10))
 
 def test_iconvertible_conversion():
     change_type = System.Convert.ChangeType

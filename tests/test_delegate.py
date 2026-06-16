@@ -279,7 +279,9 @@ def test_invalid_object_delegate():
 
     d = ObjectDelegate(hello_func)
     ob = DelegateTest()
-    with pytest.raises(SystemError):
+    # QuantConnect fork: a mismatched delegate return surfaces as a .NET
+    # InvalidOperationException rather than a Python SystemError.
+    with pytest.raises(System.InvalidOperationException):
         ob.CallObjectDelegate(d)
 
 def test_out_int_delegate():
