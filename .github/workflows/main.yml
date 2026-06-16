@@ -28,10 +28,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # macos-15 (and the arm64 path generally) is Apple Silicon, but this
+      # matrix builds/tests x64. The architecture input installs the matching
+      # .NET host; it currently only exists on setup-dotnet@main.
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@main
         with:
           dotnet-version: '10.0.x'
+          architecture: ${{ matrix.platform }}
 
       # Use astral-sh/setup-uv (python-build-standalone) instead of
       # actions/setup-python. The setup-python x64 macOS builds dynamically
@@ -55,19 +59,32 @@ jobs:
         run: |
           uv pip install -v .
 
-      - name: Set Python DLL path and PYTHONHOME (non Windows)
+      # Python is provisioned in a uv virtual environment, whose sys.prefix has
+      # no stdlib (only site-packages). When .NET hosts the interpreter we must
+      # point PYTHONHOME at the *base* install (sys.base_prefix) so it can find
+      # the stdlib (e.g. `encodings`), and add the venv's site-packages via
+      # PYTHONPATH so embedded code can still import clr/numpy. PYTHONNET_PYDLL
+      # tells Python.Runtime which libpython to load. PYTHONHOME is intentionally
+      # NOT set globally: the venv `python` running pytest must keep its own
+      # sys.prefix to resolve its installed packages.
+      - name: Set Python DLL path, home and site-packages (non Windows)
         if: ${{ matrix.os != 'windows' }}
         run: |
-          echo PYTHONNET_PYDLL=$(python -m pythonnet.find_libpython) >> $GITHUB_ENV
-          echo PYTHONHOME=$(python -c 'import sys; print(sys.prefix)') >> $GITHUB_ENV
+          echo "PYTHONNET_PYDLL=$(python -m pythonnet.find_libpython)" >> $GITHUB_ENV
+          echo "PY_HOME=$(python -c 'import sys; print(sys.base_prefix)')" >> $GITHUB_ENV
+          echo "PY_SITE=$(python -c 'import sysconfig; print(sysconfig.get_path(\"purelib\"))')" >> $GITHUB_ENV
 
-      - name: Set Python DLL path and PYTHONHOME (Windows)
+      - name: Set Python DLL path, home and site-packages (Windows)
         if: ${{ matrix.os == 'windows' }}
         run: |
           Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append -InputObject "PYTHONNET_PYDLL=$(python -m pythonnet.find_libpython)"
-          Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append -InputObject "PYTHONHOME=$(python -c 'import sys; print(sys.prefix)')"
+          Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append -InputObject "PY_HOME=$(python -c 'import sys; print(sys.base_prefix)')"
+          Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append -InputObject "PY_SITE=$(python -c 'import sysconfig; print(sysconfig.get_path(\"purelib\"))')"
 
       - name: Embedding tests
+        env:
+          PYTHONHOME: ${{ env.PY_HOME }}
+          PYTHONPATH: ${{ env.PY_SITE }}
         run: dotnet test --runtime any-${{ matrix.platform }} --logger "console;verbosity=detailed" src/embed_tests/
 
       # The runtime now targets net10.0 only, so the Mono and .NET Framework
@@ -78,4 +95,7 @@ jobs:
         run: pytest --runtime netcore tests
 
       - name: Python tests run from .NET
+        env:
+          PYTHONHOME: ${{ env.PY_HOME }}
+          PYTHONPATH: ${{ env.PY_SITE }}
         run: dotnet test --runtime any-${{ matrix.platform }} src/python_tests_runner/
