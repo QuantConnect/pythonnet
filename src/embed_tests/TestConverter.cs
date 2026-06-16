@@ -404,8 +404,11 @@ def GetNextDay(dateTime):
         public void PyIntImplicit()
         {
             var i = new PyInt(1);
-            var ni = (PyObject)i.As<object>();
-            Assert.AreEqual(i.rawPtr, ni.rawPtr);
+            // Converting a Python int to object decodes it to its managed primitive
+            // (Python scalars convert to the equivalent managed value, even for object).
+            var ni = i.As<object>();
+            Assert.IsInstanceOf<int>(ni);
+            Assert.AreEqual(1, ni);
         }
 
         [Test]
