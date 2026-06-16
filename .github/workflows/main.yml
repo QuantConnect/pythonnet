@@ -33,20 +33,27 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # Use astral-sh/setup-uv (python-build-standalone) instead of
+      # actions/setup-python. The setup-python x64 macOS builds dynamically
+      # link against Homebrew's gettext (/usr/local/opt/gettext/.../libintl.8.dylib),
+      # which is absent on the Apple Silicon macos-15 runner, so the x64 Python
+      # binary fails to launch. python-build-standalone has no such dependency.
       - name: Set up Python ${{ matrix.python }}
-        uses: actions/setup-python@v5
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: ${{ matrix.python }}
-          architecture: ${{ matrix.platform }}
+          python-version: cpython-${{ matrix.python }}${{ matrix.os == 'windows' && matrix.platform == 'x86' && '-windows-x86-none' || matrix.os == 'windows' && matrix.platform == 'x64' && '-windows-x86_64-none' || matrix.os == 'macos' && matrix.platform == 'x64' && '-macos-x86_64-none' || '' }}
+          cache-python: true
+          activate-environment: true
+          enable-cache: true
 
       - name: Install dependencies
         run: |
-          pip install --upgrade -r requirements.txt
-          pip install numpy pytz # for tests
+          uv pip install --upgrade -r requirements.txt
+          uv pip install numpy pytz # for tests
 
       - name: Build and Install
         run: |
-          pip install -v .
+          uv pip install -v .
 
       - name: Set Python DLL path and PYTHONHOME (non Windows)
         if: ${{ matrix.os != 'windows' }}
