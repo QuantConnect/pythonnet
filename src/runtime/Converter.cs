@@ -31,6 +31,21 @@ namespace Python.Runtime
         {
         }
 
+        /// <summary>
+        /// Releases the cached enum wrappers. Must be called on shutdown while the
+        /// Python runtime is still alive: the cache holds Python objects created in
+        /// the current run, and if they survive into the next Initialize/Shutdown
+        /// cycle their handles dangle and corrupt the interpreter heap.
+        /// </summary>
+        internal static void Reset()
+        {
+            foreach (var cached in _enumCache.Values)
+            {
+                cached.Dispose();
+            }
+            _enumCache.Clear();
+        }
+
         private static NumberFormatInfo nfi;
         private static Type objectType;
         private static Type stringType;
@@ -842,7 +857,8 @@ class GMT(tzinfo):
                 }
 
                 PythonEngine.Exec(code, null, locals);
-                result = locals.GetItem("delegate").AsManagedObject(delegateType);
+                using var delegateObj = locals.GetItem("delegate");
+                result = delegateObj.AsManagedObject(delegateType);
 
                 return true;
             }

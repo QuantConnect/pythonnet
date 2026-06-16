@@ -128,8 +128,19 @@ namespace Python.Runtime
                     PyGILState_Ensure();
                 }
 
+                // The CPython interpreter is not finalized on PythonEngine.Shutdown
+                // (we never call Py_Finalize), so when pythonnet is re-initialized in
+                // the same process the run counter from the previous, already
+                // torn-down session is still stored in sys. Reusing it would make the
+                // Finalizer treat objects leaked from that dead session as belonging
+                // to the current one and decref their now-dangling handles, corrupting
+                // the heap. We only keep the previous run when actually restoring
+                // serialized state across an AppDomain reload, which is flagged by the
+                // presence of the "clr_data" stash capsule; otherwise we start a fresh
+                // run so stale objects are safely skipped on finalization.
                 BorrowedReference pyRun = PySys_GetObject(RunSysPropName);
-                if (pyRun != null)
+                bool restoringStashedState = !PySys_GetObject("clr_data").IsNull;
+                if (pyRun != null && restoringStashedState)
                 {
                     run = checked((int)PyLong_AsSignedSize_t(pyRun));
                 }
@@ -257,6 +268,10 @@ namespace Python.Runtime
             _isInitialized = false;
 
             var state = PyGILState_Ensure();
+
+            // Release the cached enum wrappers before tearing the runtime down, so
+            // their handles do not dangle into the next Initialize/Shutdown cycle.
+            Converter.Reset();
 
             if (!HostedInPython && !ProcessIsTerminating)
             {

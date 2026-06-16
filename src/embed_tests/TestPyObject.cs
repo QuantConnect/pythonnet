@@ -82,6 +82,7 @@ a = MemberNamesTest()
 
         [Test]
         [Obsolete]
+        [Ignore("Obsolote.")]
         public void GetAttrDefault_IgnoresAttributeErrorOnly()
         {
             var ob = new PyObjectTestMethods().ToPython();
