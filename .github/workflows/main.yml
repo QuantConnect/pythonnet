@@ -9,7 +9,7 @@ on:
 jobs:
   build-test:
     name: Build and Test
-    runs-on: ${{ matrix.os == 'macos' && 'macos-15' || format('{0}-latest', matrix.os) }}
+    runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 15
 
     strategy:
@@ -34,12 +34,10 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Set up Python ${{ matrix.python }}
-        uses: astral-sh/setup-uv@v7
+        uses: actions/setup-python@v5
         with:
-          python-version: cpython-${{ matrix.python }}${{ matrix.os == 'windows' && matrix.platform == 'x86' && '-windows-x86-none' || matrix.os == 'windows' && matrix.platform == 'x64' && '-windows-x86_64-none' || matrix.os == 'macos' && matrix.platform == 'x64' && '-macos-x86_64-none' || '' }}
-          cache-python: true
-          activate-environment: true
-          enable-cache: true
+          python-version: ${{ matrix.python }}
+          architecture: ${{ matrix.platform }}
 
       - name: Install dependencies
         run: |
