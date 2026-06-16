@@ -42,10 +42,10 @@ jobs:
         run: dotnet test --logger "console;verbosity=detailed" src/embed_tests/
 
       - name: Python Tests (Mono)
-        run: python -m pytest --runtime mono
+        run: python -m pytest --runtime mono tests
 
       - name: Python Tests (.NET Core)
-        run: python -m pytest --runtime netcore
+        run: python -m pytest --runtime netcore tests
 
       - name: Python tests run from .NET
         run: dotnet test src/python_tests_runner/
