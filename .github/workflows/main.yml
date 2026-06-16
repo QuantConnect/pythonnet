@@ -9,7 +9,7 @@ on:
 jobs:
   build-test:
     name: Build and Test
-    runs-on: ${{ matrix.os == 'macos' && 'macos-15' || format('{0}-latest', matrix.os) }}
+    runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 15
 
     strategy:
@@ -28,63 +28,39 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # macos-15 (and the arm64 path generally) is Apple Silicon, but this
-      # matrix builds/tests x64. The architecture input installs the matching
-      # .NET host; it currently only exists on setup-dotnet@main.
       - name: Setup .NET
-        uses: actions/setup-dotnet@main
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-          architecture: ${{ matrix.platform }}
 
-      # Use astral-sh/setup-uv (python-build-standalone) instead of
-      # actions/setup-python. The setup-python x64 macOS builds dynamically
-      # link against Homebrew's gettext (/usr/local/opt/gettext/.../libintl.8.dylib),
-      # which is absent on the Apple Silicon macos-15 runner, so the x64 Python
-      # binary fails to launch. python-build-standalone has no such dependency.
       - name: Set up Python ${{ matrix.python }}
-        uses: astral-sh/setup-uv@v7
+        uses: actions/setup-python@v5
         with:
-          python-version: cpython-${{ matrix.python }}${{ matrix.os == 'windows' && matrix.platform == 'x86' && '-windows-x86-none' || matrix.os == 'windows' && matrix.platform == 'x64' && '-windows-x86_64-none' || matrix.os == 'macos' && matrix.platform == 'x64' && '-macos-x86_64-none' || '' }}
-          cache-python: true
-          activate-environment: true
-          enable-cache: true
+          python-version: ${{ matrix.python }}
+          architecture: ${{ matrix.platform }}
 
       - name: Install dependencies
         run: |
-          uv pip install --upgrade -r requirements.txt
-          uv pip install numpy pytz # for tests
+          pip install --upgrade -r requirements.txt
+          pip install numpy pytz # for tests
 
       - name: Build and Install
         run: |
-          uv pip install -v .
+          pip install -v .
 
-      # Python is provisioned in a uv virtual environment, whose sys.prefix has
-      # no stdlib (only site-packages). When .NET hosts the interpreter we must
-      # point PYTHONHOME at the *base* install (sys.base_prefix) so it can find
-      # the stdlib (e.g. `encodings`), and add the venv's site-packages via
-      # PYTHONPATH so embedded code can still import clr/numpy. PYTHONNET_PYDLL
-      # tells Python.Runtime which libpython to load. PYTHONHOME is intentionally
-      # NOT set globally: the venv `python` running pytest must keep its own
-      # sys.prefix to resolve its installed packages.
-      - name: Set Python DLL path, home and site-packages (non Windows)
+      - name: Set Python DLL path and PYTHONHOME (non Windows)
         if: ${{ matrix.os != 'windows' }}
         run: |
-          echo "PYTHONNET_PYDLL=$(python -m pythonnet.find_libpython)" >> $GITHUB_ENV
-          echo "PY_HOME=$(python -c 'import sys; print(sys.base_prefix)')" >> $GITHUB_ENV
-          echo "PY_SITE=$(python -c 'import sysconfig; print(sysconfig.get_path(\"purelib\"))')" >> $GITHUB_ENV
+          echo PYTHONNET_PYDLL=$(python -m pythonnet.find_libpython) >> $GITHUB_ENV
+          echo PYTHONHOME=$(python -c 'import sys; print(sys.prefix)') >> $GITHUB_ENV
 
-      - name: Set Python DLL path, home and site-packages (Windows)
+      - name: Set Python DLL path and PYTHONHOME (Windows)
         if: ${{ matrix.os == 'windows' }}
         run: |
           Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append -InputObject "PYTHONNET_PYDLL=$(python -m pythonnet.find_libpython)"
-          Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append -InputObject "PY_HOME=$(python -c 'import sys; print(sys.base_prefix)')"
-          Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append -InputObject "PY_SITE=$(python -c 'import sysconfig; print(sysconfig.get_path(\"purelib\"))')"
+          Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append -InputObject "PYTHONHOME=$(python -c 'import sys; print(sys.prefix)')"
 
       - name: Embedding tests
-        env:
-          PYTHONHOME: ${{ env.PY_HOME }}
-          PYTHONPATH: ${{ env.PY_SITE }}
         run: dotnet test --runtime any-${{ matrix.platform }} --logger "console;verbosity=detailed" src/embed_tests/
 
       # The runtime now targets net10.0 only, so the Mono and .NET Framework
@@ -95,7 +71,4 @@ jobs:
         run: pytest --runtime netcore tests
 
       - name: Python tests run from .NET
-        env:
-          PYTHONHOME: ${{ env.PY_HOME }}
-          PYTHONPATH: ${{ env.PY_SITE }}
         run: dotnet test --runtime any-${{ matrix.platform }} src/python_tests_runner/
