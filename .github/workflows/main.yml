@@ -9,7 +9,7 @@ on:
 jobs:
   build-test:
     name: Build and Test
-    runs-on: ${{ matrix.os }}-latest
+    runs-on: ${{ matrix.os == 'macos' && 'macos-15' || format('{0}-latest', matrix.os) }}
     timeout-minutes: 15
 
     strategy:
