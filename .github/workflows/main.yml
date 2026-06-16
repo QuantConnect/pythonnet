@@ -18,12 +18,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # TEMP (testing): reduced matrix to windows+ubuntu / py3.11 only.
-        # Restore the full matrix below before merging.
-        # os: [windows, ubuntu, macos]
-        # python: ["3.8", "3.9", "3.10", "3.11"]
-        os: [windows, ubuntu]
-        python: ["3.11"]
+        os: [windows, ubuntu, macos]
+        python: ["3.8", "3.9", "3.10", "3.11"]
         platform: [x64, x86]
         exclude:
           - os: ubuntu
