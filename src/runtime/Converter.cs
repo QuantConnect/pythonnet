@@ -1320,7 +1320,7 @@ class GMT(tzinfo):
                         minutes = Runtime.PyObject_GetAttrString(tzinfo.Borrow(), minutesPtr);
                         if (!ReferenceNullOrNone(hours) &&
                             !ReferenceNullOrNone(minutes) &&
-                            Runtime.PyLong_AsLong(hours.Borrow()) == 0 && Runtime.PyLong_AsLong(minutes.Borrow()) == 0)
+                            Runtime.PyLong_AsLongLong(hours.Borrow()).GetValueOrDefault() == 0 && Runtime.PyLong_AsLongLong(minutes.Borrow()).GetValueOrDefault() == 0)
                         {
                             timeKind = DateTimeKind.Utc;
                         }
@@ -1333,15 +1333,15 @@ class GMT(tzinfo):
                     // could be python date type
                     if (!ReferenceNullOrNone(hour))
                     {
-                        convertedHour = Runtime.PyLong_AsLong(hour.Borrow());
-                        convertedMinute = Runtime.PyLong_AsLong(minute.Borrow());
-                        convertedSecond = Runtime.PyLong_AsLong(second.Borrow());
-                        milliseconds = Runtime.PyLong_AsLong(microsecond.Borrow()) / 1000;
+                        convertedHour = Runtime.PyLong_AsLongLong(hour.Borrow()).GetValueOrDefault();
+                        convertedMinute = Runtime.PyLong_AsLongLong(minute.Borrow()).GetValueOrDefault();
+                        convertedSecond = Runtime.PyLong_AsLongLong(second.Borrow()).GetValueOrDefault();
+                        milliseconds = Runtime.PyLong_AsLongLong(microsecond.Borrow()).GetValueOrDefault() / 1000;
                     }
 
-                    result = new DateTime((int)Runtime.PyLong_AsLong(year.Borrow()),
-                        (int)Runtime.PyLong_AsLong(month.Borrow()),
-                        (int)Runtime.PyLong_AsLong(day.Borrow()),
+                    result = new DateTime((int)Runtime.PyLong_AsLongLong(year.Borrow()).GetValueOrDefault(),
+                        (int)Runtime.PyLong_AsLongLong(month.Borrow()).GetValueOrDefault(),
+                        (int)Runtime.PyLong_AsLongLong(day.Borrow()).GetValueOrDefault(),
                         (int)convertedHour,
                         (int)convertedMinute,
                         (int)convertedSecond,

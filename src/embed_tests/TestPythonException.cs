@@ -243,7 +243,7 @@ class TestPythonClass(TestPythonException.TestClass):
                     Assert.IsTrue(new[]
                     {
                         "File ",
-                        "fixtures\\PyImportTest\\SampleScript.py",
+                        $"fixtures{Path.DirectorySeparatorChar}PyImportTest{Path.DirectorySeparatorChar}SampleScript.py",
                         "line 5",
                         "in invokeMethodImpl"
                     }.All(x => pythonTracebackLines[1].Contains(x)));
@@ -252,7 +252,7 @@ class TestPythonClass(TestPythonException.TestClass):
                     Assert.IsTrue(new[]
                     {
                         "File ",
-                        "fixtures\\PyImportTest\\SampleScript.py",
+                        $"fixtures{Path.DirectorySeparatorChar}PyImportTest{Path.DirectorySeparatorChar}SampleScript.py",
                         "line 2",
                         "in invokeMethod"
                     }.All(x => pythonTracebackLines[3].Contains(x)));
@@ -304,7 +304,7 @@ def CallThrow():
                     Assert.IsTrue(new[]
                     {
                         "File ",
-                        "fixtures\\PyImportTest\\SampleScript.py",
+                        $"fixtures{Path.DirectorySeparatorChar}PyImportTest{Path.DirectorySeparatorChar}SampleScript.py",
                         "line 5",
                         "in invokeMethodImpl"
                     }.All(x => pythonTracebackLines[0].Contains(x)));
@@ -313,7 +313,7 @@ def CallThrow():
                     Assert.IsTrue(new[]
                     {
                         "File ",
-                        "fixtures\\PyImportTest\\SampleScript.py",
+                        $"fixtures{Path.DirectorySeparatorChar}PyImportTest{Path.DirectorySeparatorChar}SampleScript.py",
                         "line 2",
                         "in invokeMethod"
                     }.All(x => pythonTracebackLines[2].Contains(x)));
