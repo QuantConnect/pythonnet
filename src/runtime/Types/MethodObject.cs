@@ -13,9 +13,6 @@ namespace Python.Runtime
     /// Implements a Python type that represents a CLR method. Method objects
     /// support a subscript syntax [] to allow explicit overload selection.
     /// </summary>
-    /// <remarks>
-    /// TODO: ForbidPythonThreadsAttribute per method info
-    /// </remarks>
     [Serializable]
     internal class MethodObject : ExtensionType
     {
@@ -30,7 +27,7 @@ namespace Python.Runtime
         internal PyString? doc;
         internal MaybeType type;
 
-        public MethodObject(MaybeType type, string name, List<MethodInformation> info, bool allow_threads = MethodBinder.DefaultAllowThreads)
+        public MethodObject(MaybeType type, string name, List<MethodInformation> info, bool allow_threads)
         {
             this.type = type;
             this.name = name;
@@ -40,6 +37,40 @@ namespace Python.Runtime
                 allow_threads = allow_threads
             };
             is_static = info.Any(x => x.MethodBase.IsStatic);
+        }
+
+        public MethodObject(MaybeType type, string name, List<MethodInformation> info)
+            : this(type, name, info, allow_threads: AllowThreads(info))
+        {
+        }
+
+        /// <summary>
+        /// Determines whether the Python GIL should be released around invocations
+        /// of these overloads, based on the <see cref="ForbidPythonThreadsAttribute"/>.
+        /// Methods that call back into the CPython C-API (e.g. those marked with the
+        /// attribute) must keep the GIL held; otherwise the call corrupts the
+        /// interpreter / crashes.
+        /// </summary>
+        static bool AllowThreads(List<MethodInformation> methods)
+        {
+            bool hasAllowOverload = false, hasForbidOverload = false;
+            foreach (var method in methods)
+            {
+                bool forbidsThreads = method.MethodBase.GetCustomAttribute<ForbidPythonThreadsAttribute>(inherit: false) != null;
+                if (forbidsThreads)
+                {
+                    hasForbidOverload = true;
+                }
+                else
+                {
+                    hasAllowOverload = true;
+                }
+            }
+
+            if (hasAllowOverload && hasForbidOverload)
+                throw new NotImplementedException("All method overloads currently must either allow or forbid Python threads together");
+
+            return !hasForbidOverload;
         }
 
         public bool IsInstanceConstructor => name == "__init__";
