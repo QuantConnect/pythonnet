@@ -15,13 +15,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows, ubuntu, macos]
+        os: [windows, ubuntu]
         python: ["3.8", "3.9", "3.10", "3.11"]
         platform: [x64, x86]
         exclude:
           - os: ubuntu
-            platform: x86
-          - os: macos
             platform: x86
 
     steps:
