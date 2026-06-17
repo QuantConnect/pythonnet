@@ -43,15 +43,10 @@ jobs:
         run: |
           pip install -v .
 
-      - name: Set Python DLL path and PYTHONHOME (non Windows)
+      - name: Set Python DLL path and PYTHONHOME
         run: |
           echo PYTHONNET_PYDLL=$(python -m pythonnet.find_libpython) >> $GITHUB_ENV
           echo PYTHONHOME=$(python -c 'import sys; print(sys.prefix)') >> $GITHUB_ENV
-
-      - name: Set Python DLL path and PYTHONHOME (Windows)
-        run: |
-          Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append -InputObject "PYTHONNET_PYDLL=$(python -m pythonnet.find_libpython)"
-          Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append -InputObject "PYTHONHOME=$(python -c 'import sys; print(sys.prefix)')"
 
       - name: Embedding tests
         run: dotnet test --runtime any-x64 --logger "console;verbosity=detailed" src/embed_tests/
