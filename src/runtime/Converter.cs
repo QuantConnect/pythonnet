@@ -741,10 +741,19 @@ class GMT(tzinfo):
 
         static bool EncodableByUser(Type type, object value)
         {
+            // When no encoders are registered (the common case) skip the type
+            // inspection entirely: this runs on the hot per-value conversion path.
+            if (!PyObjectConversions.HasEncoders)
+            {
+                return false;
+            }
+
+            // type is already value.GetType() at every call site, so compare against
+            // it directly instead of calling GetType again.
             TypeCode typeCode = Type.GetTypeCode(type);
             return type.IsEnum
                    || typeCode is TypeCode.DateTime or TypeCode.Decimal
-                   || typeCode == TypeCode.Object && value.GetType() != typeof(object) && value is not Type;
+                   || typeCode == TypeCode.Object && type != typeof(object) && value is not Type;
         }
 
         static object? ToPyObjectSubclass(ConstructorInfo ctor, PyObject instance, bool setError)

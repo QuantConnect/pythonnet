@@ -25,6 +25,12 @@ namespace Python.Runtime
         static volatile bool hasEncoders;
 
         /// <summary>
+        /// True once at least one encoder has been registered. Lets hot conversion
+        /// paths skip encoder inspection entirely when none are registered.
+        /// </summary>
+        internal static bool HasEncoders => hasEncoders;
+
+        /// <summary>
         /// Registers specified encoder (marshaller)
         /// <para>Python.NET will pick suitable encoder/decoder registered first</para>
         /// </summary>
