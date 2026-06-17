@@ -599,6 +599,18 @@ namespace Python.Runtime
                             }
                         }
 
+                        if (op == null)
+                        {
+                            // A required positional argument has no corresponding Python
+                            // argument (e.g. PyTuple_GetItem went out of range). This
+                            // overload doesn't match; reject it instead of attempting to
+                            // convert a null reference, which would throw and crash the host.
+                            Exceptions.Clear();
+                            tempObject.Dispose();
+                            margs = null;
+                            break;
+                        }
+
                         // this logic below handles cases when multiple overloading methods
                         // are ambiguous, hence comparison between Python and CLR types
                         // is necessary
@@ -940,9 +952,12 @@ namespace Python.Runtime
                                 defaultArgList.Add(null);
                         }
                     }
-                    else if (!paramsArray)
+                    else if (!(paramsArray && v == clrArgCount - 1))
                     {
-                        // If there is no KWArg or Default value, then this isn't a match
+                        // A missing argument is only acceptable for the params array
+                        // parameter itself (always the last one). Any earlier required
+                        // parameter without a kwarg or default value means this isn't a
+                        // match - otherwise we'd later try to bind a non-existent argument.
                         match = false;
                     }
                 }

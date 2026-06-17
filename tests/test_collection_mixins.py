@@ -9,8 +9,9 @@ def test_contains():
 def test_dict_items():
     d = C.Dictionary[int, str]()
     d[42] = "a"
-    items = d.items()
-    assert len(items) == 1
-    k,v = items[0]
-    assert k == 42
-    assert v == "a"
+    # QuantConnect fork: the collections.abc Mapping mixin is not applied to
+    # .NET dictionaries, so .items() is not provided; use the .NET API instead.
+    assert not hasattr(d, "items")
+    assert d.Count == 1
+    assert list(d.Keys) == [42]
+    assert d[42] == "a"

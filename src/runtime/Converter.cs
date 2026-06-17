@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.ComponentModel;
 using System.Globalization;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
@@ -28,6 +29,21 @@ namespace Python.Runtime
         private static readonly Dictionary<object, PyObject> _enumCache = new();
         private Converter()
         {
+        }
+
+        /// <summary>
+        /// Releases the cached enum wrappers. Must be called on shutdown while the
+        /// Python runtime is still alive: the cache holds Python objects created in
+        /// the current run, and if they survive into the next Initialize/Shutdown
+        /// cycle their handles dangle and corrupt the interpreter heap.
+        /// </summary>
+        internal static void Reset()
+        {
+            foreach (var cached in _enumCache.Values)
+            {
+                cached.Dispose();
+            }
+            _enumCache.Clear();
         }
 
         private static NumberFormatInfo nfi;
@@ -223,6 +239,19 @@ class GMT(tzinfo):
             }
 
             type = value.GetType();
+
+            // Let user-registered encoders take over conversion of their own
+            // types (e.g. mapping a CLR exception to a Python exception). Gated
+            // so encoders cannot hijack built-in primitive conversions.
+            if (EncodableByUser(type, value))
+            {
+                var encoded = PyObjectConversions.TryEncode(value, type);
+                if (encoded != null)
+                {
+                    return new NewReference(encoded);
+                }
+            }
+
             if (type.IsGenericType && value is IList && !(value is INotifyPropertyChanged))
             {
                 using var resultlist = new PyList();
@@ -693,6 +722,23 @@ class GMT(tzinfo):
             return false;
         }
 
+        static bool EncodableByUser(Type type, object value)
+        {
+            // When no encoders are registered (the common case) skip the type
+            // inspection entirely: this runs on the hot per-value conversion path.
+            if (!PyObjectConversions.HasEncoders)
+            {
+                return false;
+            }
+
+            // type is already value.GetType() at every call site, so compare against
+            // it directly instead of calling GetType again.
+            TypeCode typeCode = Type.GetTypeCode(type);
+            return type.IsEnum
+                   || typeCode is TypeCode.DateTime or TypeCode.Decimal
+                   || typeCode == TypeCode.Object && type != typeof(object) && value is not Type;
+        }
+
         /// <remarks>
         /// Unlike <see cref="ToManaged(BorrowedReference, Type, out object?, bool)"/>,
         /// this method does not have a <c>setError</c> parameter, because it should
@@ -779,7 +825,8 @@ class GMT(tzinfo):
                 }
 
                 PythonEngine.Exec(code, null, locals);
-                result = locals.GetItem("delegate").AsManagedObject(delegateType);
+                using var delegateObj = locals.GetItem("delegate");
+                result = delegateObj.AsManagedObject(delegateType);
 
                 return true;
             }
@@ -1072,11 +1119,17 @@ class GMT(tzinfo):
                                 goto type_error;
                             }
                             long? num = Runtime.PyLong_AsLongLong(value);
-                            if (num == -1 && Exceptions.ErrorOccurred())
+                            // PyLong_AsLongLong already returns null when the value
+                            // does not fit in a long long (it leaves a Python
+                            // OverflowError set). Comparing the nullable to -1 never
+                            // matched that null, so on 32-bit an overflowing value
+                            // was silently accepted and returned as a null result.
+                            // Check HasValue so the overflow propagates.
+                            if (!num.HasValue)
                             {
                                 goto convert_error;
                             }
-                            result = num;
+                            result = num.Value;
                             return true;
                         }
                         else

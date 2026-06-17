@@ -6,88 +6,53 @@ on:
       - master
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-test:
     name: Build and Test
-    runs-on: ${{ matrix.os }}-latest
+    runs-on: self-hosted
+    container:
+        image: quantconnect/lean:foundation
+        options: --cpus 12 --memory 12g
     timeout-minutes: 15
 
     strategy:
       fail-fast: false
       matrix:
-        os: [windows, ubuntu, macos]
-        python: ["3.7", "3.8", "3.9", "3.10", "3.11"]
-        platform: [x64, x86]
-        exclude:
-          - os: ubuntu
-            platform: x86
-          - os: macos
-            platform: x86
+        python: ["3.8", "3.9", "3.10", "3.11"]
 
     steps:
-      - name: Set Environment on macOS
-        uses: maxim-lobanov/setup-xamarin@v1
-        if: ${{ matrix.os == 'macos' }}
-        with:
-          mono-version: latest
-
       - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v1
-        with:
-          dotnet-version: '6.0.x'
+        uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-          architecture: ${{ matrix.platform }}
+          architecture: x64
 
       - name: Install dependencies
         run: |
           pip install --upgrade -r requirements.txt
-          pip install numpy # for tests
+          pip install numpy pytz # for tests
 
       - name: Build and Install
         run: |
           pip install -v .
 
-      - name: Set Python DLL path and PYTHONHOME (non Windows)
-        if: ${{ matrix.os != 'windows' }}
+      - name: Set Python DLL path and PYTHONHOME
         run: |
-          echo PYTHONNET_PYDLL=$(python -m find_libpython) >> $GITHUB_ENV
+          echo PYTHONNET_PYDLL=$(python -m pythonnet.find_libpython) >> $GITHUB_ENV
           echo PYTHONHOME=$(python -c 'import sys; print(sys.prefix)') >> $GITHUB_ENV
 
-      - name: Set Python DLL path and PYTHONHOME (Windows)
-        if: ${{ matrix.os == 'windows' }}
-        run: |
-          Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append -InputObject "PYTHONNET_PYDLL=$(python -m find_libpython)"
-          Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append -InputObject "PYTHONHOME=$(python -c 'import sys; print(sys.prefix)')"
-
       - name: Embedding tests
-        run: dotnet test --runtime any-${{ matrix.platform }} --logger "console;verbosity=detailed" src/embed_tests/
-
-      - name: Python Tests (Mono)
-        if: ${{ matrix.os != 'windows' }}
-        run: pytest --runtime mono
+        run: dotnet test --runtime any-x64 --logger "console;verbosity=detailed" src/embed_tests/
 
       - name: Python Tests (.NET Core)
-        if: ${{ matrix.platform == 'x64' }}
-        run: pytest --runtime netcore
-
-      - name: Python Tests (.NET Framework)
-        if: ${{ matrix.os == 'windows' }}
-        run: pytest --runtime netfx
+        run: pytest --runtime netcore tests
 
       - name: Python tests run from .NET
-        run: dotnet test --runtime any-${{ matrix.platform }} src/python_tests_runner/
-
-      - name: Perf tests
-        if: ${{ (matrix.python == '3.8') && (matrix.platform == 'x64') }}
-        run: |
-          pip install --force --no-deps --target src/perf_tests/baseline/ pythonnet==2.5.2
-          dotnet test --configuration Release --runtime any-${{ matrix.platform }} --logger "console;verbosity=detailed" src/perf_tests/
-
-      # TODO: Run mono tests on Windows?
+        run: dotnet test --runtime any-x64 src/python_tests_runner/

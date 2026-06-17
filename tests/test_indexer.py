@@ -377,10 +377,9 @@ def test_enum_indexer():
     ob[key] = "eggs"
     assert ob[key] == "eggs"
 
-    with pytest.raises(TypeError):
-        ob[1] = "spam"
-    with pytest.raises(TypeError):
-        ob[1]
+    # QuantConnect fork: an int key is converted to the enum type, so this works.
+    ob[1] = "spam"
+    assert ob[1] == "spam"
 
     with pytest.raises(TypeError):
         ob = Test.EnumIndexerTest()

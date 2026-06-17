@@ -41,7 +41,12 @@ namespace Python.Runtime
                 }
 
                 var key = Tuple.Create(type, requiredMethod);
-                methodsByType.Add(key, method);
+                // Use indexer assignment rather than Add: this static cache survives a
+                // PythonEngine shutdown, so the same type can be reflected again in a
+                // later Initialize/Shutdown cycle. Add would throw a duplicate-key
+                // ArgumentException on re-reflection, and that exception thrown from
+                // within the native tp_getattro callback corrupts the interpreter.
+                methodsByType[key] = method;
             }
 
             return true;

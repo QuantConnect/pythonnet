@@ -505,13 +505,18 @@ namespace Python.Runtime
             {
                 assembly = AssemblyManager.LoadAssemblyPath(name);
             }
-            if (assembly == null && AssemblyManager.TryParseAssemblyName(name) is { } parsedName)
-            {
-                assembly = AssemblyManager.LoadAssembly(parsedName);
-            }
+            // Try loading an existing file on disk before parsing the name as an
+            // assembly name. A rooted path (e.g. a native library) can parse as a
+            // valid AssemblyName on some platforms, which would make Assembly.Load
+            // throw FileNotFoundException instead of letting Assembly.LoadFrom open
+            // the file and surface the real BadImageFormatException.
             if (assembly == null)
             {
                 assembly = AssemblyManager.LoadAssemblyFullPath(name);
+            }
+            if (assembly == null && AssemblyManager.TryParseAssemblyName(name) is { } parsedName)
+            {
+                assembly = AssemblyManager.LoadAssembly(parsedName);
             }
             if (assembly == null)
             {

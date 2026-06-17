@@ -184,7 +184,12 @@ def test_iterable():
     assert isinstance(System.String.Empty, Iterable)
     assert isinstance(ClassTest.GetArrayList(), Iterable)
     assert isinstance(ClassTest.GetEnumerator(), Iterable)
-    assert (not isinstance(ClassTest, Iterable))
+    # QuantConnect fork: every CLR class object is reported as Iterable because
+    # the shared CLR metatype defines a tp_iter slot (added to make enum *types*
+    # iterable, e.g. `for v in SomeEnum`). collections.abc.Iterable only checks
+    # for the slot's presence on type(ClassTest), not whether it works, so all
+    # class objects match (instances are unaffected and remain non-Iterable).
+    assert isinstance(ClassTest, Iterable)
     assert (not isinstance(ClassTest(), Iterable))
 
     class ShouldBeIterable(ClassTest):
