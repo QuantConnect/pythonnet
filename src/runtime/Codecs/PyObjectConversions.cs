@@ -18,6 +18,12 @@ namespace Python.Runtime
         static readonly DecoderGroup decoders = new DecoderGroup();
         static readonly EncoderGroup encoders = new EncoderGroup();
 
+        // Cached "has any encoder been registered" flag. TryEncode is on the hot
+        // ToPython path (every DateTime/Decimal/enum/object conversion), so we avoid
+        // taking the encoders lock and allocating a LINQ enumerator on every call.
+        // Set when an encoder is registered, cleared on Reset (shutdown).
+        static volatile bool hasEncoders;
+
         /// <summary>
         /// Registers specified encoder (marshaller)
         /// <para>Python.NET will pick suitable encoder/decoder registered first</para>
@@ -29,6 +35,7 @@ namespace Python.Runtime
             lock (encoders)
             {
                 encoders.Add(encoder);
+                hasEncoders = true;
             }
         }
 
@@ -55,13 +62,10 @@ namespace Python.Runtime
             // Skip only when no encoders have been registered. The previous check
             // tested clrToPython (the resolved-per-type cache) which is empty until
             // this method itself populates it, so it always short-circuited and no
-            // user encoder was ever consulted.
-            bool anyEncoders;
-            lock (encoders)
-            {
-                anyEncoders = encoders.Any();
-            }
-            if (!anyEncoders)
+            // user encoder was ever consulted. We read a cached flag here (rather
+            // than locking + enumerating) because TryEncode is on the hot ToPython
+            // path and is called for every DateTime/Decimal/enum/object conversion.
+            if (!hasEncoders)
             {
                 return null;
             }
@@ -155,6 +159,7 @@ namespace Python.Runtime
                     pythonToClr.Clear();
                     encoders.Dispose();
                     decoders.Dispose();
+                    hasEncoders = false;
                 }
         }
 
