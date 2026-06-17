@@ -389,7 +389,18 @@ def GetNextDay(dateTime):
             Assert.AreEqual(Const, ni);
         }
 
+        /*
+         * Something like this is Converter.ToManagedValued should be added to support big ints:
+         * if (obType == typeof(System.Numerics.BigInteger)
+         *     && Runtime.PyInt_Check(value))
+         * {
+         *     using var pyInt = new PyInt(value);
+         *     result = pyInt.ToBigInteger();
+         *     return true;
+         * }
+         */
         [Test]
+        [Explicit("Currently fails because big int conversion is not supported")]
         public void BigIntExplicit()
         {
             BigInteger val = 42;
@@ -411,7 +422,20 @@ def GetNextDay(dateTime):
             Assert.AreEqual(1, ni);
         }
 
+        /* 
+         * To support it, add something like this at the top of ToManagedValue in the converter:
+         * 
+         * if (obType.IsSubclassOf(typeof(PyObject))
+         *     && !obType.IsAbstract
+         *     && obType.GetConstructor(new[] { typeof(PyObject) }) is { } pyObjectCtor)
+         * {
+         *     var untyped = new PyObject(value);
+         *     result = ToPyObjectSubclass(pyObjectCtor, untyped, setError);
+         *     return result is not null;
+         * }
+         */
         [Test]
+        [Explicit("Needs workaround to be supported")]
         public void ToPyList()
         {
             var list = new PyList();

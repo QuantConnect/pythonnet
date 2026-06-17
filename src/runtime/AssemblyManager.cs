@@ -61,7 +61,7 @@ namespace Python.Runtime
             // never re-registered and e.g. `from System import Func` fails for every
             // test/usage after the first init cycle. Clear so the scan runs fresh.
             assembliesNamesCache.Clear();
-            assemblies = new ConcurrentQueue<Assembly>();
+            assemblies.Clear();
 
             AppDomain domain = AppDomain.CurrentDomain;
 

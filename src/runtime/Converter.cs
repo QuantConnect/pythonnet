@@ -462,15 +462,6 @@ class GMT(tzinfo):
                 return true;
             }
 
-            if (obType.IsSubclassOf(typeof(PyObject))
-                && !obType.IsAbstract
-                && obType.GetConstructor(new[] { typeof(PyObject) }) is { } pyObjectCtor)
-            {
-                var untyped = new PyObject(value);
-                result = ToPyObjectSubclass(pyObjectCtor, untyped, setError);
-                return result is not null;
-            }
-
             if (obType.IsGenericType && Runtime.PyObject_TYPE(value) == Runtime.PyListType)
             {
                 var typeDefinition = obType.GetGenericTypeDefinition();
@@ -566,14 +557,6 @@ class GMT(tzinfo):
                 }
                 // Set type to underlying type
                 obType = obType.GetGenericArguments()[0];
-            }
-
-            if (obType == typeof(System.Numerics.BigInteger)
-                && Runtime.PyInt_Check(value))
-            {
-                using var pyInt = new PyInt(value);
-                result = pyInt.ToBigInteger();
-                return true;
             }
 
             if (obType.ContainsGenericParameters)
@@ -754,30 +737,6 @@ class GMT(tzinfo):
             return type.IsEnum
                    || typeCode is TypeCode.DateTime or TypeCode.Decimal
                    || typeCode == TypeCode.Object && type != typeof(object) && value is not Type;
-        }
-
-        static object? ToPyObjectSubclass(ConstructorInfo ctor, PyObject instance, bool setError)
-        {
-            try
-            {
-                return ctor.Invoke(new object[] { instance });
-            }
-            catch (TargetInvocationException ex)
-            {
-                if (setError)
-                {
-                    Exceptions.SetError(ex.InnerException);
-                }
-                return null;
-            }
-            catch (SecurityException ex)
-            {
-                if (setError)
-                {
-                    Exceptions.SetError(ex);
-                }
-                return null;
-            }
         }
 
         /// <remarks>
@@ -1335,7 +1294,7 @@ class GMT(tzinfo):
                         minutes = Runtime.PyObject_GetAttrString(tzinfo.Borrow(), minutesPtr);
                         if (!ReferenceNullOrNone(hours) &&
                             !ReferenceNullOrNone(minutes) &&
-                            Runtime.PyLong_AsLongLong(hours.Borrow()).GetValueOrDefault() == 0 && Runtime.PyLong_AsLongLong(minutes.Borrow()).GetValueOrDefault() == 0)
+                            Runtime.PyLong_AsLong(hours.Borrow()) == 0 && Runtime.PyLong_AsLong(minutes.Borrow()) == 0)
                         {
                             timeKind = DateTimeKind.Utc;
                         }
@@ -1348,15 +1307,15 @@ class GMT(tzinfo):
                     // could be python date type
                     if (!ReferenceNullOrNone(hour))
                     {
-                        convertedHour = Runtime.PyLong_AsLongLong(hour.Borrow()).GetValueOrDefault();
-                        convertedMinute = Runtime.PyLong_AsLongLong(minute.Borrow()).GetValueOrDefault();
-                        convertedSecond = Runtime.PyLong_AsLongLong(second.Borrow()).GetValueOrDefault();
-                        milliseconds = Runtime.PyLong_AsLongLong(microsecond.Borrow()).GetValueOrDefault() / 1000;
+                        convertedHour = Runtime.PyLong_AsLong(hour.Borrow());
+                        convertedMinute = Runtime.PyLong_AsLong(minute.Borrow());
+                        convertedSecond = Runtime.PyLong_AsLong(second.Borrow());
+                        milliseconds = Runtime.PyLong_AsLong(microsecond.Borrow()) / 1000;
                     }
 
-                    result = new DateTime((int)Runtime.PyLong_AsLongLong(year.Borrow()).GetValueOrDefault(),
-                        (int)Runtime.PyLong_AsLongLong(month.Borrow()).GetValueOrDefault(),
-                        (int)Runtime.PyLong_AsLongLong(day.Borrow()).GetValueOrDefault(),
+                    result = new DateTime((int)Runtime.PyLong_AsLong(year.Borrow()),
+                        (int)Runtime.PyLong_AsLong(month.Borrow()),
+                        (int)Runtime.PyLong_AsLong(day.Borrow()),
                         (int)convertedHour,
                         (int)convertedMinute,
                         (int)convertedSecond,
