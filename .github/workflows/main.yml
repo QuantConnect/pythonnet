@@ -6,36 +6,33 @@ on:
       - master
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-test:
     name: Build and Test
-    runs-on: ${{ matrix.os }}-latest
+    runs-on: self-hosted
+    container:
+        image: quantconnect/lean:foundation
+        options: --cpus 12 --memory 12g
     timeout-minutes: 15
 
     strategy:
       fail-fast: false
       matrix:
-        os: [windows, ubuntu]
         python: ["3.8", "3.9", "3.10", "3.11"]
-        platform: [x64, x86]
-        exclude:
-          - os: ubuntu
-            platform: x86
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
       - name: Set up Python ${{ matrix.python }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-          architecture: ${{ matrix.platform }}
+          architecture: x64
 
       - name: Install dependencies
         run: |
@@ -47,26 +44,20 @@ jobs:
           pip install -v .
 
       - name: Set Python DLL path and PYTHONHOME (non Windows)
-        if: ${{ matrix.os != 'windows' }}
         run: |
           echo PYTHONNET_PYDLL=$(python -m pythonnet.find_libpython) >> $GITHUB_ENV
           echo PYTHONHOME=$(python -c 'import sys; print(sys.prefix)') >> $GITHUB_ENV
 
       - name: Set Python DLL path and PYTHONHOME (Windows)
-        if: ${{ matrix.os == 'windows' }}
         run: |
           Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append -InputObject "PYTHONNET_PYDLL=$(python -m pythonnet.find_libpython)"
           Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append -InputObject "PYTHONHOME=$(python -c 'import sys; print(sys.prefix)')"
 
       - name: Embedding tests
-        run: dotnet test --runtime any-${{ matrix.platform }} --logger "console;verbosity=detailed" src/embed_tests/
+        run: dotnet test --runtime any-x64 --logger "console;verbosity=detailed" src/embed_tests/
 
-      # The runtime now targets net10.0 only, so the Mono and .NET Framework
-      # hosts can no longer load Python.Runtime. Only the .NET (CoreCLR) host is
-      # exercised from Python.
       - name: Python Tests (.NET Core)
-        if: ${{ matrix.platform == 'x64' }}
         run: pytest --runtime netcore tests
 
       - name: Python tests run from .NET
-        run: dotnet test --runtime any-${{ matrix.platform }} src/python_tests_runner/
+        run: dotnet test --runtime any-x64 src/python_tests_runner/
