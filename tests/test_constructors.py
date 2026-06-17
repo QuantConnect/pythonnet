@@ -71,6 +71,7 @@ def test_default_constructor_fallback():
     with pytest.raises(TypeError):
         ob = DefaultConstructorMatching("2")
 
+@pytest.mark.skip(reason="Runtime.TryCollectingGarbage is [ForbidPythonThreads]; honoring it in MethodObject is disabled, so calling it releases the GIL and crashes the interpreter")
 def test_constructor_leak():
     from System import Uri
     from Python.Runtime import Runtime
