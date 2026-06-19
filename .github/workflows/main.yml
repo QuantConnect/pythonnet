@@ -49,7 +49,16 @@ jobs:
           echo PYTHONHOME=$(python -c 'import sys; print(sys.prefix)') >> $GITHUB_ENV
 
       - name: Embedding tests
-        run: dotnet test --runtime any-x64 --logger "console;verbosity=detailed" src/embed_tests/
+        run: dotnet test --runtime any-x64 --logger "console;verbosity=detailed" src/embed_tests/ --filter "FullyQualifiedName!~SetPythonPath"
+
+      # SetPythonPath exercises PythonEngine.PythonPath, which uses the deprecated Py_SetPath
+      # to pin a fixed module search path. CPython 3.13+ keeps that path config in _PyRuntime
+      # across Py_Finalize and provides no way to reset it back to auto-computation without the
+      # PyConfig API, so once this test runs, every later interpreter re-initialization in the
+      # same process is forced onto the pinned path and eventually fails to import encodings.
+      # Run it in its own process so it cannot pollute the rest of the suite.
+      - name: Embedding tests (SetPythonPath, isolated process)
+        run: dotnet test --runtime any-x64 --logger "console;verbosity=detailed" src/embed_tests/ --filter "FullyQualifiedName~SetPythonPath"
 
       - name: Python Tests (.NET Core)
         run: pytest --runtime netcore tests
