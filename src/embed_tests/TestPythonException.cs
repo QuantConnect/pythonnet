@@ -235,7 +235,12 @@ class TestPythonClass(TestPythonException.TestClass):
                 {
                     Assert.AreEqual("Test Exception Message", ex.InnerException.Message);
 
-                    var pythonTracebackLines = ex.PythonTraceback.TrimEnd('\n').Split('\n').Select(x => x.Trim()).ToList();
+                    var pythonTracebackLines = ex.PythonTraceback.TrimEnd('\n').Split('\n').Select(x => x.Trim())
+                        // Python 3.12+ adds caret indicator lines (e.g. "~~~^^^") under the offending
+                        // source code in tracebacks. Drop those so positional assertions below stay
+                        // version-agnostic (no-op on <=3.11, which doesn't emit them).
+                        .Where(x => !(x.Length > 0 && x.All(c => c == '~' || c == '^')))
+                        .ToList();
                     Assert.AreEqual(5, pythonTracebackLines.Count);
 
                     Assert.AreEqual("File \"none\", line 9, in CallThrow", pythonTracebackLines[0]);
@@ -298,7 +303,12 @@ def CallThrow():
                 {
                     Assert.AreEqual("Test Exception Message", ex.InnerException.Message);
 
-                    var pythonTracebackLines = ex.PythonTraceback.TrimEnd('\n').Split('\n').Select(x => x.Trim()).ToList();
+                    var pythonTracebackLines = ex.PythonTraceback.TrimEnd('\n').Split('\n').Select(x => x.Trim())
+                        // Python 3.12+ adds caret indicator lines (e.g. "~~~^^^") under the offending
+                        // source code in tracebacks. Drop those so positional assertions below stay
+                        // version-agnostic (no-op on <=3.11, which doesn't emit them).
+                        .Where(x => !(x.Length > 0 && x.All(c => c == '~' || c == '^')))
+                        .ToList();
                     Assert.AreEqual(4, pythonTracebackLines.Count);
 
                     Assert.IsTrue(new[]

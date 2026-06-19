@@ -965,7 +965,14 @@ def SetEnumValue3SnakeCase(obj):
         {
             public PyObject Get(PyObject o)
             {
-                return "PyObject Get(PyObject o)".ToPython();
+                // This managed method is invoked by pythonnet with the GIL released
+                // (MethodBinder uses allow_threads around managed calls). Re-entering
+                // Python here - creating a str via ToPython() - requires re-acquiring
+                // the GIL; on CPython 3.12+ allocating without the GIL is fatal.
+                using (Py.GIL())
+                {
+                    return "PyObject Get(PyObject o)".ToPython();
+                }
             }
 
             public dynamic Get(Type t)

@@ -361,6 +361,14 @@ DateTimeDecoder.Setup()
         [Test]
         public void ExceptionDecodedNoInstance()
         {
+            if (Runtime.PyVersion >= new Version(3, 12))
+            {
+                // Python 3.12+ eagerly normalizes the error indicator, so an exception
+                // always reaches the decoder with an instance ("value"). The instanceless
+                // error scenario this decoder targets can no longer be produced by CPython.
+                Assert.Ignore("Instanceless exceptions are not produced on Python 3.12+ (eager normalization).");
+            }
+
             PyObjectConversions.RegisterDecoder(new InstancelessExceptionDecoder());
             using var scope = Py.CreateScope();
             var error = Assert.Throws<ValueErrorWrapper>(() => PythonEngine.Exec(
