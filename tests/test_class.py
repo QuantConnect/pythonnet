@@ -67,17 +67,21 @@ def test_non_exported():
 
 
 def test_missing_attribute_suggests_similar_members():
-    """A missing attribute on a .NET object should suggest similarly-named members."""
+    """A missing attribute on a .NET object should suggest similarly-named members.
+
+    Suggestions are emitted in snake_case, matching the fork's PEP8-style API.
+    """
     s = System.String("this is a test")
 
-    # 'Lenght' is a transposition of 'Length' (a real member), so it should be suggested.
+    # 'lenght' is a transposition of 'length' (the snake_case alias of the real
+    # 'Length' member), so it should be suggested.
     with pytest.raises(AttributeError) as exc_info:
-        _ = s.Lenght
+        _ = s.lenght
 
     message = str(exc_info.value)
-    assert "Lenght" in message
+    assert "lenght" in message
     assert "Did you mean" in message
-    assert "Length" in message
+    assert "length" in message
 
 
 def test_missing_attribute_no_similar_members():

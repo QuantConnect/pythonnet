@@ -1142,8 +1142,9 @@ from Python.EmbeddingTest import *
 class TestGetMisspelledDynamicObjectPropertySuggestsSimilarMembers:
     def GetValue(self, fixture):
         try:
-            # 'NonDynamicPropertyy' is a near miss of the real 'NonDynamicProperty' member.
-            prop = fixture.NonDynamicPropertyy
+            # 'non_dynamic_propertyy' is a near miss of the snake_case alias of the
+            # real 'NonDynamicProperty' member.
+            prop = fixture.non_dynamic_propertyy
         except AttributeError as e:
             return e
 
@@ -1158,10 +1159,11 @@ class TestGetMisspelledDynamicObjectPropertySuggestsSimilarMembers:
                 Assert.IsFalse(result.IsNone());
                 Assert.AreEqual(result.PyType, Exceptions.AttributeError);
 
+                // Suggestions are emitted in snake_case, matching the fork's PEP8-style API.
                 var message = result.ToString();
-                Assert.That(message, Does.Contain("NonDynamicPropertyy"));
+                Assert.That(message, Does.Contain("non_dynamic_propertyy"));
                 Assert.That(message, Does.Contain("Did you mean"));
-                Assert.That(message, Does.Contain("NonDynamicProperty"));
+                Assert.That(message, Does.Contain("non_dynamic_property"));
             }
         }
 

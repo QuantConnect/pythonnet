@@ -700,8 +700,15 @@ namespace Python.Runtime
                     continue;
                 }
 
-                string candidate = member.Name;
-                if (candidate.Length == 0 || candidate[0] == '<' || !seen.Add(candidate))
+                if (member.Name.Length == 0 || member.Name[0] == '<')
+                {
+                    continue;
+                }
+
+                // Suggest the snake_case alias, since that is the fork's PEP8-style
+                // public API surface (members are exposed in both Pascal and snake case).
+                string candidate = ToSnakeCaseMemberName(member);
+                if (!seen.Add(candidate))
                 {
                     continue;
                 }
@@ -722,6 +729,18 @@ namespace Python.Runtime
                 .Take(MaxSuggestions)
                 .Select(t => t.Name)
                 .ToList();
+        }
+
+        private static string ToSnakeCaseMemberName(MemberInfo member)
+        {
+            // Use the field/property overloads so const and static-readonly members
+            // are converted to UPPER_CASE, matching how they are exposed to Python.
+            return member switch
+            {
+                FieldInfo fieldInfo => fieldInfo.ToSnakeCase(),
+                PropertyInfo propertyInfo => propertyInfo.ToSnakeCase(),
+                _ => member.Name.ToSnakeCase(),
+            };
         }
 
         private static int LevenshteinDistance(string a, string b)
