@@ -627,10 +627,10 @@ namespace Python.Runtime
                 return;
             }
 
-            string? name = Runtime.GetManagedString(key);
+            var name = Runtime.GetManagedString(key);
             // Skip empty and dunder names: the latter are probed internally by CPython
             // (e.g. __iter__, __len__) and are never user-facing typos worth helping with.
-            if (string.IsNullOrEmpty(name) || name!.StartsWith("__", StringComparison.Ordinal))
+            if (string.IsNullOrEmpty(name) || name.StartsWith("__", StringComparison.Ordinal))
             {
                 return;
             }
@@ -650,8 +650,8 @@ namespace Python.Runtime
             Runtime.PyErr_Fetch(out var errType, out var errValue, out var errTraceback);
             try
             {
-                string baseMessage = GetErrorMessage(errValue.BorrowNullable(), name);
-                string hint = " Did you mean: " + string.Join(", ", suggestions.Select(s => $"'{s}'")) + "?";
+                var baseMessage = GetErrorMessage(errValue.BorrowNullable(), name);
+                var hint = " Did you mean: " + string.Join(", ", suggestions.Select(s => $"'{s}'")) + "?";
                 Exceptions.SetError(Exceptions.AttributeError, baseMessage + hint);
             }
             finally
@@ -669,10 +669,10 @@ namespace Python.Runtime
                 using var str = Runtime.PyObject_Str(value);
                 if (!str.IsNull())
                 {
-                    string? managed = Runtime.GetManagedString(str.Borrow());
+                    var managed = Runtime.GetManagedString(str.Borrow());
                     if (!string.IsNullOrEmpty(managed))
                     {
-                        return managed!;
+                        return managed;
                     }
                 }
                 // PyObject_Str may itself have failed; do not let that error leak out.
@@ -684,7 +684,7 @@ namespace Python.Runtime
         private static List<string> GetSimilarMemberNames(Type type, string name)
         {
             const int MaxSuggestions = 5;
-            int threshold = Math.Max(2, name.Length / 3);
+            var threshold = Math.Max(2, name.Length / 3);
 
             var seen = new HashSet<string>(StringComparer.Ordinal);
             var scored = new List<(string Name, int Distance)>();
@@ -707,14 +707,14 @@ namespace Python.Runtime
 
                 // Suggest the snake_case alias, since that is the fork's PEP8-style
                 // public API surface (members are exposed in both Pascal and snake case).
-                string candidate = ToSnakeCaseMemberName(member);
+                var candidate = ToSnakeCaseMemberName(member);
                 if (!seen.Add(candidate))
                 {
                     continue;
                 }
 
-                int distance = LevenshteinDistance(name, candidate);
-                bool related = distance <= threshold
+                var distance = LevenshteinDistance(name, candidate);
+                var related = distance <= threshold
                     || candidate.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0
                     || name.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0;
                 if (related)
@@ -747,20 +747,21 @@ namespace Python.Runtime
         {
             a = a.ToLowerInvariant();
             b = b.ToLowerInvariant();
-            int n = a.Length, m = b.Length;
+            var n = a.Length;
+            var m = b.Length;
             if (n == 0) return m;
             if (m == 0) return n;
 
             var prev = new int[m + 1];
             var curr = new int[m + 1];
-            for (int j = 0; j <= m; j++) prev[j] = j;
+            for (var j = 0; j <= m; j++) prev[j] = j;
 
-            for (int i = 1; i <= n; i++)
+            for (var i = 1; i <= n; i++)
             {
                 curr[0] = i;
-                for (int j = 1; j <= m; j++)
+                for (var j = 1; j <= m; j++)
                 {
-                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                    var cost = a[i - 1] == b[j - 1] ? 0 : 1;
                     curr[j] = Math.Min(Math.Min(curr[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost);
                 }
                 (prev, curr) = (curr, prev);
