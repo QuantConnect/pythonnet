@@ -611,5 +611,142 @@ namespace Python.Runtime
         }
 
         void IDeserializationCallback.OnDeserialization(object sender) => this.OnDeserialization(sender);
+
+        /// <summary>
+        /// If an <c>AttributeError</c> is currently set as the result of a missing
+        /// attribute lookup on a .NET object, rewrites its message to append a list
+        /// of similarly-named members of the managed type (a "Did you mean ...?" hint).
+        /// This is a no-op when there is no AttributeError set, when the object is not
+        /// a CLR object, or when no similarly-named members exist. It only runs on the
+        /// exceptional (miss) path, so the reflection cost is not on the hot path.
+        /// </summary>
+        internal static void AppendAttributeErrorSuggestions(BorrowedReference ob, BorrowedReference key)
+        {
+            if (!Exceptions.ExceptionMatches(Exceptions.AttributeError))
+            {
+                return;
+            }
+
+            string? name = Runtime.GetManagedString(key);
+            // Skip empty and dunder names: the latter are probed internally by CPython
+            // (e.g. __iter__, __len__) and are never user-facing typos worth helping with.
+            if (string.IsNullOrEmpty(name) || name!.StartsWith("__", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            if (GetManagedObject(ob) is not CLRObject clrObj || clrObj.inst is null)
+            {
+                return;
+            }
+
+            var suggestions = GetSimilarMemberNames(clrObj.inst.GetType(), name);
+            if (suggestions.Count == 0)
+            {
+                return;
+            }
+
+            // Keep the original AttributeError message and append our hint to it.
+            Runtime.PyErr_Fetch(out var errType, out var errValue, out var errTraceback);
+            try
+            {
+                string baseMessage = GetErrorMessage(errValue.BorrowNullable(), name);
+                string hint = " Did you mean: " + string.Join(", ", suggestions.Select(s => $"'{s}'")) + "?";
+                Exceptions.SetError(Exceptions.AttributeError, baseMessage + hint);
+            }
+            finally
+            {
+                errType.Dispose();
+                errValue.Dispose();
+                errTraceback.Dispose();
+            }
+        }
+
+        private static string GetErrorMessage(BorrowedReference value, string fallbackName)
+        {
+            if (value != null)
+            {
+                using var str = Runtime.PyObject_Str(value);
+                if (!str.IsNull())
+                {
+                    string? managed = Runtime.GetManagedString(str.Borrow());
+                    if (!string.IsNullOrEmpty(managed))
+                    {
+                        return managed!;
+                    }
+                }
+                // PyObject_Str may itself have failed; do not let that error leak out.
+                Exceptions.Clear();
+            }
+            return $"object has no attribute '{fallbackName}'";
+        }
+
+        private static List<string> GetSimilarMemberNames(Type type, string name)
+        {
+            const int MaxSuggestions = 5;
+            int threshold = Math.Max(2, name.Length / 3);
+
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var scored = new List<(string Name, int Distance)>();
+
+            var members = type.GetMembers(BindingFlags.Public | BindingFlags.Instance
+                                          | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+            foreach (var member in members)
+            {
+                // Skip property/event accessors, operators and other special-name methods,
+                // as well as compiler-generated members; none are accessible by name.
+                if (member is MethodBase { IsSpecialName: true })
+                {
+                    continue;
+                }
+
+                string candidate = member.Name;
+                if (candidate.Length == 0 || candidate[0] == '<' || !seen.Add(candidate))
+                {
+                    continue;
+                }
+
+                int distance = LevenshteinDistance(name, candidate);
+                bool related = distance <= threshold
+                    || candidate.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0
+                    || name.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0;
+                if (related)
+                {
+                    scored.Add((candidate, distance));
+                }
+            }
+
+            return scored
+                .OrderBy(t => t.Distance)
+                .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                .Take(MaxSuggestions)
+                .Select(t => t.Name)
+                .ToList();
+        }
+
+        private static int LevenshteinDistance(string a, string b)
+        {
+            a = a.ToLowerInvariant();
+            b = b.ToLowerInvariant();
+            int n = a.Length, m = b.Length;
+            if (n == 0) return m;
+            if (m == 0) return n;
+
+            var prev = new int[m + 1];
+            var curr = new int[m + 1];
+            for (int j = 0; j <= m; j++) prev[j] = j;
+
+            for (int i = 1; i <= n; i++)
+            {
+                curr[0] = i;
+                for (int j = 1; j <= m; j++)
+                {
+                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                    curr[j] = Math.Min(Math.Min(curr[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost);
+                }
+                (prev, curr) = (curr, prev);
+            }
+            return prev[m];
+        }
     }
 }

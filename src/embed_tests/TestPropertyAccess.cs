@@ -1129,6 +1129,42 @@ class TestGetNonExistingPublicDynamicObjectPropertyThrows:
             }
         }
 
+        [Test]
+        public void TestGetMisspelledDynamicObjectPropertySuggestsSimilarMembers()
+        {
+            dynamic model = PyModule.FromString("module", @"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+AddReference(""System"")
+
+from Python.EmbeddingTest import *
+
+class TestGetMisspelledDynamicObjectPropertySuggestsSimilarMembers:
+    def GetValue(self, fixture):
+        try:
+            # 'NonDynamicPropertyy' is a near miss of the real 'NonDynamicProperty' member.
+            prop = fixture.NonDynamicPropertyy
+        except AttributeError as e:
+            return e
+
+        return None
+").GetAttr("TestGetMisspelledDynamicObjectPropertySuggestsSimilarMembers").Invoke();
+
+            dynamic fixture = new DynamicFixture();
+
+            using (Py.GIL())
+            {
+                var result = model.GetValue(fixture) as PyObject;
+                Assert.IsFalse(result.IsNone());
+                Assert.AreEqual(result.PyType, Exceptions.AttributeError);
+
+                var message = result.ToString();
+                Assert.That(message, Does.Contain("NonDynamicPropertyy"));
+                Assert.That(message, Does.Contain("Did you mean"));
+                Assert.That(message, Does.Contain("NonDynamicProperty"));
+            }
+        }
+
         public class CSharpTestClass
         {
             public string CSharpProperty { get; set; }

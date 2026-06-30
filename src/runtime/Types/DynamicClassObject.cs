@@ -80,7 +80,10 @@ namespace Python.Runtime
                 }
                 catch (RuntimeBinder.RuntimeBinderException)
                 {
-                    // Do nothing, AttributeError was already raised in Python side and it was not cleared.
+                    // The attribute is neither a static member nor a dynamic property.
+                    // AttributeError was already raised in Python side (by the generic
+                    // getattr above) and was not cleared; enrich it with member suggestions.
+                    AppendAttributeErrorSuggestions(ob, key);
                 }
                 // Catch C# exceptions and raise them as Python exceptions.
                 catch (Exception exception)
