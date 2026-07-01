@@ -167,6 +167,21 @@ namespace Python.Runtime
         protected virtual NewReference NewObjectToPython(object obj, BorrowedReference tp)
             => CLRObject.GetReference(obj, tp);
 
+        /// <summary>
+        /// Type __getattro__ implementation. Delegates to the generic CLR attribute
+        /// lookup, but enriches the AttributeError raised for a missing attribute with
+        /// suggestions of similarly-named members of the managed type.
+        /// </summary>
+        public static NewReference tp_getattro(BorrowedReference ob, BorrowedReference key)
+        {
+            var result = Runtime.PyObject_GenericGetAttr(ob, key);
+            if (result.IsNull())
+            {
+                AppendAttributeErrorSuggestions(ob, key);
+            }
+            return result;
+        }
+
         private static NewReference NewEnum(Type type, BorrowedReference args, BorrowedReference tp)
         {
             nint argCount = Runtime.PyTuple_Size(args);

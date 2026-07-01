@@ -628,13 +628,20 @@ namespace Python.Runtime
             }
 
             var name = Runtime.GetManagedString(key);
-            if (string.IsNullOrEmpty(name))
+            // Skip empty and dunder names: the latter are probed internally by CPython
+            // (e.g. __iter__, __len__) and are never user-facing typos worth helping with.
+            if (string.IsNullOrEmpty(name) || name.StartsWith("__", StringComparison.Ordinal))
             {
                 return;
             }
 
-            var hint = GetSuggestionHint(ob, name);
-            if (hint.Length == 0)
+            if (GetManagedObject(ob) is not CLRObject clrObj || clrObj.inst is null)
+            {
+                return;
+            }
+
+            var suggestions = GetSimilarMemberNames(clrObj.inst.GetType(), name);
+            if (suggestions.Count == 0)
             {
                 return;
             }
@@ -644,6 +651,7 @@ namespace Python.Runtime
             try
             {
                 var baseMessage = GetErrorMessage(errValue.BorrowNullable(), name);
+                var hint = " Did you mean: " + string.Join(", ", suggestions.Select(s => $"'{s}'")) + "?";
                 Exceptions.SetError(Exceptions.AttributeError, baseMessage + hint);
             }
             finally
@@ -652,65 +660,6 @@ namespace Python.Runtime
                 errValue.Dispose();
                 errTraceback.Dispose();
             }
-        }
-
-        /// <summary>
-        /// Builds the full message for an <c>AttributeError</c> raised for a missing
-        /// attribute on a .NET object, including any "Did you mean ...?" hint. Used by
-        /// the miss-only <c>__getattr__</c> hook installed on reflected types (see
-        /// <see cref="AttributeErrorHint"/>), where the original error has already been
-        /// cleared, so the base message is reconstructed here.
-        /// </summary>
-        internal static string BuildMissingAttributeMessage(PyObject self, string name)
-        {
-            var typeName = "object";
-            try
-            {
-                using var pyType = self.GetPythonType();
-                typeName = pyType.Name;
-            }
-            catch
-            {
-                // fall back to the generic type name
-            }
-
-            var message = $"'{typeName}' object has no attribute '{name}'";
-            try
-            {
-                return message + GetSuggestionHint(self.Reference, name);
-            }
-            catch
-            {
-                // never let suggestion building turn into a different exception
-                return message;
-            }
-        }
-
-        /// <summary>
-        /// Returns " Did you mean: 'x', 'y'?" listing similarly-named members of the
-        /// managed object, or an empty string when there is nothing to suggest. Dunder
-        /// names are skipped: they are probed internally by CPython (e.g. __iter__,
-        /// __len__) and are never user-facing typos worth helping with.
-        /// </summary>
-        private static string GetSuggestionHint(BorrowedReference ob, string name)
-        {
-            if (string.IsNullOrEmpty(name) || name.StartsWith("__", StringComparison.Ordinal))
-            {
-                return string.Empty;
-            }
-
-            if (GetManagedObject(ob) is not CLRObject clrObj || clrObj.inst is null)
-            {
-                return string.Empty;
-            }
-
-            var suggestions = GetSimilarMemberNames(clrObj.inst.GetType(), name);
-            if (suggestions.Count == 0)
-            {
-                return string.Empty;
-            }
-
-            return " Did you mean: " + string.Join(", ", suggestions.Select(s => $"'{s}'")) + "?";
         }
 
         private static string GetErrorMessage(BorrowedReference value, string fallbackName)
