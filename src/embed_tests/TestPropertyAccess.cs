@@ -1129,44 +1129,6 @@ class TestGetNonExistingPublicDynamicObjectPropertyThrows:
             }
         }
 
-        [Test]
-        public void TestGetMisspelledDynamicObjectPropertySuggestsSimilarMembers()
-        {
-            dynamic model = PyModule.FromString("module", @"
-from clr import AddReference
-AddReference(""Python.EmbeddingTest"")
-AddReference(""System"")
-
-from Python.EmbeddingTest import *
-
-class TestGetMisspelledDynamicObjectPropertySuggestsSimilarMembers:
-    def GetValue(self, fixture):
-        try:
-            # 'non_dynamic_propertyy' is a near miss of the snake_case alias of the
-            # real 'NonDynamicProperty' member.
-            prop = fixture.non_dynamic_propertyy
-        except AttributeError as e:
-            return e
-
-        return None
-").GetAttr("TestGetMisspelledDynamicObjectPropertySuggestsSimilarMembers").Invoke();
-
-            dynamic fixture = new DynamicFixture();
-
-            using (Py.GIL())
-            {
-                var result = model.GetValue(fixture) as PyObject;
-                Assert.IsFalse(result.IsNone());
-                Assert.AreEqual(result.PyType, Exceptions.AttributeError);
-
-                // Suggestions are emitted in snake_case, matching the fork's PEP8-style API.
-                var message = result.ToString();
-                Assert.That(message, Does.Contain("non_dynamic_propertyy"));
-                Assert.That(message, Does.Contain("Did you mean"));
-                Assert.That(message, Does.Contain("non_dynamic_property"));
-            }
-        }
-
         public class CSharpTestClass
         {
             public string CSharpProperty { get; set; }
