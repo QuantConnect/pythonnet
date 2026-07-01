@@ -263,6 +263,10 @@ namespace Python.Runtime
             }
 
             ImportHook.UpdateCLRModuleDict();
+
+            // Set up the miss-only __getattr__ hook used to enrich AttributeError
+            // messages on reflected .NET types with member-name suggestions.
+            AttributeErrorHint.Initialize();
         }
 
         static BorrowedReference DefineModule(string name)
@@ -369,6 +373,9 @@ namespace Python.Runtime
             AppDomain.CurrentDomain.ProcessExit -= OnProcessExit;
 
             ExecuteShutdownHandlers();
+
+            AttributeErrorHint.Shutdown();
+
             // Remember to shut down the runtime.
             Runtime.Shutdown();
 

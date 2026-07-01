@@ -66,6 +66,44 @@ def test_non_exported():
         _ = Test.NonExportable
 
 
+def test_missing_attribute_suggests_similar_members():
+    """A missing attribute on a .NET object should suggest similarly-named members.
+
+    Suggestions are emitted in snake_case, matching the fork's PEP8-style API.
+    """
+    s = System.String("this is a test")
+
+    # 'lenght' is a transposition of 'length' (the snake_case alias of the real
+    # 'Length' member), so it should be suggested.
+    with pytest.raises(AttributeError) as exc_info:
+        _ = s.lenght
+
+    message = str(exc_info.value)
+    assert "lenght" in message
+    assert "Did you mean" in message
+    assert "length" in message
+
+
+def test_missing_attribute_no_similar_members():
+    """A missing attribute with no similar members keeps the standard message."""
+    s = System.String("this is a test")
+
+    with pytest.raises(AttributeError) as exc_info:
+        _ = s.completely_unrelated_xyzzy
+
+    message = str(exc_info.value)
+    assert "completely_unrelated_xyzzy" in message
+    assert "Did you mean" not in message
+
+
+def test_missing_attribute_hasattr_still_false():
+    """Enriching the AttributeError must not break hasattr() (it must stay False)."""
+    s = System.String("this is a test")
+
+    assert not hasattr(s, "Lenght")
+    assert hasattr(s, "Length")
+
+
 def test_basic_subclass():
     """Test basic subclass of a managed class."""
     from System.Collections import Hashtable
