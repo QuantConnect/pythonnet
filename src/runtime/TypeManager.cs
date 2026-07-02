@@ -303,10 +303,6 @@ namespace Python.Runtime
 
             Runtime.PyType_Modified(type.Reference);
 
-            // Enrich AttributeError messages for missing attributes with member-name
-            // suggestions, via a miss-only __getattr__ hook (no hot-path cost).
-            AttributeErrorHint.Install(type.Reference);
-
             //DebugUtil.DumpType(type);
         }
 
