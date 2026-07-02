@@ -1006,13 +1006,14 @@ namespace Python.Runtime
                 if (!Exceptions.ErrorOccurred())
                 {
                     var value = new StringBuilder("No method matches given arguments");
+                    // Use the snake_case name Python callers use, matching the hinted signatures below.
                     if (methodinfo != null && methodinfo.Length > 0)
                     {
-                        value.Append($" for {methodinfo[0].Name}");
+                        value.Append($" for {SnakeCaseName(methodinfo[0])}");
                     }
                     else if (list.Count > 0)
                     {
-                        value.Append($" for {list[0].MethodBase.Name}");
+                        value.Append($" for {SnakeCaseName(list[0].MethodBase)}");
                     }
 
                     value.Append(": ");
@@ -1288,13 +1289,15 @@ namespace Python.Runtime
         }
 
         /// <summary>
-        /// Formats a method/constructor as a readable signature, e.g.
-        /// <c>RangeConsolidator(Int32 range, Func[IBaseData, Decimal] selector = None)</c>.
+        /// Formats a method/constructor as a readable signature using the snake_case
+        /// name Python callers use, e.g.
+        /// <c>range_consolidator(Int32 range, Func[IBaseData, Decimal] selector = None)</c>.
+        /// The constructor's special <c>.ctor</c> token is left as-is.
         /// </summary>
         private static string FormatSignature(MethodBase method)
         {
             var to = new StringBuilder();
-            to.Append(method.Name).Append('(');
+            to.Append(SnakeCaseName(method)).Append('(');
             var parameters = method.GetParameters();
             for (var i = 0; i < parameters.Length; i++)
             {
@@ -1307,7 +1310,7 @@ namespace Python.Runtime
                 {
                     to.Append("params ");
                 }
-                to.Append(FormatType(parameter.ParameterType)).Append(' ').Append(parameter.Name);
+                to.Append(FormatType(parameter.ParameterType)).Append(' ').Append(parameter.Name.ToSnakeCase());
                 if (parameter.IsOptional)
                 {
                     to.Append(" = ").Append(FormatDefaultValue(parameter.DefaultValue));
@@ -1347,6 +1350,15 @@ namespace Python.Runtime
             }
 
             return type.Name;
+        }
+
+        /// <summary>
+        /// The snake_case name a Python caller uses for the given method. Constructors
+        /// keep their special <c>.ctor</c> token (a Python caller invokes the type).
+        /// </summary>
+        private static string SnakeCaseName(MethodBase method)
+        {
+            return method.IsConstructor ? method.Name : method.Name.ToSnakeCase();
         }
 
         private static string FormatDefaultValue(object value)

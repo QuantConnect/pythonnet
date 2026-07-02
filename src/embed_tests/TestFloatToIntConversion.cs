@@ -32,6 +32,15 @@ def overloaded_ctor(value):
 
 def overloaded_method(value):
     return OverloadedIntTaker(0).Echo(value)
+
+def single_named(value):
+    return IntTaker(0).ComputeValue(value)
+
+def overloaded_named(value):
+    return OverloadedIntTaker(0).ComputeRange(value)
+
+def single_params(value):
+    return IntTaker(0).ComputeScaled(value)
 ";
 
         [OneTimeSetUp]
@@ -95,6 +104,33 @@ def overloaded_method(value):
             // The int overload is surfaced, hinting an integer was expected.
             StringAssert.Contains("Int32 range", ex.Message);
         }
+
+        // The hinted signatures use the snake_case name Python callers use, not the
+        // original C# name.
+        [Test]
+        public void ErrorMessage_SingleOverload_UsesSnakeCaseMethodName()
+        {
+            var ex = Assert.Throws<PythonException>(() => Call("single_named", 5.5));
+            StringAssert.Contains("compute_value(", ex.Message);
+            StringAssert.DoesNotContain("ComputeValue", ex.Message);
+        }
+
+        [Test]
+        public void ErrorMessage_MultipleOverloads_UseSnakeCaseMethodName()
+        {
+            var ex = Assert.Throws<PythonException>(() => Call("overloaded_named", 5.5));
+            StringAssert.Contains("compute_range(", ex.Message);
+            StringAssert.DoesNotContain("ComputeRange", ex.Message);
+        }
+
+        // The hinted signatures also snake_case the parameter names.
+        [Test]
+        public void ErrorMessage_SignatureParameters_AreSnakeCase()
+        {
+            var ex = Assert.Throws<PythonException>(() => Call("single_params", 5.5));
+            StringAssert.Contains("scale_factor", ex.Message);
+            StringAssert.DoesNotContain("scaleFactor", ex.Message);
+        }
     }
 
     public class IntTaker
@@ -107,6 +143,10 @@ def overloaded_method(value):
         }
 
         public int Echo(int value) => value;
+
+        public int ComputeValue(int value) => value;
+
+        public int ComputeScaled(int scaleFactor) => scaleFactor;
     }
 
     /// <summary>
@@ -131,5 +171,9 @@ def overloaded_method(value):
         public int Echo(int value, System.Func<int, int> selector = null) => value;
 
         public int Echo(int value, PyObject selector, PyObject other = null) => value;
+
+        public int ComputeRange(int value, System.Func<int, int> selector = null) => value;
+
+        public int ComputeRange(int value, PyObject selector, PyObject other = null) => value;
     }
 }
