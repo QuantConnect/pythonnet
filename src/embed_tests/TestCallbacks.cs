@@ -25,7 +25,9 @@ namespace Python.EmbeddingTest {
                 var error =  Assert.Throws<PythonException>(() => callWith42(pyFunc));
                 Assert.AreEqual("TypeError", error.Type.Name);
                 string expectedArgTypes = "(<class 'list'>)";
-                StringAssert.EndsWith(expectedArgTypes, error.Message);
+                // The message includes the offending argument types, followed by the
+                // candidate overload signatures, so assert containment rather than suffix.
+                StringAssert.Contains(expectedArgTypes, error.Message);
                 error.Traceback.Dispose();
             }
         }

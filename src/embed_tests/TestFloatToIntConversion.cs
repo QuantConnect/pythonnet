@@ -77,6 +77,24 @@ def overloaded_method(value):
             var ex = Assert.Throws<PythonException>(() => Call(func, 5.5));
             Assert.AreEqual("TypeError", ex.Type.Name);
         }
+
+        // When no overload matches, the error should hint the expected signature(s).
+        [Test]
+        public void ErrorMessage_SingleOverload_ShowsExpectedSignature()
+        {
+            var ex = Assert.Throws<PythonException>(() => Call("single_ctor", 5.5));
+            StringAssert.Contains("The expected signature is:", ex.Message);
+            StringAssert.Contains("Int32 value", ex.Message);
+        }
+
+        [Test]
+        public void ErrorMessage_MultipleOverloads_ListsCandidates()
+        {
+            var ex = Assert.Throws<PythonException>(() => Call("overloaded_ctor", 5.5));
+            StringAssert.Contains("The following overloads are available:", ex.Message);
+            // The int overload is surfaced, hinting an integer was expected.
+            StringAssert.Contains("Int32 range", ex.Message);
+        }
     }
 
     public class IntTaker
