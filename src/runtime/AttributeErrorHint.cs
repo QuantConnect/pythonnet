@@ -1,4 +1,6 @@
 using System;
+using System.Reflection;
+using System.Runtime.InteropServices;
 
 using Python.Runtime.Native;
 
@@ -17,19 +19,29 @@ namespace Python.Runtime
     /// pythonnet's metatype does not run CPython's slot-fixup machinery when an attribute
     /// is set on a type, so simply adding <c>__getattr__</c> to the type dict would not
     /// rewire the slot — we therefore wire <c>tp_getattro</c> to the hook manually.
+    ///
+    /// The <c>__getattr__</c> itself is a native method descriptor (PyDescr_NewMethod)
+    /// around a managed thunk, NOT a .NET delegate exposed to Python: delegate calls go
+    /// through <see cref="MethodBinder"/>, which releases the GIL around the invocation
+    /// (allow_threads), so the callback would run CPython C-API calls off-GIL and crash
+    /// whenever the <see cref="Finalizer"/> fires mid-callback. The native thunk is
+    /// called directly by the interpreter with the GIL held.
     /// </remarks>
     internal static class AttributeErrorHint
     {
-        // The shared __getattr__ function object installed on every eligible type.
-        private static PyObject? _getAttr;
-        // The managed message builder exposed to Python, kept alive for _getAttr's globals.
-        private static PyObject? _messageBuilder;
+        // Unmanaged PyMethodDef backing the shared __getattr__ method descriptors.
+        // Descriptors keep a raw pointer to it (d_method) and can outlive engine
+        // shutdown bookkeeping, so it is allocated once and kept for the process
+        // lifetime (as are the thunks in Interop.allocatedThunks).
+        private static IntPtr _methodDef;
+        // Keeps the thunk delegate for GetAttrHook alive.
+        private static ThunkInfo? _thunk;
         // Address of CPython's slot_tp_getattr_hook (extracted from a probe type).
         private static IntPtr _hookSlot;
         // Address of PyObject_GenericGetAttr, used to detect types we may safely redirect.
         private static IntPtr _genericGetAttr;
 
-        private static bool IsReady => _getAttr is not null && _hookSlot != IntPtr.Zero;
+        private static bool IsReady => _methodDef != IntPtr.Zero && _hookSlot != IntPtr.Zero;
 
         internal static void Initialize()
         {
@@ -37,24 +49,25 @@ namespace Python.Runtime
             {
                 _genericGetAttr = Util.ReadIntPtr(Runtime.PyBaseObjectType, TypeOffset.tp_getattro);
 
-                Func<PyObject, string, string> builder = ClassBase.BuildMissingAttributeMessage;
-                _messageBuilder = builder.ToPython();
+                if (_methodDef == IntPtr.Zero)
+                {
+                    _thunk = Interop.GetThunk(typeof(AttributeErrorHint).GetMethod(
+                        nameof(GetAttrHook), BindingFlags.Static | BindingFlags.Public)!);
+                    IntPtr methodDef = Marshal.AllocHGlobal(4 * IntPtr.Size);
+                    TypeManager.WriteMethodDef(methodDef, "__getattr__", _thunk.Address);
+                    _methodDef = methodDef;
+                }
 
+                // Define a probe class whose tp_getattro is slot_tp_getattr_hook so we
+                // can read that function pointer.
                 using var globals = new PyDict();
                 Runtime.PyDict_SetItemString(globals.Reference, "__builtins__", Runtime.PyEval_GetBuiltins());
-                globals["__clr_attr_msg__"] = _messageBuilder;
-
-                // Define the shared hook, plus a probe class whose tp_getattro is
-                // slot_tp_getattr_hook so we can read that function pointer.
                 PythonEngine.Exec(
-                    "def __clr_getattr__(self, name):\n" +
-                    "    raise AttributeError(__clr_attr_msg__(self, name))\n" +
                     "class __clr_getattr_probe__:\n" +
                     "    def __getattr__(self, name):\n" +
                     "        raise AttributeError(name)\n",
                     globals);
 
-                _getAttr = globals["__clr_getattr__"];
                 using var probe = globals["__clr_getattr_probe__"];
                 _hookSlot = Util.ReadIntPtr(probe.Reference, TypeOffset.tp_getattro);
             }
@@ -86,7 +99,15 @@ namespace Python.Runtime
                 return;
             }
 
-            if (Runtime.PyObject_SetAttrString(type, "__getattr__", _getAttr!.Reference) != 0)
+            using var descr = Runtime.PyDescr_NewMethod(type, _methodDef);
+            if (descr.IsNull())
+            {
+                Exceptions.Clear();
+                return;
+            }
+
+            BorrowedReference dict = Util.ReadRef(type, TypeOffset.tp_dict);
+            if (Runtime.PyDict_SetItemString(dict, "__getattr__", descr.Borrow()) != 0)
             {
                 Exceptions.Clear();
                 return;
@@ -96,12 +117,45 @@ namespace Python.Runtime
             Runtime.PyType_Modified(type);
         }
 
+        /// <summary>
+        /// The <c>__getattr__(self, name)</c> implementation (METH_VARARGS). CPython's
+        /// <c>slot_tp_getattr_hook</c> only calls it after the normal lookup has failed
+        /// and the original AttributeError has been cleared, so the full message is
+        /// rebuilt here. Runs as a direct native method call with the GIL held.
+        /// </summary>
+        public static NewReference GetAttrHook(BorrowedReference ob, BorrowedReference args)
+        {
+            string? name = null;
+            string message;
+            try
+            {
+                if (Runtime.PyTuple_Size(args) == 1)
+                {
+                    BorrowedReference key = Runtime.PyTuple_GetItem(args, 0);
+                    if (Runtime.PyString_Check(key))
+                    {
+                        name = Runtime.GetManagedString(key);
+                    }
+                }
+
+                using var self = new PyObject(ob);
+                message = ClassBase.BuildMissingAttributeMessage(self, name ?? "?");
+            }
+            catch
+            {
+                // Never let message building turn into a different exception.
+                message = $"object has no attribute '{name ?? "?"}'";
+            }
+
+            Exceptions.SetError(Exceptions.AttributeError, message);
+            return default;
+        }
+
         internal static void Shutdown()
         {
-            _getAttr?.Dispose();
-            _getAttr = null;
-            _messageBuilder?.Dispose();
-            _messageBuilder = null;
+            // _methodDef and _thunk are deliberately kept: method descriptors created
+            // from them may still be reachable during interpreter teardown, and both
+            // are reused by the next Initialize.
             _hookSlot = IntPtr.Zero;
             _genericGetAttr = IntPtr.Zero;
         }
