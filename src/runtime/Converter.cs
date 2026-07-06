@@ -895,6 +895,20 @@ class GMT(tzinfo):
 
             TypeCode tc = Type.GetTypeCode(obType);
 
+            // A Python float with a fractional part must not be silently truncated
+            // into an integer parameter. Integral-valued floats (e.g. 5.0) are still
+            // accepted. This keeps single- and multi-overload binding consistent:
+            // MethodBinder only treats integral floats as candidates for integer
+            // parameters, and this guard enforces the same rule at conversion time.
+            if (tc.IsInteger() && Runtime.PyFloat_Check(value))
+            {
+                double dbl = Runtime.PyFloat_AsDouble(value);
+                if (double.IsNaN(dbl) || double.IsInfinity(dbl) || Math.Truncate(dbl) != dbl)
+                {
+                    goto type_error;
+                }
+            }
+
             switch (tc)
             {
                 case TypeCode.Object:

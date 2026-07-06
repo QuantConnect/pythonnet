@@ -303,5 +303,38 @@ namespace Python.Runtime
         {
             return type.IsSubclassOf(typeof(Delegate));
         }
+
+        /// <summary>
+        /// Determines whether the specified type is a CLR integer type (signed or unsigned).
+        /// Enums report an integral <see cref="TypeCode"/> too, so callers that want to
+        /// exclude them must check <see cref="Type.IsEnum"/> separately.
+        /// </summary>
+        public static bool IsInteger(this Type type)
+        {
+            return Type.GetTypeCode(type).IsInteger();
+        }
+
+        /// <summary>
+        /// Determines whether the specified type code is a CLR integer type (signed or unsigned).
+        /// Enums report an integral <see cref="TypeCode"/> too, so callers that want to
+        /// exclude them must check <see cref="Type.IsEnum"/> separately.
+        /// </summary>
+        public static bool IsInteger(this TypeCode typeCode)
+        {
+            switch (typeCode)
+            {
+                case TypeCode.Byte:
+                case TypeCode.SByte:
+                case TypeCode.Int16:
+                case TypeCode.UInt16:
+                case TypeCode.Int32:
+                case TypeCode.UInt32:
+                case TypeCode.Int64:
+                case TypeCode.UInt64:
+                    return true;
+                default:
+                    return false;
+            }
+        }
     }
 }
