@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -732,38 +733,69 @@ namespace Python.Runtime
             return $"object has no attribute '{fallbackName}'";
         }
 
-        private static List<string> GetSimilarMemberNames(Type type, string name)
+        // Reflecting over a managed type's full member set (with FlattenHierarchy) plus the
+        // snake_case conversion is expensive, and the result never changes for a given type.
+        // Compute it once per type.
+        private static readonly ConcurrentDictionary<Type, string[]> _candidateNameCache = new();
+
+        // A miss-heavy workload probes the same missing names over and over (e.g. a per-bar
+        // getattr(self, "_optional", None) on a .NET-derived object). Memoize the ranked
+        // suggestion list per (type, missing-name) so repeats are a dictionary lookup instead
+        // of an O(members) reflection + Levenshtein scan on every miss.
+        private static readonly ConcurrentDictionary<(Type Type, string Name), string[]> _suggestionCache = new();
+
+        private static IReadOnlyList<string> GetSimilarMemberNames(Type type, string name)
+        {
+            return _suggestionCache.GetOrAdd((type, name),
+                static key => ComputeSimilarMemberNames(key.Type, key.Name));
+        }
+
+        // The deduplicated snake_case member names of a type, cached so the reflection and
+        // string conversion happen at most once per type rather than on every attribute miss.
+        private static string[] GetCandidateMemberNames(Type type)
+        {
+            return _candidateNameCache.GetOrAdd(type, static t =>
+            {
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                var names = new List<string>();
+
+                var members = t.GetMembers(BindingFlags.Public | BindingFlags.Instance
+                                              | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+                foreach (var member in members)
+                {
+                    // Skip property/event accessors, operators and other special-name methods,
+                    // as well as compiler-generated members; none are accessible by name.
+                    if (member is MethodBase { IsSpecialName: true })
+                    {
+                        continue;
+                    }
+
+                    if (member.Name.Length == 0 || member.Name[0] == '<')
+                    {
+                        continue;
+                    }
+
+                    // Suggest the snake_case alias, since that is the fork's PEP8-style
+                    // public API surface (members are exposed in both Pascal and snake case).
+                    var candidate = ToSnakeCaseMemberName(member);
+                    if (seen.Add(candidate))
+                    {
+                        names.Add(candidate);
+                    }
+                }
+
+                return names.ToArray();
+            });
+        }
+
+        private static string[] ComputeSimilarMemberNames(Type type, string name)
         {
             const int MaxSuggestions = 5;
             var threshold = Math.Max(2, name.Length / 3);
 
-            var seen = new HashSet<string>(StringComparer.Ordinal);
             var scored = new List<(string Name, int Distance)>();
-
-            var members = type.GetMembers(BindingFlags.Public | BindingFlags.Instance
-                                          | BindingFlags.Static | BindingFlags.FlattenHierarchy);
-            foreach (var member in members)
+            foreach (var candidate in GetCandidateMemberNames(type))
             {
-                // Skip property/event accessors, operators and other special-name methods,
-                // as well as compiler-generated members; none are accessible by name.
-                if (member is MethodBase { IsSpecialName: true })
-                {
-                    continue;
-                }
-
-                if (member.Name.Length == 0 || member.Name[0] == '<')
-                {
-                    continue;
-                }
-
-                // Suggest the snake_case alias, since that is the fork's PEP8-style
-                // public API surface (members are exposed in both Pascal and snake case).
-                var candidate = ToSnakeCaseMemberName(member);
-                if (!seen.Add(candidate))
-                {
-                    continue;
-                }
-
                 var distance = LevenshteinDistance(name, candidate);
                 var related = distance <= threshold
                     || candidate.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0
@@ -779,7 +811,7 @@ namespace Python.Runtime
                 .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
                 .Take(MaxSuggestions)
                 .Select(t => t.Name)
-                .ToList();
+                .ToArray();
         }
 
         private static string ToSnakeCaseMemberName(MemberInfo member)

@@ -96,6 +96,25 @@ def test_missing_attribute_no_similar_members():
     assert "Did you mean" not in message
 
 
+def test_missing_attribute_suggestion_is_cached_and_stable():
+    """Repeated misses of the same attribute must return identical suggestions.
+
+    The suggestion list is memoized per (type, name) so a miss-heavy workload does
+    not re-run the reflection + Levenshtein scan on every access. The cached result
+    must stay correct and identical across repeated lookups.
+    """
+    s = System.String("this is a test")
+
+    messages = []
+    for _ in range(3):
+        with pytest.raises(AttributeError) as exc_info:
+            _ = s.lenght
+        messages.append(str(exc_info.value))
+
+    assert all("Did you mean" in m and "length" in m for m in messages)
+    assert messages[0] == messages[1] == messages[2]
+
+
 def test_missing_attribute_hasattr_still_false():
     """Enriching the AttributeError must not break hasattr() (it must stay False)."""
     s = System.String("this is a test")
