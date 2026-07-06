@@ -104,6 +104,23 @@ def test_missing_attribute_hasattr_still_false():
     assert hasattr(s, "Length")
 
 
+def test_missing_attribute_hook_is_native():
+    """The __getattr__ hook must be a native method descriptor.
+
+    If it were a Python function calling into .NET through a delegate, the call
+    would go through MethodBinder, which releases the GIL around the invocation:
+    the hint-building callback would then run CPython C-API calls off-GIL and
+    crash whenever the pythonnet Finalizer fires mid-callback (the Lean CI crash
+    on 2.0.55).
+    """
+    hook = next(
+        c.__dict__["__getattr__"]
+        for c in type(System.String("x")).__mro__
+        if "__getattr__" in c.__dict__
+    )
+    assert type(hook).__name__ == "method_descriptor"
+
+
 def test_basic_subclass():
     """Test basic subclass of a managed class."""
     from System.Collections import Hashtable

@@ -1738,6 +1738,13 @@ namespace Python.Runtime
 
         internal static int PyObject_GenericSetAttr(BorrowedReference obj, BorrowedReference name, BorrowedReference value) => Delegates.PyObject_GenericSetAttr(obj, name, value);
 
+
+        /// <summary>
+        /// Creates a method descriptor for <paramref name="type"/> from an unmanaged
+        /// <c>PyMethodDef*</c>, which must remain valid for the descriptor's lifetime.
+        /// </summary>
+        internal static NewReference PyDescr_NewMethod(BorrowedReference type, IntPtr methodDef) => Delegates.PyDescr_NewMethod(type, methodDef);
+
         internal static NewReference PyObject_GenericGetDict(BorrowedReference o) => PyObject_GenericGetDict(o, IntPtr.Zero);
         internal static NewReference PyObject_GenericGetDict(BorrowedReference o, IntPtr context) => Delegates.PyObject_GenericGetDict(o, context);
 

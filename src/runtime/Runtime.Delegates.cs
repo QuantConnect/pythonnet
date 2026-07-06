@@ -230,6 +230,7 @@ public unsafe partial class Runtime
             PyObject_GenericGetAttr = (delegate* unmanaged[Cdecl]<BorrowedReference, BorrowedReference, NewReference>)GetFunctionByName(nameof(PyObject_GenericGetAttr), GetUnmanagedDll(_PythonDll));
             PyObject_GenericGetDict = (delegate* unmanaged[Cdecl]<BorrowedReference, IntPtr, NewReference>)GetFunctionByName(nameof(PyObject_GenericGetDict), GetUnmanagedDll(PythonDLL));
             PyObject_GenericSetAttr = (delegate* unmanaged[Cdecl]<BorrowedReference, BorrowedReference, BorrowedReference, int>)GetFunctionByName(nameof(PyObject_GenericSetAttr), GetUnmanagedDll(_PythonDll));
+            PyDescr_NewMethod = (delegate* unmanaged[Cdecl]<BorrowedReference, IntPtr, NewReference>)GetFunctionByName(nameof(PyDescr_NewMethod), GetUnmanagedDll(_PythonDll));
             PyObject_GC_Del = (delegate* unmanaged[Cdecl]<StolenReference, void>)GetFunctionByName(nameof(PyObject_GC_Del), GetUnmanagedDll(_PythonDll));
             try
             {
@@ -504,6 +505,7 @@ public unsafe partial class Runtime
         internal static delegate* unmanaged[Cdecl]<BorrowedReference, BorrowedReference, BorrowedReference> _PyType_Lookup { get; }
         internal static delegate* unmanaged[Cdecl]<BorrowedReference, BorrowedReference, NewReference> PyObject_GenericGetAttr { get; }
         internal static delegate* unmanaged[Cdecl]<BorrowedReference, BorrowedReference, BorrowedReference, int> PyObject_GenericSetAttr { get; }
+        internal static delegate* unmanaged[Cdecl]<BorrowedReference, IntPtr, NewReference> PyDescr_NewMethod { get; }
         internal static delegate* unmanaged[Cdecl]<StolenReference, void> PyObject_GC_Del { get; }
         internal static delegate* unmanaged[Cdecl]<BorrowedReference, int> PyObject_GC_IsTracked { get; }
         internal static delegate* unmanaged[Cdecl]<BorrowedReference, void> PyObject_GC_Track { get; }
