@@ -683,7 +683,7 @@ namespace Python.Runtime
                                         // parameters. Converter.ToManaged rejects non-integral floats
                                         // (e.g. 5.5) so we don't silently truncate. Enums are excluded
                                         // on purpose.
-                                        else if (Runtime.PyFloat_Check(op) && underlyingType.IsInteger() && !underlyingType.IsEnum)
+                                        else if (Runtime.PyFloat_Check(op) && argtypecode.IsInteger() && !underlyingType.IsEnum)
                                         {
                                             clrtype = parameter.ParameterType;
                                             typematch = Converter.ToManaged(op, clrtype, out arg, false);

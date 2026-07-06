@@ -311,7 +311,17 @@ namespace Python.Runtime
         /// </summary>
         public static bool IsInteger(this Type type)
         {
-            switch (Type.GetTypeCode(type))
+            return Type.GetTypeCode(type).IsInteger();
+        }
+
+        /// <summary>
+        /// Determines whether the specified type code is a CLR integer type (signed or unsigned).
+        /// Enums report an integral <see cref="TypeCode"/> too, so callers that want to
+        /// exclude them must check <see cref="Type.IsEnum"/> separately.
+        /// </summary>
+        public static bool IsInteger(this TypeCode typeCode)
+        {
+            switch (typeCode)
             {
                 case TypeCode.Byte:
                 case TypeCode.SByte:

@@ -900,7 +900,7 @@ class GMT(tzinfo):
             // accepted. This keeps single- and multi-overload binding consistent:
             // MethodBinder only treats integral floats as candidates for integer
             // parameters, and this guard enforces the same rule at conversion time.
-            if (obType.IsInteger() && Runtime.PyFloat_Check(value))
+            if (tc.IsInteger() && Runtime.PyFloat_Check(value))
             {
                 double dbl = Runtime.PyFloat_AsDouble(value);
                 if (double.IsNaN(dbl) || double.IsInfinity(dbl) || Math.Truncate(dbl) != dbl)
