@@ -961,8 +961,10 @@ def test_getting_generic_method_binding_does_not_leak_memory():
     bytesAllocatedPerIteration = pow(2, 20)  # 1MB
     bytesLeakedPerIteration = processBytesDelta / iterations
 
-    # Allow 50% threshold - this shows the original issue is fixed, which leaks the full allocated bytes per iteration
-    failThresholdBytesLeakedPerIteration = bytesAllocatedPerIteration / 2
+    # Tight 10% threshold: with the fix the per-iteration leak is essentially
+    # zero, while the bug retains the bulk of the 1 MB payload (~600 KB/iter
+    # on 3.14 GIL). 100 KB/iter cleanly distinguishes the two states.
+    failThresholdBytesLeakedPerIteration = bytesAllocatedPerIteration * 0.1
 
     assert bytesLeakedPerIteration < failThresholdBytesLeakedPerIteration
 
@@ -1005,8 +1007,8 @@ def test_getting_overloaded_method_binding_does_not_leak_memory():
     bytesAllocatedPerIteration = pow(2, 20)  # 1MB
     bytesLeakedPerIteration = processBytesDelta / iterations
 
-    # Allow 50% threshold - this shows the original issue is fixed, which leaks the full allocated bytes per iteration
-    failThresholdBytesLeakedPerIteration = bytesAllocatedPerIteration / 2
+    # Tight 10% threshold; see test_getting_generic_method_binding_does_not_leak_memory.
+    failThresholdBytesLeakedPerIteration = bytesAllocatedPerIteration * 0.1
 
     assert bytesLeakedPerIteration < failThresholdBytesLeakedPerIteration
 
@@ -1049,8 +1051,8 @@ def test_getting_method_overloads_binding_does_not_leak_memory():
     bytesAllocatedPerIteration = pow(2, 20)  # 1MB
     bytesLeakedPerIteration = processBytesDelta / iterations
 
-    # Allow 50% threshold - this shows the original issue is fixed, which leaks the full allocated bytes per iteration
-    failThresholdBytesLeakedPerIteration = bytesAllocatedPerIteration / 2
+    # Tight 10% threshold; see test_getting_generic_method_binding_does_not_leak_memory.
+    failThresholdBytesLeakedPerIteration = bytesAllocatedPerIteration * 0.1
 
     assert bytesLeakedPerIteration < failThresholdBytesLeakedPerIteration
 
