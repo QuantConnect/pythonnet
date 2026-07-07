@@ -29,6 +29,18 @@ namespace Python.Runtime
         internal readonly Dictionary<int, MethodObject> richcompare = new();
         internal MaybeType type;
 
+        // Reflecting over a managed type's full member set (with FlattenHierarchy) plus the
+        // snake_case conversion is expensive, and the result never changes for a given type.
+        // Compute it once per type.
+        private static readonly ConcurrentDictionary<Type, HashSet<string>> _candidateNameCache = new();
+
+        // A miss-heavy workload probes the same missing names over and over (e.g. a per-bar
+        // getattr(self, "_optional", None) on a .NET-derived object). Memoize the fully-built
+        // " Did you mean: ...?" hint (empty when there is nothing to suggest) per
+        // (type, missing-name) so repeats are a dictionary lookup instead of an O(members)
+        // reflection + Levenshtein scan on every miss.
+        private static readonly ConcurrentDictionary<(Type Type, string Name), string> _suggestionCache = new();
+
         internal ClassBase(Type tp)
         {
             if (tp is null) throw new ArgumentNullException(nameof(type));
@@ -730,26 +742,13 @@ namespace Python.Runtime
             return $"object has no attribute '{fallbackName}'";
         }
 
-        // Reflecting over a managed type's full member set (with FlattenHierarchy) plus the
-        // snake_case conversion is expensive, and the result never changes for a given type.
-        // Compute it once per type.
-        private static readonly ConcurrentDictionary<Type, string[]> _candidateNameCache = new();
-
-        // A miss-heavy workload probes the same missing names over and over (e.g. a per-bar
-        // getattr(self, "_optional", None) on a .NET-derived object). Memoize the fully-built
-        // " Did you mean: ...?" hint (empty when there is nothing to suggest) per
-        // (type, missing-name) so repeats are a dictionary lookup instead of an O(members)
-        // reflection + Levenshtein scan on every miss.
-        private static readonly ConcurrentDictionary<(Type Type, string Name), string> _suggestionCache = new();
-
         // The deduplicated snake_case member names of a type, cached so the reflection and
         // string conversion happen at most once per type rather than on every attribute miss.
-        private static string[] GetCandidateMemberNames(Type type)
+        private static HashSet<string> GetCandidateMemberNames(Type type)
         {
             return _candidateNameCache.GetOrAdd(type, static t =>
             {
-                var seen = new HashSet<string>(StringComparer.Ordinal);
-                var names = new List<string>();
+                var names = new HashSet<string>(StringComparer.Ordinal);
 
                 var members = t.GetMembers(BindingFlags.Public | BindingFlags.Instance
                                               | BindingFlags.Static | BindingFlags.FlattenHierarchy);
@@ -769,14 +768,10 @@ namespace Python.Runtime
 
                     // Suggest the snake_case alias, since that is the fork's PEP8-style
                     // public API surface (members are exposed in both Pascal and snake case).
-                    var candidate = ToSnakeCaseMemberName(member);
-                    if (seen.Add(candidate))
-                    {
-                        names.Add(candidate);
-                    }
+                    names.Add(ToSnakeCaseMemberName(member));
                 }
 
-                return names.ToArray();
+                return names;
             });
         }
 
