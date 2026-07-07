@@ -705,13 +705,10 @@ namespace Python.Runtime
                 return string.Empty;
             }
 
-            var suggestions = GetSimilarMemberNames(clrObj.inst.GetType(), name);
-            if (suggestions.Count == 0)
-            {
-                return string.Empty;
-            }
-
-            return " Did you mean: " + string.Join(", ", suggestions.Select(s => $"'{s}'")) + "?";
+            // The hint is built and cached once per (type, name); on a repeated miss this is
+            // just a dictionary lookup. An empty string means there was nothing to suggest.
+            return _suggestionCache.GetOrAdd((clrObj.inst.GetType(), name),
+                static key => ComputeSimilarMemberNames(key.Type, key.Name));
         }
 
         private static string GetErrorMessage(BorrowedReference value, string fallbackName)
@@ -739,16 +736,11 @@ namespace Python.Runtime
         private static readonly ConcurrentDictionary<Type, string[]> _candidateNameCache = new();
 
         // A miss-heavy workload probes the same missing names over and over (e.g. a per-bar
-        // getattr(self, "_optional", None) on a .NET-derived object). Memoize the ranked
-        // suggestion list per (type, missing-name) so repeats are a dictionary lookup instead
-        // of an O(members) reflection + Levenshtein scan on every miss.
-        private static readonly ConcurrentDictionary<(Type Type, string Name), string[]> _suggestionCache = new();
-
-        private static IReadOnlyList<string> GetSimilarMemberNames(Type type, string name)
-        {
-            return _suggestionCache.GetOrAdd((type, name),
-                static key => ComputeSimilarMemberNames(key.Type, key.Name));
-        }
+        // getattr(self, "_optional", None) on a .NET-derived object). Memoize the fully-built
+        // " Did you mean: ...?" hint (empty when there is nothing to suggest) per
+        // (type, missing-name) so repeats are a dictionary lookup instead of an O(members)
+        // reflection + Levenshtein scan on every miss.
+        private static readonly ConcurrentDictionary<(Type Type, string Name), string> _suggestionCache = new();
 
         // The deduplicated snake_case member names of a type, cached so the reflection and
         // string conversion happen at most once per type rather than on every attribute miss.
@@ -788,7 +780,10 @@ namespace Python.Runtime
             });
         }
 
-        private static string[] ComputeSimilarMemberNames(Type type, string name)
+        // Builds the " Did you mean: 'x', 'y'?" hint for a missing attribute, or an empty
+        // string when no member is similar enough to suggest. The result is cached in
+        // _suggestionCache, so this runs at most once per (type, missing-name).
+        private static string ComputeSimilarMemberNames(Type type, string name)
         {
             const int MaxSuggestions = 5;
             var threshold = Math.Max(2, name.Length / 3);
@@ -806,12 +801,18 @@ namespace Python.Runtime
                 }
             }
 
-            return scored
+            if (scored.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var suggestions = scored
                 .OrderBy(t => t.Distance)
                 .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
                 .Take(MaxSuggestions)
-                .Select(t => t.Name)
-                .ToArray();
+                .Select(t => $"'{t.Name}'");
+
+            return " Did you mean: " + string.Join(", ", suggestions) + "?";
         }
 
         private static string ToSnakeCaseMemberName(MemberInfo member)
