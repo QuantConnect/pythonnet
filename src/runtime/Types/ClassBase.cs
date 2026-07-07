@@ -35,10 +35,10 @@ namespace Python.Runtime
         private static readonly ConcurrentDictionary<Type, HashSet<string>> _candidateNameCache = new();
 
         // A miss-heavy workload probes the same missing names over and over (e.g. a per-bar
-        // getattr(self, "_optional", None) on a .NET-derived object). Memoize the fully-built
-        // " Did you mean: ...?" hint (empty when there is nothing to suggest) per
-        // (type, missing-name) so repeats are a dictionary lookup instead of an O(members)
-        // reflection + Levenshtein scan on every miss.
+        // getattr(self, "_optional", None) on a .NET-derived object, or a mistyped enum value).
+        // Memoize the fully-built " Did you mean: ...?" hint (empty when there is nothing to
+        // suggest) per (type, missing-name) so repeats are a dictionary lookup instead of an
+        // O(members) reflection + Levenshtein scan on every miss.
         private static readonly ConcurrentDictionary<(Type Type, string Name), string> _suggestionCache = new();
 
         internal ClassBase(Type tp)
@@ -676,26 +676,61 @@ namespace Python.Runtime
         /// </summary>
         internal static string BuildMissingAttributeMessage(PyObject self, string name)
         {
-            var typeName = "object";
+            try
+            {
+                if (TryGetSuggestionTarget(self.Reference, out var type, out var staticScope))
+                {
+                    // Match CPython's wording: instances say "'T' object ...", whereas an access
+                    // on the type object itself (a missing static member or enum value) says
+                    // "type object 'T' ...".
+                    var baseMessage = staticScope
+                        ? $"type object '{type!.Name}' has no attribute '{name}'"
+                        : $"'{PythonTypeName(self)}' object has no attribute '{name}'";
+                    return baseMessage + GetSuggestionHint(type!, name);
+                }
+            }
+            catch
+            {
+                // never let message building turn into a different exception
+            }
+
+            return $"'{PythonTypeName(self)}' object has no attribute '{name}'";
+        }
+
+        private static string PythonTypeName(PyObject self)
+        {
             try
             {
                 using var pyType = self.GetPythonType();
-                typeName = pyType.Name;
+                return pyType.Name;
             }
             catch
             {
-                // fall back to the generic type name
+                return "object";
             }
+        }
 
-            var message = $"'{typeName}' object has no attribute '{name}'";
-            try
+        /// <summary>
+        /// Resolves the managed <see cref="Type"/> whose members should be searched for a
+        /// missing-attribute suggestion, and whether the access was on the type object itself
+        /// (<paramref name="staticScope"/> = true, for static members and enum values) rather
+        /// than on an instance. Returns false for objects that are not reflected .NET types.
+        /// </summary>
+        private static bool TryGetSuggestionTarget(BorrowedReference ob, out Type? type, out bool staticScope)
+        {
+            type = null;
+            staticScope = false;
+            switch (GetManagedObject(ob))
             {
-                return message + GetSuggestionHint(self.Reference, name);
-            }
-            catch
-            {
-                // never let suggestion building turn into a different exception
-                return message;
+                case CLRObject clrObj when clrObj.inst is not null:
+                    type = clrObj.inst.GetType();
+                    return true;
+                case ClassBase classBase when classBase.type.Valid:
+                    type = classBase.type.Value;
+                    staticScope = true;
+                    return true;
+                default:
+                    return false;
             }
         }
 
@@ -707,19 +742,27 @@ namespace Python.Runtime
         /// </summary>
         private static string GetSuggestionHint(BorrowedReference ob, string name)
         {
+            if (!TryGetSuggestionTarget(ob, out var type, out _))
+            {
+                return string.Empty;
+            }
+
+            return GetSuggestionHint(type!, name);
+        }
+
+        private static string GetSuggestionHint(Type type, string name)
+        {
             if (string.IsNullOrEmpty(name) || name.StartsWith("__", StringComparison.Ordinal))
             {
                 return string.Empty;
             }
 
-            if (GetManagedObject(ob) is not CLRObject clrObj || clrObj.inst is null)
-            {
-                return string.Empty;
-            }
-
-            // The hint is built and cached once per (type, name); on a repeated miss this is
-            // just a dictionary lookup. An empty string means there was nothing to suggest.
-            return _suggestionCache.GetOrAdd((clrObj.inst.GetType(), name),
+            // The hint is built and cached once per (type, name); on a repeated miss this is just
+            // a dictionary lookup. An empty string means there was nothing to suggest. The
+            // suggested names use the same snake_case convention Python exposes members under
+            // (see ToSnakeCaseMemberName), so they are independent of whether the access was on
+            // an instance or the type object.
+            return _suggestionCache.GetOrAdd((type, name),
                 static key => ComputeSimilarMemberNames(key.Type, key.Name));
         }
 
@@ -742,8 +785,12 @@ namespace Python.Runtime
             return $"object has no attribute '{fallbackName}'";
         }
 
-        // The deduplicated snake_case member names of a type, cached so the reflection and
-        // string conversion happen at most once per type rather than on every attribute miss.
+        // The snake_case candidate member names of a type, cached so the reflection and name
+        // conversion happen at most once per type rather than on every attribute miss. Instance
+        // and static members are both included, and each is converted with ToSnakeCaseMemberName
+        // so the suggestion matches the name Python exposes it under: methods become lower_snake,
+        // while enum values, consts and static-readonly members become UPPER_SNAKE (e.g.
+        // DayOfWeek.SUNDAY, Math.PI, String.EMPTY).
         private static HashSet<string> GetCandidateMemberNames(Type type)
         {
             return _candidateNameCache.GetOrAdd(type, static t =>
@@ -766,8 +813,6 @@ namespace Python.Runtime
                         continue;
                     }
 
-                    // Suggest the snake_case alias, since that is the fork's PEP8-style
-                    // public API surface (members are exposed in both Pascal and snake case).
                     names.Add(ToSnakeCaseMemberName(member));
                 }
 
