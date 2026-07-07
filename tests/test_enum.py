@@ -31,6 +31,43 @@ def test_enum_get_member():
     assert DayOfWeek.Saturday == DayOfWeek(6)
 
 
+def test_missing_enum_member_suggests_similar():
+    """A mistyped enum member suggests the correct member by its .NET name."""
+    from System import DayOfWeek
+
+    with pytest.raises(AttributeError) as exc_info:
+        _ = DayOfWeek.Sundey
+
+    message = str(exc_info.value)
+    # Access on the type object itself uses the "type object 'T'" wording.
+    assert "type object 'DayOfWeek'" in message
+    assert "Sundey" in message
+    assert "Did you mean" in message
+    # Enum values are exposed in UPPER_SNAKE (the fork's PEP8 constant convention), so that is
+    # the form suggested -- DayOfWeek.SUNDAY, not 'Sunday'.
+    assert "'SUNDAY'" in message
+
+
+def test_missing_enum_member_no_similar():
+    """An enum member with no similar name keeps the standard message (no hint)."""
+    from System import DayOfWeek
+
+    with pytest.raises(AttributeError) as exc_info:
+        _ = DayOfWeek.Xyzzy
+
+    message = str(exc_info.value)
+    assert "Xyzzy" in message
+    assert "Did you mean" not in message
+
+
+def test_missing_enum_member_hasattr_still_false():
+    """Enriching the AttributeError must not break hasattr() on enum types."""
+    from System import DayOfWeek
+
+    assert hasattr(DayOfWeek, "Sunday")
+    assert not hasattr(DayOfWeek, "Sundey")
+
+
 def test_byte_enum():
     """Test byte enum."""
     assert Test.ByteEnum.Zero == Test.ByteEnum(0)

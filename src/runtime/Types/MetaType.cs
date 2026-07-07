@@ -27,6 +27,13 @@ namespace Python.Runtime
         };
 
         /// <summary>
+        /// The CLR metatype object. Reflected .NET types are instances of it, so wiring the
+        /// AttributeError miss hook here enriches misses on a type object's own attributes
+        /// (static members and enum values).
+        /// </summary>
+        internal static BorrowedReference ClrMetaTypeReference => PyCLRMetaType.Reference;
+
+        /// <summary>
         /// Metatype initialization. This bootstraps the CLR metatype to life.
         /// </summary>
         public static PyType Initialize()

@@ -96,12 +96,91 @@ def test_missing_attribute_no_similar_members():
     assert "Did you mean" not in message
 
 
+def test_missing_attribute_suggestion_is_cached_and_stable():
+    """Repeated misses of the same attribute must return identical suggestions.
+
+    The suggestion list is memoized per (type, name) so a miss-heavy workload does
+    not re-run the reflection + Levenshtein scan on every access. The cached result
+    must stay correct and identical across repeated lookups.
+    """
+    s = System.String("this is a test")
+
+    messages = []
+    for _ in range(3):
+        with pytest.raises(AttributeError) as exc_info:
+            _ = s.lenght
+        messages.append(str(exc_info.value))
+
+    assert all("Did you mean" in m and "length" in m for m in messages)
+    assert messages[0] == messages[1] == messages[2]
+
+
 def test_missing_attribute_hasattr_still_false():
     """Enriching the AttributeError must not break hasattr() (it must stay False)."""
     s = System.String("this is a test")
 
     assert not hasattr(s, "Lenght")
     assert hasattr(s, "Length")
+
+
+def test_missing_static_method_suggests_similar():
+    """A mistyped static method on a type object suggests the similar member."""
+    from System import Math
+
+    with pytest.raises(AttributeError) as exc_info:
+        _ = Math.Sqrtt
+
+    message = str(exc_info.value)
+    assert "type object 'Math'" in message
+    assert "Sqrtt" in message
+    assert "Did you mean" in message
+    # Methods are exposed lower_snake, so the suggestion is 'sqrt'. Quoted so the assertion
+    # matches the suggestion, not the typo 'Sqrtt'.
+    assert "'sqrt'" in message
+
+
+def test_missing_static_const_suggests_similar():
+    """A mistyped static const (Math.PI) suggests the UPPER_SNAKE constant name."""
+    from System import Math
+
+    with pytest.raises(AttributeError) as exc_info:
+        _ = Math.PII
+
+    message = str(exc_info.value)
+    assert "Did you mean" in message
+    # Consts are exposed UPPER_SNAKE; quoted so it matches the suggestion, not the typo 'PII'.
+    assert "'PI'" in message
+
+
+def test_missing_static_field_suggests_similar():
+    """A mistyped static-readonly field (String.Empty) suggests the UPPER_SNAKE name."""
+    with pytest.raises(AttributeError) as exc_info:
+        _ = System.String.Empy
+
+    message = str(exc_info.value)
+    assert "Did you mean" in message
+    # static-readonly fields are exposed UPPER_SNAKE -> String.EMPTY.
+    assert "'EMPTY'" in message
+
+
+def test_missing_static_member_no_similar():
+    """A static member with no similar name keeps the standard message (no hint)."""
+    from System import Math
+
+    with pytest.raises(AttributeError) as exc_info:
+        _ = Math.Zzzzzz
+
+    message = str(exc_info.value)
+    assert "Zzzzzz" in message
+    assert "Did you mean" not in message
+
+
+def test_missing_static_member_hasattr_still_false():
+    """The type-object miss hook must not break hasattr() on a type."""
+    from System import Math
+
+    assert hasattr(Math, "Sqrt")
+    assert not hasattr(Math, "Sqrtt")
 
 
 def test_missing_attribute_hook_is_native():

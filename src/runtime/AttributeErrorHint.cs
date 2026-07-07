@@ -40,6 +40,10 @@ namespace Python.Runtime
         private static IntPtr _hookSlot;
         // Address of PyObject_GenericGetAttr, used to detect types we may safely redirect.
         private static IntPtr _genericGetAttr;
+        // Address of type_getattro (PyType_Type.tp_getattro). The CLR metatype uses it, so we
+        // allow redirecting it too: that is how attribute access on a reflected type object
+        // (static members, enum values) gets the miss hook.
+        private static IntPtr _typeGetAttro;
 
         private static bool IsReady => _methodDef != IntPtr.Zero && _hookSlot != IntPtr.Zero;
 
@@ -48,6 +52,7 @@ namespace Python.Runtime
             try
             {
                 _genericGetAttr = Util.ReadIntPtr(Runtime.PyBaseObjectType, TypeOffset.tp_getattro);
+                _typeGetAttro = Util.ReadIntPtr(Runtime.PyTypeType, TypeOffset.tp_getattro);
 
                 if (_methodDef == IntPtr.Zero)
                 {
@@ -70,6 +75,11 @@ namespace Python.Runtime
 
                 using var probe = globals["__clr_getattr_probe__"];
                 _hookSlot = Util.ReadIntPtr(probe.Reference, TypeOffset.tp_getattro);
+
+                // Install the hook on the CLR metatype so that a miss on a reflected type
+                // object's own attribute (a mistyped static member or enum value, e.g.
+                // DayOfWeek.Sundey) is enriched the same way instance attribute misses are.
+                Install(MetaType.ClrMetaTypeReference);
             }
             catch (Exception e)
             {
@@ -94,7 +104,12 @@ namespace Python.Runtime
                 return;
             }
 
-            if (Util.ReadIntPtr(type, TypeOffset.tp_getattro) != _genericGetAttr)
+            var getattro = Util.ReadIntPtr(type, TypeOffset.tp_getattro);
+            // Only redirect types that still use one of the standard lookups: instances use the
+            // generic getattr, the CLR metatype uses type_getattro. Types with a custom
+            // tp_getattro (dynamic objects, modules, interfaces, ...) handle misses themselves
+            // and are left untouched.
+            if (getattro != _genericGetAttr && getattro != _typeGetAttro)
             {
                 return;
             }
@@ -158,6 +173,7 @@ namespace Python.Runtime
             // are reused by the next Initialize.
             _hookSlot = IntPtr.Zero;
             _genericGetAttr = IntPtr.Zero;
+            _typeGetAttro = IntPtr.Zero;
         }
     }
 }
