@@ -12,7 +12,7 @@ namespace Python.Runtime
         {
             try
             {
-                var dllPath = Encoding.UTF8.GetString((byte*)data.ToPointer(), size);
+                var dllPath = Encodings.UTF8.GetString((byte*)data.ToPointer(), size);
 
                 if (!string.IsNullOrEmpty(dllPath))
                 {
@@ -43,7 +43,7 @@ namespace Python.Runtime
                 );
                 return 1;
             }
-            
+
             return 0;
         }
 
@@ -51,7 +51,7 @@ namespace Python.Runtime
         {
             try
             {
-                var command = Encoding.UTF8.GetString((byte*)data.ToPointer(), size);
+                var command = Encodings.UTF8.GetString((byte*)data.ToPointer(), size);
 
                 if (command == "full_shutdown")
                 {

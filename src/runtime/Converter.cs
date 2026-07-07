@@ -1082,10 +1082,8 @@ class GMT(tzinfo):
                         {
                             if (Runtime.PyUnicode_GetLength(value) == 1)
                             {
-                                IntPtr unicodePtr = Runtime.PyUnicode_AsUnicode(value);
-                                Char[] buff = new Char[1];
-                                Marshal.Copy(unicodePtr, buff, 0, 1);
-                                result = buff[0];
+                                int chr = Runtime.PyUnicode_ReadChar(value, 0);
+                                result = (Char)chr;
                                 return true;
                             }
                             goto type_error;

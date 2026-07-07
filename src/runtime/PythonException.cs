@@ -252,10 +252,59 @@ namespace Python.Runtime
 
             if (value != null && !value.IsNone())
             {
-                return value.ToString() ?? "no message";
+                var message = value.ToString() ?? "no message";
+
+                // Python 3.12+ eagerly normalizes the error indicator, so a SyntaxError
+                // reaches us as the exception instance whose str() omits the offending
+                // source line. Pre-3.12 we received the raw args tuple, whose str()
+                // included it. Re-append the source text so the message stays complete
+                // for callers that surface it (e.g. compile diagnostics). This is a
+                // no-op on <=3.11 (there 'value' is a tuple without these attributes).
+                if (TryGetSyntaxErrorText(value, out var sourceText))
+                {
+                    message = $"{message}: {sourceText}";
+                }
+
+                return message;
             }
 
             return type.Name;
+        }
+
+        /// <summary>
+        /// If <paramref name="value"/> is a SyntaxError instance carrying the offending
+        /// source line (its <c>text</c> attribute), returns that trimmed text.
+        /// </summary>
+        private static bool TryGetSyntaxErrorText(PyObject value, out string text)
+        {
+            text = string.Empty;
+            try
+            {
+                // 'msg' + 'text' is the distinctive SyntaxError shape; bail otherwise.
+                if (!value.HasAttr("msg") || !value.HasAttr("text"))
+                {
+                    return false;
+                }
+
+                using var textObj = value.GetAttr("text");
+                if (textObj.IsNone())
+                {
+                    return false;
+                }
+
+                var sourceLine = textObj.ToString();
+                if (string.IsNullOrWhiteSpace(sourceLine))
+                {
+                    return false;
+                }
+
+                text = sourceLine.Trim();
+                return true;
+            }
+            catch (PythonException)
+            {
+                return false;
+            }
         }
 
         private static string TracebackToString(PyObject traceback)
