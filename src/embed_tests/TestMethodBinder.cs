@@ -814,6 +814,23 @@ if result != 5:
 
             // ----
 
+            public string GetValue(string name)
+            {
+                return "GetValue(name)";
+            }
+
+            public string GetValue(string name, string defaultValue)
+            {
+                return "GetValue(name, defaultValue)";
+            }
+
+            public int GetValue(string name, int defaultValue)
+            {
+                return defaultValue;
+            }
+
+            // ----
+
             public string VariableArgumentsMethod(params CSharpModel[] paramsParams)
             {
                 return "VariableArgumentsMethod(CSharpModel[])";
@@ -893,6 +910,35 @@ def call_method(instance):
             var result = module.call_method(instance).As<string>();
 
             Assert.AreEqual(expectedResult, result);
+        }
+
+        [TestCase("GetValue('name', **{})", "GetValue(name)")]
+        [TestCase("GetValue('name', 'default-value', **{})", "GetValue(name, defaultValue)")]
+        [TestCase("GetValue('name', defaultValue='default-value', **{})", "GetValue(name, defaultValue)")]
+        [TestCase("GetValue('name', **{'defaultValue': 'default-value'})", "GetValue(name, defaultValue)")]
+        [TestCase("Method1('abc', **{})", "Method1 Overload 1")]
+        public void BindsOverloadedMethodCalledWithEmptyOrUnpackedKwargs(string methodCallCode, string expectedResult)
+        {
+            using var _ = Py.GIL();
+
+            dynamic module = PyModule.FromString("BindsOverloadedMethodCalledWithEmptyOrUnpackedKwargs", @$"
+def call_method(instance):
+    return instance.{methodCallCode}
+
+def call_method_forwarding_args_and_kwargs(instance):
+    # Common decorator/monkeypatch idiom: forward *args and **kwargs,
+    # with kwargs being an empty dict when no keyword arguments are passed
+    def wrapper(name, *args, **kwargs):
+        return instance.GetValue(name, *args, **kwargs)
+    return wrapper('name')
+");
+
+            var instance = new OverloadsTestClass();
+            var result = module.call_method(instance).As<string>();
+            Assert.AreEqual(expectedResult, result);
+
+            var forwardedResult = module.call_method_forwarding_args_and_kwargs(instance).As<string>();
+            Assert.AreEqual("GetValue(name)", forwardedResult);
         }
 
         public class CSharpClass

@@ -475,11 +475,14 @@ namespace Python.Runtime
 
         internal Binding Bind(BorrowedReference inst, BorrowedReference args, BorrowedReference kw, MethodBase info)
         {
-            // If we have KWArgs create dictionary and collect them
+            // If we have KWArgs create dictionary and collect them.
+            // An empty kwargs dict (e.g. calling with **{}) is equivalent to no kwargs at all,
+            // so we only create the dictionary if there are actual keyword arguments,
+            // else the binding code below would try to index into empty parameter name arrays.
             Dictionary<string, PyObject> kwArgDict = null;
-            if (kw != null)
+            var pyKwArgsCount = kw == null ? 0 : (int)Runtime.PyDict_Size(kw);
+            if (pyKwArgsCount > 0)
             {
-                var pyKwArgsCount = (int)Runtime.PyDict_Size(kw);
                 kwArgDict = new Dictionary<string, PyObject>(pyKwArgsCount);
                 using var keylist = Runtime.PyDict_Keys(kw);
                 using var valueList = Runtime.PyDict_Values(kw);
@@ -490,7 +493,7 @@ namespace Python.Runtime
                     kwArgDict[keyStr!] = new PyObject(value);
                 }
             }
-            var hasNamedArgs = kwArgDict != null && kwArgDict.Count > 0;
+            var hasNamedArgs = kwArgDict != null;
 
             // Fetch our methods we are going to attempt to match and bind too.
             var methods = info == null ? GetMethods()
