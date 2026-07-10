@@ -8,7 +8,7 @@ namespace Python.Runtime
 {
     /// <summary>
     /// Formats method and constructor signatures the way Python callers see them
-    /// (snake_case names, friendly type names). Used to hint the available overloads
+    /// (snake_case names, Python type names). Used to hint the available overloads
     /// in error messages when a call cannot be matched to any of them.
     /// </summary>
     public static class MethodSignatureFormatter
@@ -78,8 +78,8 @@ namespace Python.Runtime
 
         /// <summary>
         /// Formats a method/constructor as a readable signature using the snake_case
-        /// name Python callers use, e.g.
-        /// <c>range_consolidator(Int32 range, Func[IBaseData, Decimal] selector = None)</c>.
+        /// name and the Python types a Python caller uses, e.g.
+        /// <c>range_consolidator(int range, Callable[[IBaseData], float] selector = None)</c>.
         /// The constructor's special <c>.ctor</c> token is left as-is unless
         /// <paramref name="displayName"/> is provided.
         /// </summary>
@@ -119,8 +119,12 @@ namespace Python.Runtime
         }
 
         /// <summary>
-        /// Produces a concise, readable name for a CLR type, unwrapping by-ref and
-        /// nullable types and rendering generics as <c>Name[Arg1, Arg2]</c>.
+        /// Produces the Python-side name for a CLR type, following the conversions the
+        /// runtime performs on arguments: primitives map to their Python equivalents
+        /// (str, int, float, bool, datetime, timedelta), Nullable to Optional, delegates
+        /// to Callable, list/dictionary shapes to List/Dict and PyObject/object to Any.
+        /// CLR types without a Python equivalent keep their name, with generics rendered
+        /// as <c>Name[Arg1, Arg2]</c>.
         /// </summary>
         private static string FormatType(Type type)
         {
@@ -132,18 +136,108 @@ namespace Python.Runtime
             var underlying = Nullable.GetUnderlyingType(type);
             if (underlying != null)
             {
-                return FormatType(underlying) + "?";
+                return $"Optional[{FormatType(underlying)}]";
+            }
+
+            if (type == typeof(void))
+            {
+                return "None";
+            }
+            if (type == typeof(TimeSpan))
+            {
+                return "timedelta";
+            }
+            if (type == typeof(object))
+            {
+                return "Any";
+            }
+            if (typeof(Type).IsAssignableFrom(type))
+            {
+                return "type";
+            }
+
+            // pythonnet wrapper parameters accept any Python object of the matching shape
+            if (type == typeof(PyList))
+            {
+                return "List[Any]";
+            }
+            if (type == typeof(PyDict))
+            {
+                return "Dict[Any, Any]";
+            }
+            if (typeof(PyObject).IsAssignableFrom(type))
+            {
+                return "Any";
+            }
+
+            if (type.IsArray)
+            {
+                return $"List[{FormatType(type.GetElementType())}]";
+            }
+
+            if (typeof(Delegate).IsAssignableFrom(type) && !type.ContainsGenericParameters)
+            {
+                var invoke = type.GetMethod("Invoke");
+                if (invoke != null)
+                {
+                    var args = string.Join(", ", invoke.GetParameters().Select(p => FormatType(p.ParameterType)));
+                    return $"Callable[[{args}], {FormatType(invoke.ReturnType)}]";
+                }
+            }
+
+            // Enums have an integer type code but keep their Python-visible name
+            if (!type.IsEnum)
+            {
+                switch (Type.GetTypeCode(type))
+                {
+                    case TypeCode.Boolean:
+                        return "bool";
+                    case TypeCode.Char:
+                    case TypeCode.String:
+                        return "str";
+                    case TypeCode.SByte:
+                    case TypeCode.Byte:
+                    case TypeCode.Int16:
+                    case TypeCode.UInt16:
+                    case TypeCode.Int32:
+                    case TypeCode.UInt32:
+                    case TypeCode.Int64:
+                    case TypeCode.UInt64:
+                        return "int";
+                    case TypeCode.Single:
+                    case TypeCode.Double:
+                    case TypeCode.Decimal:
+                        return "float";
+                    case TypeCode.DateTime:
+                        return "datetime";
+                }
             }
 
             if (type.IsGenericType)
             {
+                var definition = type.GetGenericTypeDefinition();
+                var genericArguments = type.GetGenericArguments();
+
+                // list and dictionary shapes the runtime converts from Python lists/dicts
+                if (definition == typeof(List<>) || definition == typeof(IList<>) ||
+                    definition == typeof(IEnumerable<>) || definition == typeof(ICollection<>) ||
+                    definition == typeof(IReadOnlyList<>) || definition == typeof(IReadOnlyCollection<>))
+                {
+                    return $"List[{FormatType(genericArguments[0])}]";
+                }
+                if (definition == typeof(Dictionary<,>) || definition == typeof(IDictionary<,>) ||
+                    definition == typeof(IReadOnlyDictionary<,>) || definition == typeof(KeyValuePair<,>))
+                {
+                    return $"Dict[{FormatType(genericArguments[0])}, {FormatType(genericArguments[1])}]";
+                }
+
                 var name = type.Name;
                 var tick = name.IndexOf('`');
                 if (tick >= 0)
                 {
                     name = name.Substring(0, tick);
                 }
-                var args = type.GetGenericArguments().Select(FormatType);
+                var args = genericArguments.Select(FormatType);
                 return $"{name}[{string.Join(", ", args)}]";
             }
 
@@ -159,6 +253,15 @@ namespace Python.Runtime
             if (value is string s)
             {
                 return $"\"{s}\"";
+            }
+            if (value is bool b)
+            {
+                return b ? "True" : "False";
+            }
+            if (value is Enum e)
+            {
+                // Render enum defaults the way Python callers access them, e.g. Resolution.DAILY
+                return $"{e.GetType().Name}.{e.ToString().ToSnakeCase(constant: true)}";
             }
             return value.ToString();
         }
