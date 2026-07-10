@@ -1012,11 +1012,11 @@ namespace Python.Runtime
                     // Use the snake_case name Python callers use, matching the hinted signatures below.
                     if (methodinfo != null && methodinfo.Length > 0)
                     {
-                        value.Append($" for {SnakeCaseName(methodinfo[0])}");
+                        value.Append($" for {MethodSignatureFormatter.SnakeCaseName(methodinfo[0])}");
                     }
                     else if (list.Count > 0)
                     {
-                        value.Append($" for {SnakeCaseName(list[0].MethodBase)}");
+                        value.Append($" for {MethodSignatureFormatter.SnakeCaseName(list[0].MethodBase)}");
                     }
 
                     value.Append(": ");
@@ -1028,7 +1028,11 @@ namespace Python.Runtime
                     var candidates = methodinfo != null && methodinfo.Length > 0
                         ? methodinfo.Cast<MethodBase>()
                         : list?.Select(m => m.MethodBase);
-                    AppendOverloads(value, candidates);
+                    var overloads = MethodSignatureFormatter.FormatOverloads(candidates);
+                    if (overloads.Length > 0)
+                    {
+                        value.Append(". ").Append(overloads);
+                    }
 
                     Exceptions.RaiseTypeError(value.ToString());
                 }
@@ -1235,147 +1239,6 @@ namespace Python.Runtime
             to.Append(')');
         }
 
-        /// <summary>
-        /// Appends the signatures of the candidate overloads to the given error
-        /// message, so a failed bind hints the caller at what the method expects.
-        /// </summary>
-        private static void AppendOverloads(StringBuilder to, IEnumerable<MethodBase> methods)
-        {
-            if (methods == null)
-            {
-                return;
-            }
-
-            // Building this only runs on the error path; never let it throw and mask
-            // the original binding failure.
-            try
-            {
-                // Distinct signatures, preserving order. Snake-cased duplicates and
-                // repeated overloads collapse into a single entry.
-                var signatures = new List<string>();
-                var seen = new HashSet<string>();
-                foreach (var method in methods)
-                {
-                    if (method == null)
-                    {
-                        continue;
-                    }
-                    var signature = FormatSignature(method);
-                    if (seen.Add(signature))
-                    {
-                        signatures.Add(signature);
-                    }
-                }
-
-                if (signatures.Count == 0)
-                {
-                    return;
-                }
-
-                const int maxShown = 10;
-                to.Append(signatures.Count == 1
-                    ? ". The expected signature is:"
-                    : ". The following overloads are available:");
-                for (var i = 0; i < signatures.Count && i < maxShown; i++)
-                {
-                    to.Append("\n  ").Append(signatures[i]);
-                }
-                if (signatures.Count > maxShown)
-                {
-                    to.Append($"\n  ... and {signatures.Count - maxShown} more");
-                }
-            }
-            catch
-            {
-                // Best-effort hint only.
-            }
-        }
-
-        /// <summary>
-        /// Formats a method/constructor as a readable signature using the snake_case
-        /// name Python callers use, e.g.
-        /// <c>range_consolidator(Int32 range, Func[IBaseData, Decimal] selector = None)</c>.
-        /// The constructor's special <c>.ctor</c> token is left as-is.
-        /// </summary>
-        private static string FormatSignature(MethodBase method)
-        {
-            var to = new StringBuilder();
-            to.Append(SnakeCaseName(method)).Append('(');
-            var parameters = method.GetParameters();
-            for (var i = 0; i < parameters.Length; i++)
-            {
-                if (i > 0)
-                {
-                    to.Append(", ");
-                }
-                var parameter = parameters[i];
-                if (parameter.IsDefined(typeof(ParamArrayAttribute), false))
-                {
-                    to.Append("params ");
-                }
-                to.Append(FormatType(parameter.ParameterType)).Append(' ').Append(parameter.Name.ToSnakeCase());
-                if (parameter.IsOptional)
-                {
-                    to.Append(" = ").Append(FormatDefaultValue(parameter.DefaultValue));
-                }
-            }
-            to.Append(')');
-            return to.ToString();
-        }
-
-        /// <summary>
-        /// Produces a concise, readable name for a CLR type, unwrapping by-ref and
-        /// nullable types and rendering generics as <c>Name[Arg1, Arg2]</c>.
-        /// </summary>
-        private static string FormatType(Type type)
-        {
-            if (type.IsByRef)
-            {
-                type = type.GetElementType();
-            }
-
-            var underlying = Nullable.GetUnderlyingType(type);
-            if (underlying != null)
-            {
-                return FormatType(underlying) + "?";
-            }
-
-            if (type.IsGenericType)
-            {
-                var name = type.Name;
-                var tick = name.IndexOf('`');
-                if (tick >= 0)
-                {
-                    name = name.Substring(0, tick);
-                }
-                var args = type.GetGenericArguments().Select(FormatType);
-                return $"{name}[{string.Join(", ", args)}]";
-            }
-
-            return type.Name;
-        }
-
-        /// <summary>
-        /// The snake_case name a Python caller uses for the given method. Constructors
-        /// keep their special <c>.ctor</c> token (a Python caller invokes the type).
-        /// </summary>
-        private static string SnakeCaseName(MethodBase method)
-        {
-            return method.IsConstructor ? method.Name : method.Name.ToSnakeCase();
-        }
-
-        private static string FormatDefaultValue(object value)
-        {
-            if (value == null || value is DBNull)
-            {
-                return "None";
-            }
-            if (value is string s)
-            {
-                return $"\"{s}\"";
-            }
-            return value.ToString();
-        }
     }
 
 
