@@ -38,6 +38,16 @@ namespace Python.EmbeddingTest
             Right = 2,
         }
 
+        [Flags]
+        public enum FileAccessType
+        {
+            None = 0,
+            Read = 1,
+            Write = 2,
+            ReadWrite = Read | Write,
+            Delete = 4,
+        }
+
         [Test]
         public void CSharpEnumsBehaveAsEnumsInPython()
         {
@@ -337,6 +347,59 @@ def operation():
             Assert.AreEqual(expectedResult, module.InvokeMethod("operation").As<bool>());
         }
 
+        [TestCase(nameof(VerticalDirection) + ".DOWN", "DOWN")]
+        [TestCase(nameof(VerticalDirection) + ".FLAT", "FLAT")]
+        [TestCase(nameof(VerticalDirection) + ".UP", "UP")]
+        [TestCase(nameof(VerticalDirection) + ".Down", "DOWN")]
+        [TestCase(nameof(FileAccessType) + ".NONE", "NONE")]
+        [TestCase(nameof(FileAccessType) + ".READ", "READ")]
+        [TestCase(nameof(FileAccessType) + ".READ_WRITE", "READ_WRITE")]
+        [TestCase(nameof(FileAccessType) + ".ReadWrite", "READ_WRITE")]
+        [TestCase(nameof(FileAccessType) + ".READ | " + nameof(EnumTests) + "." + nameof(FileAccessType) + ".DELETE", "READ, DELETE")]
+        public void StrReturnsSnakeCasedMemberName(string valueExpression, string expectedStr)
+        {
+            using var _ = Py.GIL();
+            using var module = PyModule.FromString("StrReturnsSnakeCasedMemberName", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+enum_value = {nameof(EnumTests)}.{valueExpression}
+
+def get_str():
+    return str(enum_value)
+
+def get_formatted():
+    return f'{{enum_value}}'
+");
+
+            Assert.AreEqual(expectedStr, module.InvokeMethod("get_str").As<string>());
+            Assert.AreEqual(expectedStr, module.InvokeMethod("get_formatted").As<string>());
+        }
+
+        [Test]
+        public void StrReturnsNumericRepresentationForUndefinedValues()
+        {
+            using var _ = Py.GIL();
+            using var module = PyModule.FromString("StrReturnsNumericRepresentationForUndefinedValues", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from System import Enum
+from Python.EmbeddingTest import *
+
+def get_str(int_value):
+    return str(Enum.ToObject({nameof(EnumTests)}.{nameof(VerticalDirection)}, int_value))
+");
+
+            using var pyOne = 1.ToPython();
+            Assert.AreEqual("1", module.InvokeMethod("get_str", pyOne).As<string>());
+
+            using var pyMinusOne = (-1).ToPython();
+            Assert.AreEqual("-1", module.InvokeMethod("get_str", pyMinusOne).As<string>());
+        }
+
         [TestCase("==", VerticalDirection.Down, "Down", true)]
         [TestCase("==", VerticalDirection.Down, "Flat", false)]
         [TestCase("==", VerticalDirection.Down, "Up", false)]
@@ -355,6 +418,13 @@ def operation():
         [TestCase("!=", VerticalDirection.Up, "Down", true)]
         [TestCase("!=", VerticalDirection.Up, "Flat", true)]
         [TestCase("!=", VerticalDirection.Up, "Up", false)]
+        // The Python-facing snake-cased names are accepted too, consistently with str()
+        [TestCase("==", VerticalDirection.Down, "DOWN", true)]
+        [TestCase("==", VerticalDirection.Flat, "FLAT", true)]
+        [TestCase("==", VerticalDirection.Up, "UP", true)]
+        [TestCase("==", VerticalDirection.Down, "UP", false)]
+        [TestCase("!=", VerticalDirection.Down, "DOWN", false)]
+        [TestCase("!=", VerticalDirection.Down, "UP", true)]
         public void EnumComparisonOperatorsWorkWithString(string @operator, VerticalDirection operand1, string operand2, bool expectedResult)
         {
             using var _ = Py.GIL();
@@ -373,6 +443,26 @@ def operation2():
 
             Assert.AreEqual(expectedResult, module.InvokeMethod("operation1").As<bool>());
             Assert.AreEqual(expectedResult, module.InvokeMethod("operation2").As<bool>());
+        }
+
+        [TestCase("ReadWrite", true)]
+        [TestCase("READ_WRITE", true)]
+        [TestCase("READWRITE", false)]
+        [TestCase("read_write", false)]
+        public void MultiWordEnumMembersCompareWithBothCSharpAndSnakeCasedNames(string operand, bool expectedResult)
+        {
+            using var _ = Py.GIL();
+            using var module = PyModule.FromString("MultiWordEnumMembersCompareWithBothCSharpAndSnakeCasedNames", $@"
+from clr import AddReference
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+def operation():
+    return {nameof(EnumTests)}.{nameof(FileAccessType)}.READ_WRITE == ""{operand}""
+");
+
+            Assert.AreEqual(expectedResult, module.InvokeMethod("operation").As<bool>());
         }
 
         public static IEnumerable<TestCaseData> OtherEnumsComparisonOperatorsTestCases

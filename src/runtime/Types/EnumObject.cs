@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace Python.Runtime
@@ -11,6 +12,38 @@ namespace Python.Runtime
     {
         internal EnumObject(Type type) : base(type)
         {
+        }
+
+        /// <summary>
+        /// Standard __str__ implementation for instances of enum types.
+        /// Returns the Python-facing member name, that is, the same upper-cased snake case
+        /// used to access the member from Python, so that str(MyEnum.MY_VALUE) == "MY_VALUE".
+        /// </summary>
+        public static NewReference tp_str(BorrowedReference ob)
+        {
+            if (GetManagedObject(ob) is not CLRObject co || co.inst is not Enum inst)
+            {
+                return Exceptions.RaiseTypeError("invalid object");
+            }
+            return Runtime.PyString_FromString(ToPythonString(inst));
+        }
+
+        /// <summary>
+        /// Gets the string representation of the given enum value as exposed to Python:
+        /// the upper-cased snake case name of the member (e.g. "READ_WRITE" for FileAccess.ReadWrite).
+        /// Flags combinations keep Enum.ToString()'s comma-separated format with each name snake-cased,
+        /// and values without a defined name keep the raw numeric representation.
+        /// </summary>
+        internal static string ToPythonString(Enum value)
+        {
+            var text = value.ToString();
+            // Enum.ToString() yields the numeric value when it doesn't map to any defined member
+            if (text.Length == 0 || char.IsDigit(text[0]) || text[0] == '-')
+            {
+                return text;
+            }
+            return string.Join(", ", text.Split(new[] { ", " }, StringSplitOptions.None)
+                .Select(name => name.ToSnakeCase(constant: true)));
         }
 
         /// <summary>
@@ -115,6 +148,12 @@ namespace Python.Runtime
             else if (right is string rightString)
             {
                 result = left.ToString().CompareTo(rightString);
+                if (result != 0 && ToPythonString(left) == rightString)
+                {
+                    // also match the Python-facing snake-cased name, e.g. FileAccess.READ_WRITE == "READ_WRITE",
+                    // so string comparison is consistent with str() on the enum value
+                    result = 0;
+                }
             }
             else
             {
