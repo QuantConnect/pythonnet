@@ -42,6 +42,11 @@ namespace Python.Runtime
             {
                 return text;
             }
+            // Fast path: a single member name (the common case), not a comma-separated flags combination
+            if (text.IndexOf(',') < 0)
+            {
+                return text.ToSnakeCase(constant: true);
+            }
             return string.Join(", ", text.Split(new[] { ", " }, StringSplitOptions.None)
                 .Select(name => name.ToSnakeCase(constant: true)));
         }
