@@ -1,0 +1,87 @@
+name: Lean Python Regression Tests
+
+# Validates a Python.Runtime.dll change against Lean's Python regression
+# algorithms, mirroring Lean's own .github/workflows/regression-tests.yml.
+# We build this repo's Python.Runtime.dll, build Lean against its NuGet
+# QuantConnect.pythonnet reference, drop the freshly built DLL over Lean's
+# test output, and run only the Python regression tests.
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lean-python-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Checkout pythonnet
+        uses: actions/checkout@v4
+        with:
+          path: pythonnet
+
+      - name: Checkout Lean
+        uses: actions/checkout@v4
+        with:
+          repository: QuantConnect/Lean
+          path: Lean
+
+      - name: Liberate disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          large-packages: false
+          docker-images: false
+          swap-storage: false
+
+      - name: Define docker helper
+        run: |
+          echo 'runInContainer() { docker exec test-container "$@"; }' > $HOME/ci_functions.sh
+          echo "BASH_ENV=$HOME/ci_functions.sh" >> $GITHUB_ENV
+
+      - name: Start container
+        run: |
+          docker run -d \
+            --workdir /__w/pythonnet/pythonnet \
+            -v /home/runner/work:/__w \
+            --name test-container \
+            quantconnect/lean:foundation \
+            tail -f /dev/null
+
+      - name: Build Python.Runtime.dll
+        run: |
+          runInContainer dotnet build pythonnet/src/runtime/Python.Runtime.csproj \
+            -c Release /v:quiet /p:WarningLevel=1
+
+      - name: Build Lean
+        run: |
+          runInContainer dotnet build /p:Configuration=Release /v:quiet /p:WarningLevel=1 \
+            Lean/QuantConnect.Lean.sln
+
+      - name: Inject freshly built Python.Runtime.dll into Lean test output
+        run: |
+          runInContainer cp pythonnet/pythonnet/runtime/Python.Runtime.dll \
+            Lean/Tests/bin/Release/Python.Runtime.dll
+
+      - name: Restrict regression tests to Python only
+        run: |
+          # Lean's RegressionTests reads the "regression-test-languages" config
+          # key (defaults to CSharp + Python). Setting it to Python only makes the
+          # test factory emit Python test cases exclusively. The config file is
+          # JSONC; Newtonsoft tolerates the inserted line.
+          runInContainer sed -i '1a\  "regression-test-languages": ["Python"],' \
+            Lean/Tests/bin/Release/config.json
+
+      - name: Run Lean Python regression tests
+        run: |
+          runInContainer dotnet test Lean/Tests/bin/Release/QuantConnect.Tests.dll \
+            --blame-hang-timeout 300seconds --blame-crash \
+            --filter "TestCategory=RegressionTests & Name~Python/" \
+            -- TestRunParameters.Parameter\(name=\"log-handler\", value=\"ConsoleErrorLogHandler\"\) \
+            TestRunParameters.Parameter\(name=\"reduced-disk-size\", value=\"true\"\)
