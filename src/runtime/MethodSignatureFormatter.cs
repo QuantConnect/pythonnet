@@ -77,9 +77,9 @@ namespace Python.Runtime
         }
 
         /// <summary>
-        /// Formats a method/constructor as a readable signature using the snake_case
-        /// name and the Python types a Python caller uses, e.g.
-        /// <c>range_consolidator(int range, Callable[[IBaseData], float] selector = None)</c>.
+        /// Formats a method/constructor as a Python signature: snake_case name and
+        /// parameters annotated with the Python types a Python caller uses, e.g.
+        /// <c>range_consolidator(range: int, selector: Callable[[IBaseData], float] = None)</c>.
         /// The constructor's special <c>.ctor</c> token is left as-is unless
         /// <paramref name="displayName"/> is provided.
         /// </summary>
@@ -97,9 +97,14 @@ namespace Python.Runtime
                 var parameter = parameters[i];
                 if (parameter.IsDefined(typeof(ParamArrayAttribute), false))
                 {
-                    to.Append("params ");
+                    // Python variadic form; annotate with the element type
+                    var elementType = parameter.ParameterType.IsArray
+                        ? parameter.ParameterType.GetElementType()
+                        : parameter.ParameterType;
+                    to.Append('*').Append(parameter.Name.ToSnakeCase()).Append(": ").Append(FormatType(elementType));
+                    continue;
                 }
-                to.Append(FormatType(parameter.ParameterType)).Append(' ').Append(parameter.Name.ToSnakeCase());
+                to.Append(parameter.Name.ToSnakeCase()).Append(": ").Append(FormatType(parameter.ParameterType));
                 if (parameter.IsOptional)
                 {
                     to.Append(" = ").Append(FormatDefaultValue(parameter.DefaultValue));

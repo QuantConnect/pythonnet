@@ -93,7 +93,7 @@ def single_params(value):
         {
             var ex = Assert.Throws<PythonException>(() => Call("single_ctor", 5.5));
             StringAssert.Contains("The expected signature is:", ex.Message);
-            StringAssert.Contains("int value", ex.Message);
+            StringAssert.Contains("value: int", ex.Message);
         }
 
         [Test]
@@ -102,7 +102,7 @@ def single_params(value):
             var ex = Assert.Throws<PythonException>(() => Call("overloaded_ctor", 5.5));
             StringAssert.Contains("The following overloads are available:", ex.Message);
             // The int overload is surfaced, hinting an integer was expected.
-            StringAssert.Contains("int range", ex.Message);
+            StringAssert.Contains("range: int", ex.Message);
         }
 
         // The hinted signatures use the snake_case name Python callers use, not the

@@ -20,7 +20,7 @@ namespace Python.EmbeddingTest
         public void FormatsPrimitivesAsPythonTypes()
         {
             Assert.AreEqual(
-                "primitives(int count, float price, float ratio, float scale, bool flag, str name, str letter)",
+                "primitives(count: int, price: float, ratio: float, scale: float, flag: bool, name: str, letter: str)",
                 SignatureOf(nameof(SampleTarget.Primitives)));
         }
 
@@ -28,7 +28,7 @@ namespace Python.EmbeddingTest
         public void FormatsTimeTypesAsDatetimeAndTimedelta()
         {
             Assert.AreEqual(
-                "time_types(datetime time, timedelta period)",
+                "time_types(time: datetime, period: timedelta)",
                 SignatureOf(nameof(SampleTarget.TimeTypes)));
         }
 
@@ -36,7 +36,7 @@ namespace Python.EmbeddingTest
         public void FormatsNullablesAsOptional()
         {
             Assert.AreEqual(
-                "nullables(Optional[timedelta] start_time = None, Optional[int] max_count = None)",
+                "nullables(start_time: Optional[timedelta] = None, max_count: Optional[int] = None)",
                 SignatureOf(nameof(SampleTarget.Nullables)));
         }
 
@@ -44,7 +44,7 @@ namespace Python.EmbeddingTest
         public void FormatsDelegatesAsCallable()
         {
             Assert.AreEqual(
-                "delegates(Callable[[datetime], int] selector, Callable[[str], None] handler)",
+                "delegates(selector: Callable[[datetime], int], handler: Callable[[str], None])",
                 SignatureOf(nameof(SampleTarget.Delegates)));
         }
 
@@ -52,7 +52,7 @@ namespace Python.EmbeddingTest
         public void FormatsCollectionsAsListAndDict()
         {
             Assert.AreEqual(
-                "collections(List[str] names, List[int] values, List[float] prices, Dict[str, float] lookup)",
+                "collections(names: List[str], values: List[int], prices: List[float], lookup: Dict[str, float])",
                 SignatureOf(nameof(SampleTarget.Collections)));
         }
 
@@ -60,7 +60,7 @@ namespace Python.EmbeddingTest
         public void FormatsObjectAndPyObjectAsAny()
         {
             Assert.AreEqual(
-                "any_types(Any anything, Any py_object, List[Any] py_list, Dict[Any, Any] py_dict)",
+                "any_types(anything: Any, py_object: Any, py_list: List[Any], py_dict: Dict[Any, Any])",
                 SignatureOf(nameof(SampleTarget.AnyTypes)));
         }
 
@@ -68,7 +68,7 @@ namespace Python.EmbeddingTest
         public void KeepsClrOnlyTypeNames()
         {
             Assert.AreEqual(
-                "clr_types(Uri address, StringComparison mode = StringComparison.ORDINAL)",
+                "clr_types(address: Uri, mode: StringComparison = StringComparison.ORDINAL)",
                 SignatureOf(nameof(SampleTarget.ClrTypes)));
         }
 
@@ -77,7 +77,7 @@ namespace Python.EmbeddingTest
         {
             var signature = MethodSignatureFormatter.FormatSignature(
                 typeof(SampleTarget).GetConstructors()[0], nameof(SampleTarget));
-            Assert.AreEqual("SampleTarget(timedelta period, Optional[timedelta] start_time = None)", signature);
+            Assert.AreEqual("SampleTarget(period: timedelta, start_time: Optional[timedelta] = None)", signature);
         }
 
         private class SampleTarget
