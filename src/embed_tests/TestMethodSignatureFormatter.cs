@@ -80,6 +80,50 @@ namespace Python.EmbeddingTest
             Assert.AreEqual("SampleTarget(period: timedelta, start_time: Optional[timedelta] = None)", signature);
         }
 
+        [Test]
+        public void SkipsPyObjectOverloadsFromHints()
+        {
+            var hint = MethodSignatureFormatter.FormatOverloads(typeof(MixedOverloadsTarget).GetConstructors(),
+                displayName: nameof(MixedOverloadsTarget));
+
+            StringAssert.Contains("The following overloads are available:", hint);
+            StringAssert.Contains("MixedOverloadsTarget(period: timedelta)", hint);
+            StringAssert.Contains("MixedOverloadsTarget(max_count: int)", hint);
+            StringAssert.DoesNotContain("py_func", hint);
+        }
+
+        [Test]
+        public void ShowsPyObjectOverloadsWhenThereIsNothingElseToHint()
+        {
+            var hint = MethodSignatureFormatter.FormatOverloads(typeof(PyObjectOnlyTarget).GetConstructors(),
+                displayName: nameof(PyObjectOnlyTarget));
+
+            StringAssert.Contains("The expected signature is:", hint);
+            StringAssert.Contains("PyObjectOnlyTarget(py_func: Any)", hint);
+        }
+
+        private class MixedOverloadsTarget
+        {
+            public MixedOverloadsTarget(TimeSpan period)
+            {
+            }
+
+            public MixedOverloadsTarget(int maxCount)
+            {
+            }
+
+            public MixedOverloadsTarget(PyObject pyFunc)
+            {
+            }
+        }
+
+        private class PyObjectOnlyTarget
+        {
+            public PyObjectOnlyTarget(PyObject pyFunc)
+            {
+            }
+        }
+
         private class SampleTarget
         {
             public SampleTarget(TimeSpan period, TimeSpan? startTime = null)

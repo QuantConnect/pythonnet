@@ -100,9 +100,12 @@ def single_params(value):
         public void ErrorMessage_MultipleOverloads_ListsCandidates()
         {
             var ex = Assert.Throws<PythonException>(() => Call("overloaded_ctor", 5.5));
-            StringAssert.Contains("The following overloads are available:", ex.Message);
-            // The int overload is surfaced, hinting an integer was expected.
+            // The int overload is surfaced, hinting an integer was expected. The
+            // PyObject overload is skipped (it carries no type information), which
+            // leaves a single hinted signature here.
+            StringAssert.Contains("The expected signature is:", ex.Message);
             StringAssert.Contains("range: int", ex.Message);
+            StringAssert.DoesNotContain("volume_selector", ex.Message);
         }
 
         // The hinted signatures use the snake_case name Python callers use, not the

@@ -17,6 +17,10 @@ namespace Python.Runtime
         /// Formats the signatures of the candidate overloads as an error message hint,
         /// so the caller can see what the method expects, e.g.
         /// "The following overloads are available:" followed by one signature per line.
+        /// Overloads taking PyObject parameters are skipped: they accept any Python
+        /// object and carry no type information (they are typically the overloads that
+        /// just rejected the value). If every candidate takes a PyObject, they are shown
+        /// anyway rather than producing no hint at all.
         /// Returns an empty string if there are no signatures to show.
         /// </summary>
         /// <param name="methods">The candidate overloads</param>
@@ -34,16 +38,19 @@ namespace Python.Runtime
             // the original failure.
             try
             {
+                var candidates = methods.Where(method => method != null).ToList();
+                var withoutPyObject = candidates.Where(method => !TakesPyObject(method)).ToList();
+                if (withoutPyObject.Count > 0)
+                {
+                    candidates = withoutPyObject;
+                }
+
                 // Distinct signatures, preserving order. Snake-cased duplicates and
                 // repeated overloads collapse into a single entry.
                 var signatures = new List<string>();
                 var seen = new HashSet<string>();
-                foreach (var method in methods)
+                foreach (var method in candidates)
                 {
-                    if (method == null)
-                    {
-                        continue;
-                    }
                     var signature = FormatSignature(method, displayName);
                     if (seen.Add(signature))
                     {
@@ -121,6 +128,22 @@ namespace Python.Runtime
         internal static string SnakeCaseName(MethodBase method)
         {
             return method.IsConstructor ? method.Name : method.Name.ToSnakeCase();
+        }
+
+        /// <summary>
+        /// Determines whether any of the method's parameters is a PyObject
+        /// </summary>
+        private static bool TakesPyObject(MethodBase method)
+        {
+            return method.GetParameters().Any(parameter =>
+            {
+                var type = parameter.ParameterType;
+                if (type.IsByRef)
+                {
+                    type = type.GetElementType();
+                }
+                return typeof(PyObject).IsAssignableFrom(type);
+            });
         }
 
         /// <summary>
