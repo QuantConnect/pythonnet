@@ -507,6 +507,8 @@ class GMT(tzinfo):
                             catch
                             {
                                 // Failed to convert using implicit conversion,  must catch the error to stop program from exploding on Linux
+                                // Raised even when setError is false: MethodBinder.Invoke surfaces a pending
+                                // error as the binding failure reason instead of its generic no-match message
                                 Exceptions.RaiseTypeError($"Failed to implicitly convert {type} to {obType}");
                                 return false;
                             }
@@ -711,6 +713,8 @@ class GMT(tzinfo):
                         catch
                         {
                             // Failed to convert using implicit conversion,  must catch the error to stop program from exploding on Linux
+                            // Raised even when setError is false: MethodBinder.Invoke surfaces a pending
+                            // error as the binding failure reason instead of its generic no-match message
                             Exceptions.RaiseTypeError($"Failed to implicitly convert {result.GetType()} to {obType}");
                             return false;
                         }
@@ -1371,6 +1375,11 @@ class GMT(tzinfo):
                 string tpName = Runtime.PyObject_GetTypeName(value);
                 Exceptions.SetError(Exceptions.TypeError, $"'{tpName}' value cannot be converted to {obType}");
             }
+            else
+            {
+                // a probing sub-path may have raised before jumping here
+                Exceptions.Clear();
+            }
             return false;
 
         overflow:
@@ -1378,6 +1387,10 @@ class GMT(tzinfo):
             if (setError)
             {
                 Exceptions.SetError(Exceptions.OverflowError, "value too large to convert");
+            }
+            else
+            {
+                Exceptions.Clear();
             }
             return false;
         }
@@ -1456,7 +1469,23 @@ class GMT(tzinfo):
         private static bool ToList(BorrowedReference value, Type obType, out object result, bool setError)
         {
             var elementType = obType.GetGenericArguments()[0];
-            var IterObject = Runtime.PyObject_GetIter(value);
+            result = null;
+
+            using var IterObject = Runtime.PyObject_GetIter(value);
+            if (IterObject.IsNull())
+            {
+                if (setError)
+                {
+                    SetConversionError(value, obType);
+                }
+                else
+                {
+                    // PyObject_GetIter will have set an error
+                    Exceptions.Clear();
+                }
+                return false;
+            }
+
             result = MakeList(value, IterObject, obType, elementType, setError);
             return result != null;
         }
@@ -1499,6 +1528,11 @@ class GMT(tzinfo):
                     Exceptions.SetError(e);
                     SetConversionError(value, obType);
                 }
+                else
+                {
+                    // PySequence_Size may have raised (e.g. a broken __len__)
+                    Exceptions.Clear();
+                }
 
                 return null;
             }
@@ -1506,10 +1540,29 @@ class GMT(tzinfo):
             while (true)
             {
                 using var item = Runtime.PyIter_Next(IterObject.Borrow());
-                if (item.IsNull()) break;
+                if (item.IsNull())
+                {
+                    if (Exceptions.ErrorOccurred())
+                    {
+                        // the iterator raised mid-iteration: the conversion failed,
+                        // don't return a silently truncated list
+                        if (!setError)
+                        {
+                            Exceptions.Clear();
+                        }
+                        return null;
+                    }
+                    break;
+                }
 
                 if (!Converter.ToManaged(item.Borrow(), elementType, out var obj, setError))
                 {
+                    // some element conversion paths raise even when setError is false
+                    // (e.g. failed implicit operators, deleted types)
+                    if (!setError)
+                    {
+                        Exceptions.Clear();
+                    }
                     return null;
                 }
 
