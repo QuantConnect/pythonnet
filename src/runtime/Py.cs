@@ -28,12 +28,28 @@ public static class Py
 
     public class GILState : IDisposable
     {
+        // Tracks the runtime run for which this thread's PyThreadState has been pinned.
+        // Native extensions built with pybind11 (e.g. matplotlib >= 3.10 _path/ft2font)
+        // cache the PyThreadState pointer per OS thread and reuse it later; if the
+        // outermost PyGILState_Release deletes the thread state, that cached pointer
+        // dangles and the next native GIL acquire crashes with an access violation.
+        // Pinning: one extra, never-released PyGILState_Ensure per thread keeps the
+        // gilstate counter >= 1 so the thread state lives until engine shutdown.
+        [ThreadStatic] private static int _pinnedOnRun;
+
         private readonly PyGILState state;
         private bool isDisposed;
 
         internal GILState()
         {
             state = PythonEngine.AcquireLock();
+
+            var run = Runtime.GetRun();
+            if (_pinnedOnRun != run)
+            {
+                _pinnedOnRun = run;
+                Runtime.PyGILState_Ensure();
+            }
         }
 
         public virtual void Dispose()
