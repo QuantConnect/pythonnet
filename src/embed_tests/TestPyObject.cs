@@ -102,6 +102,40 @@ a = MemberNamesTest()
         {
             PythonEngine.Exec("from System import String\nString.Format('{0},{1}', 1, 2)");
         }
+
+        [Test]
+        public void FailedTryAsDoesNotLeavePythonErrorSet()
+        {
+            using var _ = Py.GIL();
+
+            using var locals = new PyDict();
+            PythonEngine.Exec("def a_function(a, b): return a * b", null, locals);
+            using var pyObject = locals.GetItem("a_function");
+
+            Assert.IsFalse(pyObject.TryAs<int>(out var _));
+            Assert.IsFalse(Exceptions.ErrorOccurred());
+
+            Assert.IsFalse(pyObject.TryAsManagedObject(typeof(decimal), out var _));
+            Assert.IsFalse(Exceptions.ErrorOccurred());
+
+            // The thread state must be clean for subsequent unrelated Python calls
+            Assert.DoesNotThrow(() => PyModule.FromString("TryAsLeakCheck", "x = 1").Dispose());
+        }
+
+        [Test]
+        public void FailedAsManagedObjectRaisesWithConversionErrorAsCause()
+        {
+            using var _ = Py.GIL();
+
+            using var locals = new PyDict();
+            PythonEngine.Exec("def a_function(a, b): return a * b", null, locals);
+            using var pyObject = locals.GetItem("a_function");
+
+            var exception = Assert.Throws<InvalidCastException>(() => pyObject.AsManagedObject(typeof(int)));
+            Assert.IsNotNull(exception.InnerException);
+            StringAssert.Contains("int()", exception.InnerException.Message);
+            Assert.IsFalse(Exceptions.ErrorOccurred());
+        }
     }
 
     public class PyObjectTestMethods
