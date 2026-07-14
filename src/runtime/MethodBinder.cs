@@ -792,6 +792,14 @@ namespace Python.Runtime
 
             if (matches.Count > 0 || (matchesUsingImplicitConversion != null && matchesUsingImplicitConversion.Count > 0))
             {
+                // A rejected overload's conversion probe may have raised a Python error
+                // even though probing converts with setError: false (e.g. a throwing
+                // implicit operator raises unconditionally so Invoke can surface it as
+                // the failure reason when nothing matches). Once an overload matched,
+                // that error must not survive the successful call: CPython would fail
+                // it with "SystemError: ... returned a result with an error set".
+                Exceptions.Clear();
+
                 // We favor matches that do not use implicit conversion
                 var matchesTouse = matches.Count > 0 ? matches : matchesUsingImplicitConversion;
 
