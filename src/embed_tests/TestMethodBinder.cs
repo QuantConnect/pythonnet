@@ -35,6 +35,8 @@ class PythonModel(TestMethodBinder.CSharpModel):
         model.TestList(model.SomeList)
     def TestH(self):
         return self.OnlyString(TestMethodBinder.ErroredImplicitConversion())
+    def TestI(self):
+        return self.StringOrErrored(TestMethodBinder.ErroredImplicitConversion())
     def MethodTimeSpanTest(self):
         TestMethodBinder.CSharpModel.MethodDateTimeAndTimeSpan(self, timedelta(days = 1), TestMethodBinder.SomeEnu.A, pinocho = 0)
         TestMethodBinder.CSharpModel.MethodDateTimeAndTimeSpan(self, date(1, 1, 1), TestMethodBinder.SomeEnu.A, pinocho = 0)
@@ -177,6 +179,22 @@ class PythonModel(TestMethodBinder.CSharpModel):
                 }
 
                 Assert.IsTrue(errorCaught);
+            }
+        }
+
+        // The exact-type overload matches first (class precedence 40), then the
+        // string overload (precedence 50) is probed and its conversion raises a
+        // TypeError (throwing implicit operator). The successful bind must not leave
+        // that probe error pending, or CPython fails the otherwise successful call
+        // with "SystemError: ... returned a result with an error set".
+        [Test]
+        public void RejectedOverloadProbeErrorDoesNotPoisonSuccessfulBind()
+        {
+            using (Py.GIL())
+            {
+                var data = (string)module.TestI();
+                Assert.AreEqual("ErroredImplicitConversion overload", data);
+                Assert.IsFalse(Exceptions.ErrorOccurred());
             }
         }
 
@@ -1531,6 +1549,16 @@ def call_generic_class_method():
             public virtual string OnlyString(string data)
             {
                 return "OnlyString impl: " + data;
+            }
+
+            public string StringOrErrored(string data)
+            {
+                return "string overload";
+            }
+
+            public string StringOrErrored(ErroredImplicitConversion data)
+            {
+                return "ErroredImplicitConversion overload";
             }
 
             public virtual string InvokeModel(string data, double anotherArgument = 0)

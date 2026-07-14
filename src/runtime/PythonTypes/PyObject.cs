@@ -169,7 +169,7 @@ namespace Python.Runtime
         /// </remarks>
         public object? AsManagedObject(Type t)
         {
-            if (!TryAsManagedObject(t, out var result))
+            if (!Converter.ToManaged(obj, t, out var result, setError: true))
             {
                 throw new InvalidCastException("cannot convert object to target type",
                     PythonException.FetchCurrentOrNull(out _));
@@ -188,7 +188,15 @@ namespace Python.Runtime
         /// </summary>
         public bool TryAsManagedObject(Type t, out object? result)
         {
-            return Converter.ToManaged(obj, t, out result, true);
+            if (Converter.ToManaged(obj, t, out result, setError: false))
+            {
+                return true;
+            }
+            // A failed Try-conversion must not leave a Python error pending on the
+            // thread: the caller only sees the boolean, so a stale error indicator
+            // would surface from an unrelated later call on this thread.
+            Exceptions.Clear();
+            return false;
         }
 
         /// <summary>

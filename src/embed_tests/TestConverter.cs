@@ -513,6 +513,39 @@ class TestPythonModel(TestCSharpModel):
             Assert.AreEqual(shouldConvert, Converter.ToManaged(testPythonModelClass, type, out var result, setError: false));
             Assert.IsFalse(Exceptions.ErrorOccurred());
         }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void RaisingIteratorFailsArrayConversion(bool setError)
+        {
+            using var _ = Py.GIL();
+
+            var module = PyModule.FromString("RaisingIteratorModule", @"
+def gen():
+    yield 1
+    raise ValueError('mid-iteration failure')
+");
+            using var generator = module.GetAttr("gen").Invoke();
+
+            // the conversion must fail rather than return a silently truncated array,
+            // and the raised error must only be left pending when setError is true
+            Assert.IsFalse(Converter.ToManaged(generator, typeof(int[]), out var result, setError));
+            Assert.IsNull(result);
+            Assert.AreEqual(setError, Exceptions.ErrorOccurred());
+            Exceptions.Clear();
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void OverflowConversionOnlyLeavesErrorWhenSettingErrors(bool setError)
+        {
+            using var _ = Py.GIL();
+
+            using var pyValue = new PyInt(300);
+            Assert.IsFalse(Converter.ToManaged(pyValue, typeof(byte), out var _, setError));
+            Assert.AreEqual(setError, Exceptions.ErrorOccurred());
+            Exceptions.Clear();
+        }
     }
 
     public interface IGetList
