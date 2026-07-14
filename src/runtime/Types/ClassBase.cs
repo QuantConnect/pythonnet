@@ -29,10 +29,21 @@ namespace Python.Runtime
         internal readonly Dictionary<int, MethodObject> richcompare = new();
         internal MaybeType type;
 
+        // How a member is used from Python, so a missing-attribute hint only suggests members
+        // usable the same way as the one the user most likely meant. Nested types count as
+        // callable: `Foo.Bar()` may be an attempted constructor call. A single exposed name can
+        // carry both flags when e.g. a method and a property collapse to the same snake_case name.
+        [Flags]
+        private enum SuggestionKind
+        {
+            Callable = 1,
+            Data = 2,
+        }
+
         // Reflecting over a managed type's full member set (with FlattenHierarchy) plus the
         // snake_case conversion is expensive, and the result never changes for a given type.
         // Compute it once per type.
-        private static readonly ConcurrentDictionary<Type, HashSet<string>> _candidateNameCache = new();
+        private static readonly ConcurrentDictionary<Type, Dictionary<string, SuggestionKind>> _candidateNameCache = new();
 
         // A miss-heavy workload probes the same missing names over and over (e.g. a per-bar
         // getattr(self, "_optional", None) on a .NET-derived object, or a mistyped enum value).
@@ -760,8 +771,8 @@ namespace Python.Runtime
 
             // The hint is built and cached once per (type, name); on a repeated miss this is just
             // a dictionary lookup. An empty string means there was nothing to suggest. The
-            // suggested names use the same snake_case convention Python exposes members under
-            // (see ToSnakeCaseMemberName), so they are independent of whether the access was on
+            // suggested names use the same convention Python exposes members under (see
+            // GetCandidateMemberNames), so they are independent of whether the access was on
             // an instance or the type object.
             return _suggestionCache.GetOrAdd((type, name),
                 static key => ComputeSimilarMemberNames(key.Type, key.Name));
@@ -786,17 +797,19 @@ namespace Python.Runtime
             return $"object has no attribute '{fallbackName}'";
         }
 
-        // The snake_case candidate member names of a type, cached so the reflection and name
-        // conversion happen at most once per type rather than on every attribute miss. Instance
-        // and static members are both included, and each is converted with ToSnakeCaseMemberName
-        // so the suggestion matches the name Python exposes it under: methods become lower_snake,
-        // while enum values, consts and static-readonly members become UPPER_SNAKE (e.g.
-        // DayOfWeek.SUNDAY, Math.PI, String.EMPTY).
-        private static HashSet<string> GetCandidateMemberNames(Type type)
+        // The candidate member names of a type, cached so the reflection and name conversion
+        // happen at most once per type rather than on every attribute miss. Instance and static
+        // members are both included, and each is converted so the suggestion matches the name
+        // Python exposes it under: methods become lower_snake, enum values, consts and
+        // static-readonly members become UPPER_SNAKE (e.g. DayOfWeek.SUNDAY, Math.PI,
+        // String.EMPTY), and nested types keep their original name (ClassManager registers no
+        // snake_case alias for them). Each name is tagged with how it is used from Python so
+        // suggestions can be filtered by usage.
+        private static Dictionary<string, SuggestionKind> GetCandidateMemberNames(Type type)
         {
             return _candidateNameCache.GetOrAdd(type, static t =>
             {
-                var names = new HashSet<string>(StringComparer.Ordinal);
+                var names = new Dictionary<string, SuggestionKind>(StringComparer.Ordinal);
 
                 var members = t.GetMembers(BindingFlags.Public | BindingFlags.Instance
                                               | BindingFlags.Static | BindingFlags.FlattenHierarchy);
@@ -814,7 +827,16 @@ namespace Python.Runtime
                         continue;
                     }
 
-                    names.Add(ToSnakeCaseMemberName(member));
+                    var (name, kind) = member switch
+                    {
+                        Type => (member.Name, SuggestionKind.Callable),
+                        MethodBase => (member.Name.ToSnakeCase(), SuggestionKind.Callable),
+                        FieldInfo fieldInfo => (fieldInfo.ToSnakeCase(), SuggestionKind.Data),
+                        PropertyInfo propertyInfo => (propertyInfo.ToSnakeCase(), SuggestionKind.Data),
+                        _ => (member.Name.ToSnakeCase(), SuggestionKind.Data),
+                    };
+
+                    names[name] = names.TryGetValue(name, out var existing) ? existing | kind : kind;
                 }
 
                 return names;
@@ -829,16 +851,16 @@ namespace Python.Runtime
             const int MaxSuggestions = 5;
             var threshold = Math.Max(2, name.Length / 3);
 
-            var scored = new List<(string Name, int Distance)>();
+            var scored = new List<(string Name, int Distance, SuggestionKind Kind)>();
             foreach (var candidate in GetCandidateMemberNames(type))
             {
-                var distance = LevenshteinDistance(name, candidate);
+                var distance = LevenshteinDistance(name, candidate.Key);
                 var related = distance <= threshold
-                    || candidate.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0
-                    || name.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0;
+                    || candidate.Key.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0
+                    || name.IndexOf(candidate.Key, StringComparison.OrdinalIgnoreCase) >= 0;
                 if (related)
                 {
-                    scored.Add((candidate, distance));
+                    scored.Add((candidate.Key, distance, candidate.Value));
                 }
             }
 
@@ -847,25 +869,22 @@ namespace Python.Runtime
                 return string.Empty;
             }
 
-            var suggestions = scored
+            var ordered = scored
                 .OrderBy(t => t.Distance)
                 .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            // Only suggest members used the same way as the closest match, the member the user
+            // most likely meant: a miss that best matches a method or nested type gets callable
+            // suggestions only, one that best matches a field/property gets data suggestions
+            // only. Mixing the two would suggest names the caller cannot use the same way.
+            var kind = ordered[0].Kind;
+            var suggestions = ordered
+                .Where(t => (t.Kind & kind) != 0)
                 .Take(MaxSuggestions)
                 .Select(t => $"'{t.Name}'");
 
             return " Did you mean: " + string.Join(", ", suggestions) + "?";
-        }
-
-        private static string ToSnakeCaseMemberName(MemberInfo member)
-        {
-            // Use the field/property overloads so const and static-readonly members
-            // are converted to UPPER_CASE, matching how they are exposed to Python.
-            return member switch
-            {
-                FieldInfo fieldInfo => fieldInfo.ToSnakeCase(),
-                PropertyInfo propertyInfo => propertyInfo.ToSnakeCase(),
-                _ => member.Name.ToSnakeCase(),
-            };
         }
 
         private static int LevenshteinDistance(string a, string b)
