@@ -163,6 +163,54 @@ def test_missing_static_field_suggests_similar():
     assert "'EMPTY'" in message
 
 
+def test_missing_nested_type_suggests_original_name():
+    """A miss that matches a nested type suggests its original PascalCase name.
+
+    Nested types are exposed under their original name only (no snake_case alias),
+    so suggesting the snake-cased name would point at another missing attribute.
+    """
+    from Python.Test import SuggestionTest
+
+    with pytest.raises(AttributeError) as exc_info:
+        _ = SuggestionTest.calculator
+
+    message = str(exc_info.value)
+    assert "Did you mean" in message
+    hint = message.split("Did you mean")[1]
+    assert "'Calculator'" in hint
+    # The snake-cased nested type name is not accessible, so it must not be suggested.
+    assert "'calculator'" not in hint
+
+
+def test_missing_method_suggests_callables_only():
+    """A miss that best matches a method suggests methods and nested types only.
+
+    Nested types are included because the access may be an attempted constructor
+    call, but similarly-named properties are excluded: they are not callable.
+    """
+    from Python.Test import SuggestionTest
+
+    with pytest.raises(AttributeError) as exc_info:
+        _ = SuggestionTest.calculat
+
+    hint = str(exc_info.value).split("Did you mean")[1]
+    assert "'calculate'" in hint
+    assert "'Calculator'" in hint
+    assert "'calculation_result'" not in hint
+
+
+def test_missing_property_suggests_data_only():
+    """A miss that best matches a property suggests fields/properties only."""
+    from Python.Test import SuggestionTest
+
+    with pytest.raises(AttributeError) as exc_info:
+        _ = SuggestionTest.calculation_resul
+
+    hint = str(exc_info.value).split("Did you mean")[1]
+    assert "'calculation_result'" in hint
+    assert "'calculation_results'" not in hint
+
+
 def test_missing_static_member_no_similar():
     """A static member with no similar name keeps the standard message (no hint)."""
     from System import Math

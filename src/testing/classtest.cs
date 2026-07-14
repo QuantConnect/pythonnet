@@ -59,4 +59,32 @@ namespace Python.Test
     internal class InternalClass
     {
     }
+
+    /// <summary>
+    /// Supports missing-attribute suggestion ("Did you mean") unit tests: a nested type,
+    /// a method and a property with deliberately similar names, so tests can assert that
+    /// suggestions are filtered by how the intended member is used from Python.
+    /// </summary>
+    public class SuggestionTest
+    {
+        public static class Calculator
+        {
+            public static int Add(int a, int b)
+            {
+                return a + b;
+            }
+        }
+
+        public static int Calculate()
+        {
+            return 0;
+        }
+
+        public static int[] CalculationResults()
+        {
+            return new int[0];
+        }
+
+        public static int CalculationResult { get; set; }
+    }
 }
