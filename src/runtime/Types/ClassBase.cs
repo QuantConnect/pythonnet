@@ -799,12 +799,11 @@ namespace Python.Runtime
 
         // The candidate member names of a type, cached so the reflection and name conversion
         // happen at most once per type rather than on every attribute miss. Instance and static
-        // members are both included, and each is converted so the suggestion matches the name
-        // Python exposes it under: methods become lower_snake, enum values, consts and
-        // static-readonly members become UPPER_SNAKE (e.g. DayOfWeek.SUNDAY, Math.PI,
-        // String.EMPTY), and nested types keep their original name (ClassManager registers no
-        // snake_case alias for them). Each name is tagged with how it is used from Python so
-        // suggestions can be filtered by usage.
+        // members are both included, and each is converted with ToSnakeCaseMemberName so the
+        // suggestion matches the name Python exposes it under: methods become lower_snake, enum
+        // values, consts and static-readonly members become UPPER_SNAKE (e.g. DayOfWeek.SUNDAY,
+        // Math.PI, String.EMPTY), and nested types keep their original name. Each name is tagged
+        // with how it is used from Python so suggestions can be filtered by usage.
         private static Dictionary<string, SuggestionKind> GetCandidateMemberNames(Type type)
         {
             return _candidateNameCache.GetOrAdd(type, static t =>
@@ -827,15 +826,7 @@ namespace Python.Runtime
                         continue;
                     }
 
-                    var (name, kind) = member switch
-                    {
-                        Type => (member.Name, SuggestionKind.Callable),
-                        MethodBase => (member.Name.ToSnakeCase(), SuggestionKind.Callable),
-                        FieldInfo fieldInfo => (fieldInfo.ToSnakeCase(), SuggestionKind.Data),
-                        PropertyInfo propertyInfo => (propertyInfo.ToSnakeCase(), SuggestionKind.Data),
-                        _ => (member.Name.ToSnakeCase(), SuggestionKind.Data),
-                    };
-
+                    var (name, kind) = ToSnakeCaseMemberName(member);
                     names[name] = names.TryGetValue(name, out var existing) ? existing | kind : kind;
                 }
 
@@ -885,6 +876,23 @@ namespace Python.Runtime
                 .Select(t => $"'{t.Name}'");
 
             return " Did you mean: " + string.Join(", ", suggestions) + "?";
+        }
+
+        // Converts a member to the name Python exposes it under, tagged with how it is used.
+        // The field/property overloads of ToSnakeCase are used so const and static-readonly
+        // members are converted to UPPER_CASE. Nested types keep their original name verbatim:
+        // ClassManager registers no snake_case alias for them, and they count as callable since
+        // accessing one may be an attempted constructor call.
+        private static (string Name, SuggestionKind Kind) ToSnakeCaseMemberName(MemberInfo member)
+        {
+            return member switch
+            {
+                Type => (member.Name, SuggestionKind.Callable),
+                MethodBase => (member.Name.ToSnakeCase(), SuggestionKind.Callable),
+                FieldInfo fieldInfo => (fieldInfo.ToSnakeCase(), SuggestionKind.Data),
+                PropertyInfo propertyInfo => (propertyInfo.ToSnakeCase(), SuggestionKind.Data),
+                _ => (member.Name.ToSnakeCase(), SuggestionKind.Data),
+            };
         }
 
         private static int LevenshteinDistance(string a, string b)
