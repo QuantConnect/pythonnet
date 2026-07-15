@@ -761,8 +761,6 @@ def test_null_array():
         ob = Test.NullArrayTest()
         _ = ob.items["wrong"]
 
-# TODO: Error Type should be TypeError for all cases
-# Currently throws SystemErrors instead
 def test_interface_array():
     """Test interface arrays."""
     from Python.Test import Spam
@@ -789,7 +787,7 @@ def test_interface_array():
     items[0] = None
     assert items[0] is None
 
-    with pytest.raises(SystemError):
+    with pytest.raises(TypeError):
         ob = Test.InterfaceArrayTest()
         ob.items[0] = 99
 
@@ -797,7 +795,7 @@ def test_interface_array():
         ob = Test.InterfaceArrayTest()
         _ = ob.items["wrong"]
 
-    with pytest.raises(SystemError):
+    with pytest.raises(TypeError):
         ob = Test.InterfaceArrayTest()
         ob.items["wrong"] = "wrong"
 
@@ -828,7 +826,7 @@ def test_typed_array():
     items[0] = None
     assert items[0] is None
 
-    with pytest.raises(SystemError):
+    with pytest.raises(TypeError):
         ob = Test.TypedArrayTest()
         ob.items[0] = 99
 

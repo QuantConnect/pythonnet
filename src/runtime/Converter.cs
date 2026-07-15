@@ -526,6 +526,7 @@ class GMT(tzinfo):
                     // The value being converted is a class type, so it will only succeed if it's being converted into a Type
                     if (obType != typeof(Type))
                     {
+                        SetConversionError(value, obType, setError);
                         return false;
                     }
 
@@ -540,6 +541,7 @@ class GMT(tzinfo):
                 // Method bindings will be handled below along with actual Python callables
                 if (mt is not MethodBinding)
                 {
+                    SetConversionError(value, obType, setError);
                     return false;
                 }
             }
@@ -723,7 +725,24 @@ class GMT(tzinfo):
                 }
             }
 
+            SetConversionError(value, obType, setError);
             return false;
+        }
+
+        /// <summary>
+        /// Sets a TypeError for a failed conversion, unless the caller did not ask for
+        /// errors or a probing sub-path already raised a more specific error that must
+        /// be surfaced instead. Callers that report failure with setError true must
+        /// always leave a Python error pending, otherwise CPython turns the bare error
+        /// return into a "SystemError: error return without exception set".
+        /// </summary>
+        static void SetConversionError(BorrowedReference value, Type obType, bool setError)
+        {
+            if (setError && !Exceptions.ErrorOccurred())
+            {
+                string tpName = Runtime.PyObject_GetTypeName(value);
+                Exceptions.SetError(Exceptions.TypeError, $"'{tpName}' value cannot be converted to {obType}");
+            }
         }
 
         static bool EncodableByUser(Type type, object value)

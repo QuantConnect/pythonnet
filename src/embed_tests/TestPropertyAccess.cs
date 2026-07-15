@@ -52,6 +52,8 @@ namespace Python.EmbeddingTest
             public static readonly string PublicStaticReadOnlyField = "Default value";
             protected static readonly string ProtectedStaticReadOnlyField = "Default value";
 
+            public Fixture ObjectProperty { get; set; }
+
             public static Fixture Create()
             {
                 return new Fixture();
@@ -288,6 +290,34 @@ class TestSetPublicReadOnlyPropertyFails:
             using (Py.GIL())
             {
                 Assert.Throws<PythonException>(() => model.SetValue(fixture));
+            }
+        }
+
+        [Test]
+        public void TestSetPropertyNonConvertibleValueRaisesTypeError()
+        {
+            dynamic model = PyModule.FromString("module", @"
+from clr import AddReference
+AddReference(""System"")
+AddReference(""Python.EmbeddingTest"")
+
+from Python.EmbeddingTest import *
+
+class PurePythonValue:
+    pass
+
+class TestSetPropertyNonConvertibleValueRaisesTypeError:
+    def SetValue(self, fixture):
+        fixture.ObjectProperty = PurePythonValue()
+").GetAttr("TestSetPropertyNonConvertibleValueRaisesTypeError").Invoke();
+
+            var fixture = new Fixture();
+
+            using (Py.GIL())
+            {
+                var exception = Assert.Throws<PythonException>(() => model.SetValue(fixture));
+                Assert.AreEqual("TypeError", exception.Type.Name);
+                StringAssert.Contains("value cannot be converted to", exception.Message);
             }
         }
 
