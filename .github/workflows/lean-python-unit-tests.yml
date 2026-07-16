@@ -52,6 +52,7 @@ jobs:
             Lean/Tests/bin/Release/Python.Runtime.dll
 
       - name: Generate Python unit test filter
+        shell: bash
         run: |
           # Select every test class whose source references Lean's Python
           # interop layer (Py.GIL, PythonEngine, PyObject, Language.Python
