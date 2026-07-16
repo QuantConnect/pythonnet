@@ -546,6 +546,75 @@ def gen():
             Assert.AreEqual(setError, Exceptions.ErrorOccurred());
             Exceptions.Clear();
         }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void FailedConversionToClrClassOnlyLeavesErrorWhenSettingErrors(bool setError)
+        {
+            using var _ = Py.GIL();
+
+            var module = PyModule.FromString("FailedConversionToClrClassModule", @"
+class PurePythonValue:
+    pass
+");
+            using var instance = module.GetAttr("PurePythonValue").Invoke();
+
+            Assert.IsFalse(Converter.ToManaged(instance, typeof(UriBuilder), out var result, setError));
+            Assert.IsNull(result);
+            Assert.AreEqual(setError, Exceptions.ErrorOccurred());
+            if (setError)
+            {
+                Assert.IsTrue(Exceptions.ExceptionMatches(Exceptions.TypeError));
+            }
+            Exceptions.Clear();
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void FailedConversionOfClassObjectOnlyLeavesErrorWhenSettingErrors(bool setError)
+        {
+            using var _ = Py.GIL();
+
+            var module = PyModule.FromString("FailedConversionOfClassObjectModule", @"
+from System import Uri
+");
+            using var classObject = module.GetAttr("Uri");
+
+            Assert.IsFalse(Converter.ToManaged(classObject, typeof(UriBuilder), out var result, setError));
+            Assert.IsNull(result);
+            Assert.AreEqual(setError, Exceptions.ErrorOccurred());
+            if (setError)
+            {
+                Assert.IsTrue(Exceptions.ExceptionMatches(Exceptions.TypeError));
+            }
+            Exceptions.Clear();
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void FailedConversionOfNonClrValueManagedTypesOnlyLeavesErrorWhenSettingErrors(bool setError)
+        {
+            using var _ = Py.GIL();
+
+            // a CLR namespace module is a managed type that is neither a CLRObject,
+            // a class, nor a method binding; a class attribute access yields a
+            // MethodBinding that reaches the final conversion fall-through
+            using var systemModule = Py.Import("System");
+            using var uriClass = systemModule.GetAttr("Uri");
+            using var compareBinding = uriClass.GetAttr("Compare");
+
+            foreach (var value in new[] { systemModule, compareBinding })
+            {
+                Assert.IsFalse(Converter.ToManaged(value, typeof(UriBuilder), out var result, setError));
+                Assert.IsNull(result);
+                Assert.AreEqual(setError, Exceptions.ErrorOccurred());
+                if (setError)
+                {
+                    Assert.IsTrue(Exceptions.ExceptionMatches(Exceptions.TypeError));
+                }
+                Exceptions.Clear();
+            }
+        }
     }
 
     public interface IGetList
