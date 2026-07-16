@@ -1,0 +1,110 @@
+name: Lean Python Unit Tests
+
+# Validates a Python.Runtime.dll change against Lean's Python unit tests:
+# the Python/Pandas test suites (QuantConnect.Tests.Python) plus every other
+# Lean unit test class that exercises Python code. We build this repo's
+# Python.Runtime.dll, build Lean against its NuGet QuantConnect.pythonnet
+# reference, drop the freshly built DLL over Lean's test output, and run only
+# the test classes whose sources reference the Python interop layer.
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lean-python-unit-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Checkout pythonnet
+        uses: actions/checkout@v4
+        with:
+          path: pythonnet
+
+      - name: Checkout Lean
+        uses: actions/checkout@v4
+        with:
+          repository: QuantConnect/Lean
+          path: Lean
+
+      - name: Liberate disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          large-packages: false
+          docker-images: false
+          swap-storage: false
+
+      - name: Define docker helper
+        run: |
+          echo 'runInContainer() { docker exec test-container "$@"; }' > $HOME/ci_functions.sh
+          echo "BASH_ENV=$HOME/ci_functions.sh" >> $GITHUB_ENV
+
+      - name: Start container
+        run: |
+          docker run -d \
+            --workdir /__w/pythonnet/pythonnet \
+            -v /home/runner/work:/__w \
+            --name test-container \
+            quantconnect/lean:foundation \
+            tail -f /dev/null
+
+      - name: Build Python.Runtime.dll
+        run: |
+          runInContainer dotnet build pythonnet/src/runtime/Python.Runtime.csproj \
+            -c Release /v:quiet /p:WarningLevel=1
+
+      - name: Build Lean
+        run: |
+          runInContainer dotnet build /p:Configuration=Release /v:quiet /p:WarningLevel=1 \
+            Lean/QuantConnect.Lean.sln
+
+      - name: Inject freshly built Python.Runtime.dll into Lean test output
+        run: |
+          runInContainer cp pythonnet/pythonnet/runtime/Python.Runtime.dll \
+            Lean/Tests/bin/Release/Python.Runtime.dll
+
+      - name: Generate Python unit test filter
+        run: |
+          # Select every test class whose source references Lean's Python
+          # interop layer (Py.GIL, PythonEngine, PyObject, Language.Python
+          # test cases, ...). Class names are extracted per matching file and
+          # turned into a FullyQualifiedName filter, so the selection tracks
+          # Lean automatically. Non-test helper classes that slip in simply
+          # match nothing. Regression suites are excluded: Python regression
+          # algorithms already run in the Lean Python Regression Tests
+          # workflow, and TravisExclude/ResearchRegressionTests mirror Lean's
+          # own unit test CI exclusions. The filter is passed through a
+          # runsettings file because it is far too long for a command line.
+          filter=$(grep -rlE 'Py\.GIL|PythonEngine|PyModule|Language\.Python|\bPyObject\b' \
+              Lean/Tests --include='*.cs' --exclude-dir=bin --exclude-dir=obj \
+            | while read -r file; do
+                ns=$(sed -n 's/^namespace \([A-Za-z0-9_.]*\).*/\1/p' "$file" | head -1)
+                [ -z "$ns" ] && continue
+                sed -n 's/.*\bclass \([A-Za-z0-9_]*\).*/\1/p' "$file" | sort -u \
+                  | while read -r cls; do echo "FullyQualifiedName~$ns.$cls"; done
+              done | sort -u | paste -sd'|')
+          echo "Selected $(tr '|' '\n' <<< "$filter" | wc -l) test class name filters"
+          cat > lean-python-unit-tests.runsettings <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <RunSettings>
+            <RunConfiguration>
+              <TestCaseFilter>($filter)&amp;TestCategory!=TravisExclude&amp;TestCategory!=ResearchRegressionTests&amp;TestCategory!=RegressionTests</TestCaseFilter>
+            </RunConfiguration>
+            <TestRunParameters>
+              <Parameter name="log-handler" value="ConsoleErrorLogHandler" />
+            </TestRunParameters>
+          </RunSettings>
+          EOF
+
+      - name: Run Lean Python unit tests
+        run: |
+          runInContainer dotnet test Lean/Tests/bin/Release/QuantConnect.Tests.dll \
+            --blame-hang-timeout 300seconds --blame-crash \
+            --settings lean-python-unit-tests.runsettings
