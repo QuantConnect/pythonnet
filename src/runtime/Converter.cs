@@ -58,7 +58,7 @@ namespace Python.Runtime
         private static Type flagsType;
         private static Type boolType;
         private static Type typeType;
-        private static PyObject dateTimeCtor;
+        private static Lazy<PyObject> dateTimeCtor;
         private static PyObject timeSpanCtor;
         private static Lazy<PyObject> tzInfoCtor;
         private static PyObject pyTupleNoKind;
@@ -94,8 +94,62 @@ namespace Python.Runtime
             var dateTimeMod = Runtime.PyImport_ImportModule("datetime");
             PythonException.ThrowIfIsNull(dateTimeMod);
 
-            dateTimeCtor = Runtime.PyObject_GetAttrString(dateTimeMod.Borrow(), "datetime").MoveToPyObject();
-            PythonException.ThrowIfIsNull(dateTimeCtor);
+            dateTimeCtor = new Lazy<PyObject>(() =>
+            {
+                // datetime.datetime subclass whose subtraction and ordering against pure
+                // datetime.date operands coerce to the date part instead of raising TypeError.
+                // Equality and hashing are left untouched: making a datetime equal a date
+                // would break the hash contract. Pickling degrades to the plain datetime
+                // class so payloads never reference this synthetic module.
+                var dateTimeSubclassMod = PyModule.FromString("clr_datetime", @"
+from datetime import datetime as _datetime, date as _date
+
+class datetime(_datetime):
+    __slots__ = ()
+
+    def __sub__(self, other):
+        if isinstance(other, _date) and not isinstance(other, _datetime):
+            return self.date() - other
+        return _datetime.__sub__(self, other)
+
+    def __rsub__(self, other):
+        if isinstance(other, _date) and not isinstance(other, _datetime):
+            return other - self.date()
+        return _datetime.__rsub__(self, other)
+
+    def __lt__(self, other):
+        if isinstance(other, _date) and not isinstance(other, _datetime):
+            return self.date() < other
+        return _datetime.__lt__(self, other)
+
+    def __le__(self, other):
+        if isinstance(other, _date) and not isinstance(other, _datetime):
+            return self.date() <= other
+        return _datetime.__le__(self, other)
+
+    def __gt__(self, other):
+        if isinstance(other, _date) and not isinstance(other, _datetime):
+            return self.date() > other
+        return _datetime.__gt__(self, other)
+
+    def __ge__(self, other):
+        if isinstance(other, _date) and not isinstance(other, _datetime):
+            return self.date() >= other
+        return _datetime.__ge__(self, other)
+
+    def __repr__(self):
+        base = _datetime.__repr__(self)
+        return 'datetime.datetime' + base[base.index('('):]
+
+    def __reduce_ex__(self, protocol):
+        return (_datetime, (self.year, self.month, self.day, self.hour, self.minute,
+                            self.second, self.microsecond, self.tzinfo))
+").BorrowNullable();
+
+                var result = Runtime.PyObject_GetAttrString(dateTimeSubclassMod, "datetime").MoveToPyObject();
+                PythonException.ThrowIfIsNull(result);
+                return result;
+            });
 
             timeSpanCtor = Runtime.PyObject_GetAttrString(dateTimeMod.Borrow(), "timedelta").MoveToPyObject();
             PythonException.ThrowIfIsNull(timeSpanCtor);
@@ -375,7 +429,7 @@ class GMT(tzinfo):
                         Runtime.PyTuple_SetItem(dateTimeArgs, 7, TzInfo(datetime.Kind).Steal());
                     }
 
-                    var returnDateTime = Runtime.PyObject_CallObject(dateTimeCtor, dateTimeArgs);
+                    var returnDateTime = Runtime.PyObject_CallObject(dateTimeCtor.Value, dateTimeArgs);
                     return returnDateTime;
 
 
