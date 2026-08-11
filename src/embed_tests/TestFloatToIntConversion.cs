@@ -124,9 +124,7 @@ def single_ctor_index_like(value):
             Assert.AreEqual("TypeError", ex.Type.Name);
         }
 
-        // A float subclass (e.g. numpy.float64) follows the same rule as a plain
-        // float: integral values convert, fractional ones are rejected instead of
-        // being silently truncated through __int__.
+        // Float subclasses (e.g. numpy.float64) follow the plain-float rule.
         [TestCase("single_ctor_float_subclass")]
         [TestCase("overloaded_ctor_float_subclass")]
         public void IntegralFloatSubclass_IsAccepted(string func)
@@ -142,9 +140,7 @@ def single_ctor_index_like(value):
             Assert.AreEqual("TypeError", ex.Type.Name);
         }
 
-        // A number that defines __float__ but no __index__ (e.g. numpy.float32) is
-        // float-like: integral values convert, fractional ones are rejected instead
-        // of being silently truncated through __int__.
+        // __float__-only numbers (e.g. numpy.float32) follow the plain-float rule.
         [TestCase("single_ctor_float_like")]
         [TestCase("overloaded_ctor_float_like")]
         public void IntegralFloatLike_IsAccepted(string func)
@@ -160,8 +156,7 @@ def single_ctor_index_like(value):
             Assert.AreEqual("TypeError", ex.Type.Name);
         }
 
-        // A true integer type advertising __index__ (e.g. numpy.int64) is not
-        // float-like and keeps converting even though it also defines __float__.
+        // __index__ types (e.g. numpy.int64) are integers, not float-like.
         [Test]
         public void IndexLike_IsAccepted()
         {

@@ -268,9 +268,7 @@ def test_int64_conversion():
 
 
 def test_numpy_float_to_int_conversion():
-    """A numpy float with a fractional value is rejected for integer targets
-    instead of being silently truncated; integral-valued numpy floats convert.
-    Numpy integer scalars are unaffected."""
+    """Non-integral numpy floats are rejected for integer targets, not truncated."""
     np = pytest.importorskip("numpy")
 
     ob = ConversionTest()
