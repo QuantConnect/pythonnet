@@ -908,6 +908,31 @@ class GMT(tzinfo):
         }
 
         /// <summary>
+        /// Determines whether a Python value is a floating-point number: a Python
+        /// float (including subclasses such as numpy.float64) or a number that
+        /// defines a float conversion but no lossless integer conversion
+        /// (__float__ without __index__, e.g. numpy.float32). Integer values,
+        /// including bools and types with __index__ such as numpy.int64, are not
+        /// float-like.
+        /// </summary>
+        private static bool IsFloatLike(BorrowedReference value)
+        {
+            // The common case for integer parameters is an actual int; exit fast.
+            if (Runtime.PyInt_Check(value) || Runtime.PyBool_Check(value))
+            {
+                return false;
+            }
+
+            if (Runtime.PyObject_TypeCheck(value, Runtime.PyFloatType))
+            {
+                return true;
+            }
+
+            return Runtime.PyObject_HasAttrString(value, "__float__") != 0
+                && Runtime.PyObject_HasAttrString(value, "__index__") == 0;
+        }
+
+        /// <summary>
         /// Convert a Python value to an instance of a primitive managed type.
         /// </summary>
         internal static bool ToPrimitive(BorrowedReference value, Type obType, out object result, bool setError, out bool usedImplicit)
@@ -918,14 +943,23 @@ class GMT(tzinfo):
 
             TypeCode tc = Type.GetTypeCode(obType);
 
-            // A Python float with a fractional part must not be silently truncated
-            // into an integer parameter. Integral-valued floats (e.g. 5.0) are still
-            // accepted. This keeps single- and multi-overload binding consistent:
-            // MethodBinder only treats integral floats as candidates for integer
-            // parameters, and this guard enforces the same rule at conversion time.
-            if (tc.IsInteger() && Runtime.PyFloat_Check(value))
+            // A float-like value with a fractional part must not be silently truncated
+            // into an integer parameter. Integral-valued ones (e.g. 5.0) are still
+            // accepted. Besides Python floats this covers float subclasses such as
+            // numpy.float64 and __float__-only numbers such as numpy.float32, which
+            // would otherwise be truncated below through PyNumber_Long/__int__.
+            // This keeps single- and multi-overload binding consistent: MethodBinder
+            // only treats integral floats as candidates for integer parameters, and
+            // this guard enforces the same rule at conversion time.
+            if (tc.IsInteger() && IsFloatLike(value))
             {
                 double dbl = Runtime.PyFloat_AsDouble(value);
+                if (dbl == -1.0 && Exceptions.ErrorOccurred())
+                {
+                    // __float__ itself failed; don't let the probe error leak
+                    Exceptions.Clear();
+                    goto type_error;
+                }
                 if (double.IsNaN(dbl) || double.IsInfinity(dbl) || Math.Truncate(dbl) != dbl)
                 {
                     goto type_error;

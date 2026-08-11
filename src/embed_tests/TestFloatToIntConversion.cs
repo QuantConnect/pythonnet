@@ -41,6 +41,43 @@ def overloaded_named(value):
 
 def single_params(value):
     return IntTaker(0).ComputeScaled(value)
+
+class FloatSubclass(float):
+    # numpy.float64-like: a float subclass
+    pass
+
+class FloatLike:
+    # numpy.float32-like: float and (truncating) int conversions, no __index__
+    def __init__(self, v):
+        self._v = v
+    def __float__(self):
+        return float(self._v)
+    def __int__(self):
+        return int(self._v)
+
+class IndexLike:
+    # numpy.int64-like: a true integer type advertising __index__
+    def __init__(self, v):
+        self._v = v
+    def __index__(self):
+        return int(self._v)
+    def __float__(self):
+        return float(self._v)
+
+def single_ctor_float_subclass(value):
+    return IntTaker(FloatSubclass(value)).Value
+
+def overloaded_ctor_float_subclass(value):
+    return OverloadedIntTaker(FloatSubclass(value)).Value
+
+def single_ctor_float_like(value):
+    return IntTaker(FloatLike(value)).Value
+
+def overloaded_ctor_float_like(value):
+    return OverloadedIntTaker(FloatLike(value)).Value
+
+def single_ctor_index_like(value):
+    return IntTaker(IndexLike(value)).Value
 ";
 
         [OneTimeSetUp]
@@ -85,6 +122,50 @@ def single_params(value):
         {
             var ex = Assert.Throws<PythonException>(() => Call(func, 5.5));
             Assert.AreEqual("TypeError", ex.Type.Name);
+        }
+
+        // A float subclass (e.g. numpy.float64) follows the same rule as a plain
+        // float: integral values convert, fractional ones are rejected instead of
+        // being silently truncated through __int__.
+        [TestCase("single_ctor_float_subclass")]
+        [TestCase("overloaded_ctor_float_subclass")]
+        public void IntegralFloatSubclass_IsAccepted(string func)
+        {
+            Assert.AreEqual(5, Call(func, 5.0));
+        }
+
+        [TestCase("single_ctor_float_subclass")]
+        [TestCase("overloaded_ctor_float_subclass")]
+        public void NonIntegralFloatSubclass_IsRejected(string func)
+        {
+            var ex = Assert.Throws<PythonException>(() => Call(func, 5.5));
+            Assert.AreEqual("TypeError", ex.Type.Name);
+        }
+
+        // A number that defines __float__ but no __index__ (e.g. numpy.float32) is
+        // float-like: integral values convert, fractional ones are rejected instead
+        // of being silently truncated through __int__.
+        [TestCase("single_ctor_float_like")]
+        [TestCase("overloaded_ctor_float_like")]
+        public void IntegralFloatLike_IsAccepted(string func)
+        {
+            Assert.AreEqual(5, Call(func, 5.0));
+        }
+
+        [TestCase("single_ctor_float_like")]
+        [TestCase("overloaded_ctor_float_like")]
+        public void NonIntegralFloatLike_IsRejected(string func)
+        {
+            var ex = Assert.Throws<PythonException>(() => Call(func, 5.5));
+            Assert.AreEqual("TypeError", ex.Type.Name);
+        }
+
+        // A true integer type advertising __index__ (e.g. numpy.int64) is not
+        // float-like and keeps converting even though it also defines __float__.
+        [Test]
+        public void IndexLike_IsAccepted()
+        {
+            Assert.AreEqual(5, Call("single_ctor_index_like", 5.0));
         }
 
         // When no overload matches, the error should hint the expected signature(s).
