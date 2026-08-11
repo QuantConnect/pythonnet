@@ -1105,16 +1105,13 @@ def test_default_params():
         MethodTest.DefaultParams(1,2,3,4,5)
 
 def test_unexpected_keyword_argument_with_suggestion():
-    # A kwarg no overload accepts raises the Python-style error naming the kwarg,
-    # with a did-you-mean hint when a similarly-named parameter exists.
     with pytest.raises(TypeError) as excinfo:
         MethodTest.order_like_method("SPY", 10, as_tag="EmergencyFlatten")
     message = str(excinfo.value)
     assert "order_like_method() got an unexpected keyword argument 'as_tag'" in message
     assert "Did you mean 'tag'?" in message
 
-    # Same behavior when calling through the original PascalCase name; parameter
-    # names are the original ones there.
+    # PascalCase call path: parameter names are the original ones.
     with pytest.raises(TypeError) as excinfo:
         MethodTest.OrderLikeMethod("SPY", 10, asTag="EmergencyFlatten")
     message = str(excinfo.value)
@@ -1123,7 +1120,6 @@ def test_unexpected_keyword_argument_with_suggestion():
 
 
 def test_unexpected_keyword_argument_without_suggestion():
-    # No parameter is remotely similar: the kwarg is still named, but no hint is added.
     with pytest.raises(TypeError) as excinfo:
         MethodTest.order_like_method("SPY", 10, completely_unrelated_name=1)
     message = str(excinfo.value)
@@ -1144,9 +1140,7 @@ def test_valid_keyword_arguments_still_bind():
 
 
 def test_valid_keyword_argument_names_keep_no_match_message():
-    # All kwarg names are real parameters, but the call still cannot bind ('d' is
-    # supplied both positionally and by name): the classic no-method-matches
-    # message must be preserved for this case.
+    # 'd' is supplied both positionally and by name: valid names, unbindable call.
     with pytest.raises(TypeError) as excinfo:
         MethodTest.DefaultParams(1, 2, 3, 4, d=5)
     assert "No method matches given arguments for default_params" in str(excinfo.value)

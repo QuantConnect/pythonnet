@@ -1016,9 +1016,7 @@ namespace Python.Runtime
                 // If we already have an exception pending, don't create a new one
                 if (!Exceptions.ErrorOccurred())
                 {
-                    // A keyword argument whose name no candidate overload accepts gets the
-                    // Python-native "unexpected keyword argument" error: the generic no-match
-                    // message below does not echo kwargs, leaving the actual mistake invisible.
+                    // Unknown kwarg names get the Python-style error; the generic message below does not echo kwargs.
                     if (TryRaiseUnexpectedKeywordArgumentError(kw, info, methodinfo))
                     {
                         return default;
@@ -1132,11 +1130,8 @@ namespace Python.Runtime
         }
 
         /// <summary>
-        /// When a bind failure involves a keyword argument whose name no candidate overload
-        /// accepts, raises the Python-style "got an unexpected keyword argument" TypeError
-        /// (with a "Did you mean" hint when a similarly-named parameter exists) and returns
-        /// true. Returns false when every kwarg name is accepted by at least one overload,
-        /// so the generic no-match error is raised instead.
+        /// Raises "got an unexpected keyword argument" and returns true when a kwarg name is
+        /// accepted by no candidate overload; returns false to let the generic no-match error be raised.
         /// </summary>
         private bool TryRaiseUnexpectedKeywordArgumentError(BorrowedReference kw, MethodBase info, MethodInfo[] methodinfo)
         {
@@ -1146,9 +1141,7 @@ namespace Python.Runtime
                 return false;
             }
 
-            // The same candidate set Bind considered: parameter names are snake_case for
-            // snake_case-registered methods and original for the original ones, matching
-            // the names the caller can actually use.
+            // Same candidate set Bind considered; ParameterNames are already in the caller's convention.
             var methods = info == null
                 ? GetMethods()
                 : new List<MethodInformation>(1) { new MethodInformation(info, true) };
@@ -1206,10 +1199,8 @@ namespace Python.Runtime
         }
 
         /// <summary>
-        /// The candidate parameter name closest to the unexpected kwarg name, or null when
-        /// none is similar enough to suggest. A candidate is considered when it is within
-        /// a small edit distance of the name, or when one contains the other (e.g. 'as_tag'
-        /// suggests 'tag'); containment requires 3+ characters so tiny names don't match.
+        /// Closest parameter name to suggest, or null: small edit distance, or containment
+        /// between names of 3+ characters (e.g. 'as_tag' suggests 'tag').
         /// </summary>
         private static string ClosestParameterName(string name, HashSet<string> parameterNames)
         {
@@ -1234,7 +1225,7 @@ namespace Python.Runtime
             return best;
         }
 
-        // Case-insensitive Levenshtein distance, local to keyword suggestions.
+        // Case-insensitive Levenshtein distance.
         private static int KeywordEditDistance(string a, string b)
         {
             a = a.ToLowerInvariant();
