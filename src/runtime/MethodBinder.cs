@@ -1042,10 +1042,8 @@ namespace Python.Runtime
                         value.Append(". ").Append(overloads);
                     }
 
-                    // Point at the argument that failed against the nearest overload so
-                    // the caller doesn't have to diff the signatures by eye. Appended
-                    // after the overloads block: consumers that extract the hint from
-                    // that marker onwards keep this line too.
+                    // After the overloads block: consumers that extract the hint from
+                    // its marker onwards must keep this line too.
                     var mismatch = DiagnoseClosestOverloadMismatch(candidates, args, kw);
                     if (mismatch.Length > 0)
                     {
@@ -1227,12 +1225,11 @@ namespace Python.Runtime
         }
 
         /// <summary>
-        /// Builds a one-line diagnosis of the first argument that fails to match the
-        /// nearest candidate overload (the one with the most leading convertible
-        /// arguments), e.g. "Argument mismatch: argument 3 ('asynchronous') expected
-        /// bool, got str." Returns an empty string when there is nothing conclusive to
-        /// report (e.g. a pure arity mismatch). Only runs on the bind-failure path; it
-        /// never throws and never leaves a Python error pending.
+        /// One-line diagnosis of the first argument failing to match the nearest
+        /// overload (most leading convertible arguments), e.g. "Argument mismatch:
+        /// argument 3 ('asynchronous') expected bool, got str." Empty when nothing
+        /// conclusive (e.g. pure arity mismatch). Never throws, never leaves a
+        /// Python error pending.
         /// </summary>
         private static string DiagnoseClosestOverloadMismatch(IEnumerable<MethodBase> candidates, BorrowedReference args, BorrowedReference kw)
         {
@@ -1245,8 +1242,7 @@ namespace Python.Runtime
 
                 var pyArgCount = args == null ? 0 : (int)Runtime.PyTuple_Size(args);
 
-                // Snapshot the keyword arguments with strong references so they stay
-                // valid while candidates are probed.
+                // Strong references: the values must outlive the candidate probing.
                 List<KeyValuePair<string, PyObject>> kwargs = null;
                 if (kw != null && Runtime.PyDict_Size(kw) > 0)
                 {
@@ -1290,9 +1286,7 @@ namespace Python.Runtime
                     {
                         if (i == paramsArrayIndex)
                         {
-                            // Remaining arguments feed the params array; probing its
-                            // element conversions here would be guesswork, count them
-                            // as matched.
+                            // Params-array element conversions aren't probed; count the tail as matched.
                             score = limit;
                             break;
                         }
@@ -1322,8 +1316,7 @@ namespace Python.Runtime
                             var parameter = pi.FirstOrDefault(p => p.Name == pair.Key || p.Name.ToSnakeCase() == pair.Key);
                             if (parameter == null)
                             {
-                                // Not a parameter of this overload; flagging unknown
-                                // keyword names is out of scope here.
+                                // Unknown keyword names are not this diagnosis' job.
                                 continue;
                             }
 
@@ -1343,8 +1336,7 @@ namespace Python.Runtime
 
                     if (mismatchIndex == -1 && kwargName == null)
                     {
-                        // Everything given matched: the failure was arity or keyword
-                        // related, nothing conclusive to pinpoint for this candidate.
+                        // Everything given matched: nothing to pinpoint for this candidate.
                         continue;
                     }
 
@@ -1367,11 +1359,11 @@ namespace Python.Runtime
                 var parameterName = bestMismatchParameter.Name.ToSnakeCase();
                 if (bestKwargName != null)
                 {
-                    return $"Argument mismatch: keyword argument '{bestKwargName}' expected {expected}, got {GetPythonTypeName(bestKwargValue.Reference)}.";
+                    return $"Argument mismatch: keyword argument '{bestKwargName}' expected {expected}, got {Runtime.PyObject_GetTypeName(bestKwargValue.Reference)}.";
                 }
 
                 var mismatchedArg = Runtime.PyTuple_GetItem(args, bestMismatchIndex);
-                var got = mismatchedArg == null ? Util.BadStr : GetPythonTypeName(mismatchedArg);
+                var got = mismatchedArg == null ? Util.BadStr : Runtime.PyObject_GetTypeName(mismatchedArg);
                 return $"Argument mismatch: argument {bestMismatchIndex + 1} ('{parameterName}') expected {expected}, got {got}.";
             }
             catch
@@ -1381,19 +1373,16 @@ namespace Python.Runtime
             }
             finally
             {
-                // Probing conversions may have left a Python error set; the caller is
-                // about to raise the real TypeError.
+                // Conversion probes may have left a Python error set.
                 Exceptions.Clear();
             }
         }
 
         /// <summary>
-        /// Mirror of the per-argument acceptance rules the binder applies when matching
-        /// an overload (type alias equality, matching type codes, lossless numeric
-        /// conversions, implicit operators), used to find the first mismatching
-        /// argument for the bind-failure diagnosis. Lenient where probing is unreliable
-        /// (by-ref, generic and untyped parameters) so it under-reports rather than
-        /// blames the wrong argument.
+        /// Mirror of the binder's per-argument acceptance rules, used to find the first
+        /// mismatching argument. Lenient where probing is unreliable (by-ref, generic
+        /// and untyped parameters) so it under-reports rather than blames the wrong
+        /// argument.
         /// </summary>
         private static bool ArgumentMatchesParameter(BorrowedReference op, ParameterInfo parameter)
         {
@@ -1415,8 +1404,7 @@ namespace Python.Runtime
 
             if (clrtype == null)
             {
-                // Not a primitive-aliased Python value (e.g. a wrapped CLR object):
-                // probe the conversion itself.
+                // Not a primitive-aliased value (e.g. a wrapped CLR object): probe the conversion.
                 var converted = Converter.ToManaged(op, parameterType, out _, false);
                 Exceptions.Clear();
                 return converted;
@@ -1456,28 +1444,6 @@ namespace Python.Runtime
 
             var opImplicit = parameterType.GetMethod("op_Implicit", new[] { clrtype });
             return opImplicit != null && opImplicit.ReturnType == parameterType;
-        }
-
-        /// <summary>
-        /// The Python type name of a value (e.g. "str", "float64"), for error messages.
-        /// </summary>
-        private static string GetPythonTypeName(BorrowedReference op)
-        {
-            using var pyType = Runtime.PyObject_Type(op);
-            if (!pyType.IsNull())
-            {
-                using var name = Runtime.PyObject_GetAttrString(pyType.Borrow(), "__name__");
-                if (!name.IsNull())
-                {
-                    var managed = Runtime.GetManagedString(name.Borrow());
-                    if (!string.IsNullOrEmpty(managed))
-                    {
-                        return managed;
-                    }
-                }
-            }
-            Exceptions.Clear();
-            return Util.BadStr;
         }
 
         protected static void AppendArgumentTypes(StringBuilder to, BorrowedReference args)

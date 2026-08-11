@@ -5,8 +5,7 @@ namespace Python.EmbeddingTest
 {
     /// <summary>
     /// The bind-failure TypeError must pinpoint the first argument that fails to
-    /// match the nearest overload, so the caller doesn't have to diff the hinted
-    /// signatures by eye.
+    /// match the nearest overload.
     /// </summary>
     public class TestBindFailureDiagnosis
     {
@@ -62,10 +61,8 @@ def get_error():
         {
             var message = TypeErrorMessageOf("target.place_order('SPY', -10, 'exit signal')");
 
-            // The established message contract must be preserved...
             Assert.That(message, Does.StartWith("No method matches given arguments for place_order: "));
             Assert.That(message, Does.Contain("The following overloads are available:"));
-            // ...with the mismatch diagnosis appended after the overloads block.
             Assert.That(message, Does.Contain("Argument mismatch: argument 3 ('asynchronous') expected bool, got str."));
         }
 
@@ -89,8 +86,7 @@ def get_error():
         [Test]
         public void SkipsDiagnosisWhenAllGivenArgumentsMatch()
         {
-            // Pure arity failure: every given argument converts, so there is no
-            // mismatched argument to single out.
+            // Pure arity failure: no mismatched argument to single out.
             var message = TypeErrorMessageOf("single.compute(1, 2)");
 
             Assert.That(message, Does.Contain("No method matches given arguments for compute"));
@@ -100,9 +96,8 @@ def get_error():
         [Test]
         public void DiagnosisSurvivesTheOverloadsHintExtraction()
         {
-            // Lean's NoMethodMatchPythonExceptionInterpreter keeps the message from
-            // "The following overloads are available:" onwards; the diagnosis must be
-            // inside that region to reach users.
+            // Lean keeps the message from the overloads marker onwards; the diagnosis
+            // must be inside that region to reach users.
             var message = TypeErrorMessageOf("target.place_order('SPY', -10, 'exit signal')");
 
             var hintStart = message.IndexOf("The following overloads are available:");
