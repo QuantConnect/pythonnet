@@ -1016,6 +1016,14 @@ namespace Python.Runtime
                 // If we already have an exception pending, don't create a new one
                 if (!Exceptions.ErrorOccurred())
                 {
+                    // A keyword argument whose name no candidate overload accepts gets the
+                    // Python-native "unexpected keyword argument" error: the generic no-match
+                    // message below does not echo kwargs, leaving the actual mistake invisible.
+                    if (TryRaiseUnexpectedKeywordArgumentError(kw, info, methodinfo))
+                    {
+                        return default;
+                    }
+
                     var value = new StringBuilder("No method matches given arguments");
                     // Use the snake_case name Python callers use, matching the hinted signatures below.
                     if (methodinfo != null && methodinfo.Length > 0)
@@ -1121,6 +1129,134 @@ namespace Python.Runtime
             }
 
             return Converter.ToPython(result, returnType);
+        }
+
+        /// <summary>
+        /// When a bind failure involves a keyword argument whose name no candidate overload
+        /// accepts, raises the Python-style "got an unexpected keyword argument" TypeError
+        /// (with a "Did you mean" hint when a similarly-named parameter exists) and returns
+        /// true. Returns false when every kwarg name is accepted by at least one overload,
+        /// so the generic no-match error is raised instead.
+        /// </summary>
+        private bool TryRaiseUnexpectedKeywordArgumentError(BorrowedReference kw, MethodBase info, MethodInfo[] methodinfo)
+        {
+            var kwCount = kw == null ? 0 : (int)Runtime.PyDict_Size(kw);
+            if (kwCount <= 0)
+            {
+                return false;
+            }
+
+            // The same candidate set Bind considered: parameter names are snake_case for
+            // snake_case-registered methods and original for the original ones, matching
+            // the names the caller can actually use.
+            var methods = info == null
+                ? GetMethods()
+                : new List<MethodInformation>(1) { new MethodInformation(info, true) };
+            var parameterNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var method in methods)
+            {
+                foreach (var parameterName in method.ParameterNames)
+                {
+                    parameterNames.Add(parameterName);
+                }
+            }
+
+            // Report the first unknown kwarg in call order, like CPython does.
+            string unexpectedName = null;
+            using (var keyList = Runtime.PyDict_Keys(kw))
+            {
+                for (var i = 0; i < kwCount && unexpectedName == null; i++)
+                {
+                    var name = Runtime.GetManagedString(Runtime.PyList_GetItem(keyList.Borrow(), i));
+                    if (name != null && !parameterNames.Contains(name))
+                    {
+                        unexpectedName = name;
+                    }
+                }
+            }
+
+            if (unexpectedName == null)
+            {
+                return false;
+            }
+
+            string methodName = null;
+            if (methodinfo != null && methodinfo.Length > 0)
+            {
+                methodName = MethodSignatureFormatter.SnakeCaseName(methodinfo[0]);
+            }
+            else if (list.Count > 0)
+            {
+                methodName = MethodSignatureFormatter.SnakeCaseName(list[0].MethodBase);
+            }
+            if (string.IsNullOrEmpty(methodName))
+            {
+                return false;
+            }
+
+            var message = $"{methodName}() got an unexpected keyword argument '{unexpectedName}'";
+            var suggestion = ClosestParameterName(unexpectedName, parameterNames);
+            if (suggestion != null)
+            {
+                message += $". Did you mean '{suggestion}'?";
+            }
+
+            Exceptions.RaiseTypeError(message);
+            return true;
+        }
+
+        /// <summary>
+        /// The candidate parameter name closest to the unexpected kwarg name, or null when
+        /// none is similar enough to suggest. A candidate is considered when it is within
+        /// a small edit distance of the name, or when one contains the other (e.g. 'as_tag'
+        /// suggests 'tag'); containment requires 3+ characters so tiny names don't match.
+        /// </summary>
+        private static string ClosestParameterName(string name, HashSet<string> parameterNames)
+        {
+            const int MinContainmentLength = 3;
+            var threshold = Math.Max(2, name.Length / 3);
+            string best = null;
+            var bestDistance = int.MaxValue;
+            foreach (var candidate in parameterNames)
+            {
+                var distance = KeywordEditDistance(name, candidate);
+                var related = distance <= threshold
+                    || (candidate.Length >= MinContainmentLength && name.Length >= MinContainmentLength
+                        && (candidate.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0
+                            || name.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0));
+                if (related && (distance < bestDistance
+                    || (distance == bestDistance && string.CompareOrdinal(candidate, best) < 0)))
+                {
+                    bestDistance = distance;
+                    best = candidate;
+                }
+            }
+            return best;
+        }
+
+        // Case-insensitive Levenshtein distance, local to keyword suggestions.
+        private static int KeywordEditDistance(string a, string b)
+        {
+            a = a.ToLowerInvariant();
+            b = b.ToLowerInvariant();
+            if (a.Length == 0) return b.Length;
+            if (b.Length == 0) return a.Length;
+
+            var prev = new int[b.Length + 1];
+            var curr = new int[b.Length + 1];
+            for (var j = 0; j <= b.Length; j++) prev[j] = j;
+
+            for (var i = 1; i <= a.Length; i++)
+            {
+                curr[0] = i;
+                for (var j = 1; j <= b.Length; j++)
+                {
+                    var cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                    curr[j] = Math.Min(Math.Min(curr[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost);
+                }
+                (prev, curr) = (curr, prev);
+            }
+            return prev[b.Length];
         }
 
         /// <summary>

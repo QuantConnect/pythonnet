@@ -1104,6 +1104,53 @@ def test_default_params():
     with pytest.raises(TypeError):
         MethodTest.DefaultParams(1,2,3,4,5)
 
+def test_unexpected_keyword_argument_with_suggestion():
+    # A kwarg no overload accepts raises the Python-style error naming the kwarg,
+    # with a did-you-mean hint when a similarly-named parameter exists.
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.order_like_method("SPY", 10, as_tag="EmergencyFlatten")
+    message = str(excinfo.value)
+    assert "order_like_method() got an unexpected keyword argument 'as_tag'" in message
+    assert "Did you mean 'tag'?" in message
+
+    # Same behavior when calling through the original PascalCase name; parameter
+    # names are the original ones there.
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.OrderLikeMethod("SPY", 10, asTag="EmergencyFlatten")
+    message = str(excinfo.value)
+    assert "order_like_method() got an unexpected keyword argument 'asTag'" in message
+    assert "Did you mean 'tag'?" in message
+
+
+def test_unexpected_keyword_argument_without_suggestion():
+    # No parameter is remotely similar: the kwarg is still named, but no hint is added.
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.order_like_method("SPY", 10, completely_unrelated_name=1)
+    message = str(excinfo.value)
+    assert "order_like_method() got an unexpected keyword argument " \
+           "'completely_unrelated_name'" in message
+    assert "Did you mean" not in message
+
+
+def test_unexpected_keyword_argument_reports_first_in_call_order():
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.order_like_method("SPY", 10, first_bogus=1, second_bogus=2)
+    assert "got an unexpected keyword argument 'first_bogus'" in str(excinfo.value)
+
+
+def test_valid_keyword_arguments_still_bind():
+    res = MethodTest.order_like_method("SPY", 10, asynchronous=True, tag="mytag")
+    assert res == "SPY:10:True:mytag"
+
+
+def test_valid_keyword_argument_names_keep_no_match_message():
+    # All kwarg names are real parameters, but the call still cannot bind ('d' is
+    # supplied both positionally and by name): the classic no-method-matches
+    # message must be preserved for this case.
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.DefaultParams(1, 2, 3, 4, d=5)
+    assert "No method matches given arguments for default_params" in str(excinfo.value)
+
 def test_optional_params():
     res = MethodTest.OptionalParams(1, 2, 3, 4)
     assert res == "1234"
