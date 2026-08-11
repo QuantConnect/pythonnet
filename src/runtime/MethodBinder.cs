@@ -1017,38 +1017,48 @@ namespace Python.Runtime
                 if (!Exceptions.ErrorOccurred())
                 {
                     var value = new StringBuilder("No method matches given arguments");
-                    // Use the snake_case name Python callers use, matching the hinted signatures below.
-                    if (methodinfo != null && methodinfo.Length > 0)
+                    try
                     {
-                        value.Append($" for {MethodSignatureFormatter.SnakeCaseName(methodinfo[0])}");
-                    }
-                    else if (list.Count > 0)
-                    {
-                        value.Append($" for {MethodSignatureFormatter.SnakeCaseName(list[0].MethodBase)}");
-                    }
-
-                    value.Append(": ");
-                    AppendArgumentTypes(to: value, args);
-
-                    // The argument types echo above covers positional args only; name the first
-                    // unknown kwarg (if any) so a misspelled keyword argument is visible.
-                    AppendUnexpectedKeywordArgument(value, kw, info);
-
-                    // List the candidate overloads so the caller can see what was
-                    // expected (e.g. that an int overload exists when a float was
-                    // passed). Applies to every "no match" case, not just numeric ones.
-                    var candidates = methodinfo != null && methodinfo.Length > 0
-                        ? methodinfo.Cast<MethodBase>()
-                        : list?.Select(m => m.MethodBase);
-                    var overloads = MethodSignatureFormatter.FormatOverloads(candidates);
-                    if (overloads.Length > 0)
-                    {
-                        // The kwarg hint may already end the sentence with a question mark.
-                        if (value[value.Length - 1] != '?')
+                        // Use the snake_case name Python callers use, matching the hinted signatures below.
+                        if (methodinfo != null && methodinfo.Length > 0)
                         {
-                            value.Append('.');
+                            value.Append($" for {MethodSignatureFormatter.SnakeCaseName(methodinfo[0])}");
                         }
-                        value.Append(' ').Append(overloads);
+                        else if (list.Count > 0)
+                        {
+                            value.Append($" for {MethodSignatureFormatter.SnakeCaseName(list[0].MethodBase)}");
+                        }
+
+                        value.Append(": ");
+                        AppendArgumentTypes(to: value, args);
+
+                        // The argument types echo above covers positional args only; name the first
+                        // unknown kwarg (if any) so a misspelled keyword argument is visible.
+                        AppendUnexpectedKeywordArgument(value, kw, info);
+
+                        // List the candidate overloads so the caller can see what was
+                        // expected (e.g. that an int overload exists when a float was
+                        // passed). Applies to every "no match" case, not just numeric ones.
+                        var candidates = methodinfo != null && methodinfo.Length > 0
+                            ? methodinfo.Cast<MethodBase>()
+                            : list?.Select(m => m.MethodBase);
+                        var overloads = MethodSignatureFormatter.FormatOverloads(candidates);
+                        if (overloads.Length > 0)
+                        {
+                            // The kwarg hint may already end the sentence with a question mark.
+                            if (value[value.Length - 1] != '?')
+                            {
+                                value.Append('.');
+                            }
+                            value.Append(' ').Append(overloads);
+                        }
+                    }
+                    catch
+                    {
+                        // The details above are best-effort diagnostics over arbitrary caller
+                        // input; an exception here would escape the tp_call slot into CPython
+                        // and mask the bind failure. Raise with whatever was appended so far.
+                        Exceptions.Clear();
                     }
 
                     Exceptions.RaiseTypeError(value.ToString());
