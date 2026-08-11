@@ -1255,6 +1255,47 @@ def test_params_array_overloaded_failing():
     res = MethodTest.ParamsArrayOverloaded(paramsArray=[], i=1)
     assert res == "with params-array"
 
+def test_bind_failure_structured_attributes():
+    """A bind-failure TypeError carries the method name, overload signatures
+    and rendered overloads hint as attributes, matching the message."""
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.TestOverloadedParams({}, "x")
+    e = excinfo.value
+
+    assert e._clr_method_name == "test_overloaded_params"
+
+    signatures = e._clr_overload_signatures
+    assert isinstance(signatures, tuple)
+    assert len(signatures) > 1
+    assert all(isinstance(s, str) and s.startswith("test_overloaded_params(")
+               for s in signatures)
+
+    hint = e._clr_overloads_hint
+    assert hint.startswith("The following overloads are available:")
+    for signature in signatures:
+        assert signature in hint
+
+    # The message itself is unchanged: prefix + argument types + the same hint
+    message = str(e)
+    assert message.startswith(
+        "No method matches given arguments for test_overloaded_params: ")
+    assert "(<class 'dict'>, <class 'str'>)" in message
+    assert message.endswith(hint)
+
+
+def test_bind_failure_structured_attributes_single_overload():
+    """Single-overload failures use the singular hint header and still carry
+    the structured attributes."""
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.TestOverloadedNoObject("foo")
+    e = excinfo.value
+
+    assert e._clr_method_name == "test_overloaded_no_object"
+    assert e._clr_overload_signatures == ("test_overloaded_no_object(i: int)",)
+    assert e._clr_overloads_hint.startswith("The expected signature is:")
+    assert str(e).endswith(e._clr_overloads_hint)
+
+
 def test_method_encoding():
     MethodTest.EncodingTestÅngström()
 

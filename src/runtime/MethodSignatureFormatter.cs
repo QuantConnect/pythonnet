@@ -29,13 +29,24 @@ namespace Python.Runtime
         /// name for constructors instead of the special <c>.ctor</c> token</param>
         public static string FormatOverloads(IEnumerable<MethodBase> methods, int maxShown = 10, string displayName = null)
         {
+            return FormatOverloadsHint(GetSignatures(methods, displayName), maxShown);
+        }
+
+        /// <summary>
+        /// The distinct formatted signatures of the candidate overloads, preserving order.
+        /// Snake-cased duplicates and repeated overloads collapse into a single entry, and
+        /// overloads taking PyObject parameters are skipped unless every candidate takes one
+        /// (see <see cref="FormatOverloads"/>). Never throws: signature formatting only runs
+        /// on error paths and must not mask the original failure. Returns an empty list when
+        /// there is nothing to show.
+        /// </summary>
+        internal static IReadOnlyList<string> GetSignatures(IEnumerable<MethodBase> methods, string displayName = null)
+        {
             if (methods == null)
             {
-                return string.Empty;
+                return Array.Empty<string>();
             }
 
-            // Building this only runs on error paths; never let it throw and mask
-            // the original failure.
             try
             {
                 var candidates = methods.Where(method => method != null).ToList();
@@ -45,8 +56,6 @@ namespace Python.Runtime
                     candidates = withoutPyObject;
                 }
 
-                // Distinct signatures, preserving order. Snake-cased duplicates and
-                // repeated overloads collapse into a single entry.
                 var signatures = new List<string>();
                 var seen = new HashSet<string>();
                 foreach (var method in candidates)
@@ -58,29 +67,40 @@ namespace Python.Runtime
                     }
                 }
 
-                if (signatures.Count == 0)
-                {
-                    return string.Empty;
-                }
-
-                var to = new StringBuilder(signatures.Count == 1
-                    ? "The expected signature is:"
-                    : "The following overloads are available:");
-                for (var i = 0; i < signatures.Count && i < maxShown; i++)
-                {
-                    to.Append("\n  ").Append(signatures[i]);
-                }
-                if (signatures.Count > maxShown)
-                {
-                    to.Append($"\n  ... and {signatures.Count - maxShown} more");
-                }
-                return to.ToString();
+                return signatures;
             }
             catch
             {
                 // Best-effort hint only.
+                return Array.Empty<string>();
+            }
+        }
+
+        /// <summary>
+        /// Renders the signatures produced by <see cref="GetSignatures"/> as the hint block
+        /// appended to bind-failure messages: a header line followed by one signature per
+        /// line, capped at <paramref name="maxShown"/> entries. Returns an empty string when
+        /// there are no signatures to show.
+        /// </summary>
+        internal static string FormatOverloadsHint(IReadOnlyList<string> signatures, int maxShown = 10)
+        {
+            if (signatures == null || signatures.Count == 0)
+            {
                 return string.Empty;
             }
+
+            var to = new StringBuilder(signatures.Count == 1
+                ? "The expected signature is:"
+                : "The following overloads are available:");
+            for (var i = 0; i < signatures.Count && i < maxShown; i++)
+            {
+                to.Append("\n  ").Append(signatures[i]);
+            }
+            if (signatures.Count > maxShown)
+            {
+                to.Append($"\n  ... and {signatures.Count - maxShown} more");
+            }
+            return to.ToString();
         }
 
         /// <summary>

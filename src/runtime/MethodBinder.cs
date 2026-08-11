@@ -1016,15 +1016,21 @@ namespace Python.Runtime
                 // If we already have an exception pending, don't create a new one
                 if (!Exceptions.ErrorOccurred())
                 {
-                    var value = new StringBuilder("No method matches given arguments");
                     // Use the snake_case name Python callers use, matching the hinted signatures below.
+                    string methodName = null;
                     if (methodinfo != null && methodinfo.Length > 0)
                     {
-                        value.Append($" for {MethodSignatureFormatter.SnakeCaseName(methodinfo[0])}");
+                        methodName = MethodSignatureFormatter.SnakeCaseName(methodinfo[0]);
                     }
                     else if (list.Count > 0)
                     {
-                        value.Append($" for {MethodSignatureFormatter.SnakeCaseName(list[0].MethodBase)}");
+                        methodName = MethodSignatureFormatter.SnakeCaseName(list[0].MethodBase);
+                    }
+
+                    var value = new StringBuilder("No method matches given arguments");
+                    if (methodName != null)
+                    {
+                        value.Append($" for {methodName}");
                     }
 
                     value.Append(": ");
@@ -1036,13 +1042,14 @@ namespace Python.Runtime
                     var candidates = methodinfo != null && methodinfo.Length > 0
                         ? methodinfo.Cast<MethodBase>()
                         : list?.Select(m => m.MethodBase);
-                    var overloads = MethodSignatureFormatter.FormatOverloads(candidates);
-                    if (overloads.Length > 0)
+                    var signatures = MethodSignatureFormatter.GetSignatures(candidates);
+                    var overloadsHint = MethodSignatureFormatter.FormatOverloadsHint(signatures);
+                    if (overloadsHint.Length > 0)
                     {
-                        value.Append(". ").Append(overloads);
+                        value.Append(". ").Append(overloadsHint);
                     }
 
-                    Exceptions.RaiseTypeError(value.ToString());
+                    RaiseBindFailure(value.ToString(), methodName, signatures, overloadsHint);
                 }
 
                 return default;
@@ -1121,6 +1128,90 @@ namespace Python.Runtime
             }
 
             return Converter.ToPython(result, returnType);
+        }
+
+        /// <summary>
+        /// Raises the bind-failure TypeError with the given message, attaching the method
+        /// name, overload signatures and rendered overloads hint as attributes on the
+        /// exception instance (see the Exceptions.BindFailure*Attribute constants) so
+        /// consumers can read them without parsing the message. Attribute attachment is
+        /// best-effort: on any failure the plain TypeError with the same message remains set.
+        /// </summary>
+        private static void RaiseBindFailure(string message, string methodName, IReadOnlyList<string> signatures, string overloadsHint)
+        {
+            Exceptions.SetError(Exceptions.TypeError, message);
+            if (methodName == null && (signatures == null || signatures.Count == 0))
+            {
+                return;
+            }
+
+            try
+            {
+                // Normalize the freshly raised error into an exception instance, decorate
+                // it, and restore it as the pending error.
+                Runtime.PyErr_Fetch(out var errType, out var errVal, out var errTb);
+                try
+                {
+                    Runtime.PyErr_NormalizeException(ref errType, ref errVal, ref errTb);
+
+                    if (!errVal.IsNull())
+                    {
+                        var instance = errVal.Borrow();
+
+                        if (methodName != null)
+                        {
+                            using var namePy = Runtime.PyString_FromString(methodName);
+                            if (!namePy.IsNull())
+                            {
+                                Runtime.PyObject_SetAttrString(instance, Exceptions.BindFailureMethodNameAttribute, namePy.Borrow());
+                            }
+                        }
+
+                        if (signatures != null && signatures.Count > 0)
+                        {
+                            using var tuple = Runtime.PyTuple_New(signatures.Count);
+                            var populated = !tuple.IsNull();
+                            for (var i = 0; i < signatures.Count && populated; i++)
+                            {
+                                using var signature = Runtime.PyString_FromString(signatures[i]);
+                                populated = !signature.IsNull()
+                                    && Runtime.PyTuple_SetItem(tuple.Borrow(), i, signature.Borrow()) == 0;
+                            }
+
+                            if (populated)
+                            {
+                                Runtime.PyObject_SetAttrString(instance, Exceptions.BindFailureSignaturesAttribute, tuple.Borrow());
+
+                                if (!string.IsNullOrEmpty(overloadsHint))
+                                {
+                                    using var hintPy = Runtime.PyString_FromString(overloadsHint);
+                                    if (!hintPy.IsNull())
+                                    {
+                                        Runtime.PyObject_SetAttrString(instance, Exceptions.BindFailureOverloadsHintAttribute, hintPy.Borrow());
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Decoration must never replace the bind failure with its own error.
+                    if (Exceptions.ErrorOccurred())
+                    {
+                        Runtime.PyErr_Clear();
+                    }
+                }
+                finally
+                {
+                    Runtime.PyErr_Restore(errType.StealNullable(), errVal.StealNullable(), errTb.StealNullable());
+                }
+            }
+            catch
+            {
+                if (!Exceptions.ErrorOccurred())
+                {
+                    Exceptions.SetError(Exceptions.TypeError, message);
+                }
+            }
         }
 
         /// <summary>

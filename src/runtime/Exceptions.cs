@@ -179,6 +179,25 @@ namespace Python.Runtime
         }
 
         internal const string DispatchInfoAttribute = "__dispatch_info__";
+
+        /// <summary>
+        /// Names of the attributes attached to the TypeError raised when a method call
+        /// cannot be bound to any overload (see MethodBinder). They carry the data the
+        /// message is built from, so consumers can read it without parsing the message:
+        /// the snake_case method name (str), the formatted overload signatures
+        /// (tuple of str) and the rendered overloads hint block (str) exactly as it
+        /// appears at the end of the message. Each attribute is only present when the
+        /// corresponding information is available.
+        /// (Internal like <see cref="DispatchInfoAttribute"/>: Initialize() resolves every
+        /// public static field of this class against the builtins module.)
+        /// </summary>
+        internal const string BindFailureMethodNameAttribute = "_clr_method_name";
+
+        /// <inheritdoc cref="BindFailureMethodNameAttribute"/>
+        internal const string BindFailureSignaturesAttribute = "_clr_overload_signatures";
+
+        /// <inheritdoc cref="BindFailureMethodNameAttribute"/>
+        internal const string BindFailureOverloadsHintAttribute = "_clr_overloads_hint";
         /// <summary>
         /// SetError Method
         /// </summary>
