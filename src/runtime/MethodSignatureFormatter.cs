@@ -33,12 +33,9 @@ namespace Python.Runtime
         }
 
         /// <summary>
-        /// The distinct formatted signatures of the candidate overloads, preserving order.
-        /// Snake-cased duplicates and repeated overloads collapse into a single entry, and
-        /// overloads taking PyObject parameters are skipped unless every candidate takes one
-        /// (see <see cref="FormatOverloads"/>). Never throws: signature formatting only runs
-        /// on error paths and must not mask the original failure. Returns an empty list when
-        /// there is nothing to show.
+        /// The distinct formatted signatures of the candidate overloads, in order, with the
+        /// PyObject-overload filtering described on <see cref="FormatOverloads"/>. Never
+        /// throws: it only runs on error paths and must not mask the original failure.
         /// </summary>
         internal static IReadOnlyList<string> GetSignatures(IEnumerable<MethodBase> methods, string displayName = null)
         {
@@ -77,10 +74,9 @@ namespace Python.Runtime
         }
 
         /// <summary>
-        /// Renders the signatures produced by <see cref="GetSignatures"/> as the hint block
-        /// appended to bind-failure messages: a header line followed by one signature per
-        /// line, capped at <paramref name="maxShown"/> entries. Returns an empty string when
-        /// there are no signatures to show.
+        /// Renders the signatures from <see cref="GetSignatures"/> as the hint block appended
+        /// to bind-failure messages: a header plus one signature per line, capped at
+        /// <paramref name="maxShown"/>.
         /// </summary>
         internal static string FormatOverloadsHint(IReadOnlyList<string> signatures, int maxShown = 10)
         {

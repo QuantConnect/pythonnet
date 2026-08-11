@@ -1131,11 +1131,9 @@ namespace Python.Runtime
         }
 
         /// <summary>
-        /// Raises the bind-failure TypeError with the given message, attaching the method
-        /// name, overload signatures and rendered overloads hint as attributes on the
-        /// exception instance (see the Exceptions.BindFailure*Attribute constants) so
-        /// consumers can read them without parsing the message. Attribute attachment is
-        /// best-effort: on any failure the plain TypeError with the same message remains set.
+        /// Raises the bind-failure TypeError, attaching the method name, signatures and
+        /// overloads hint as attributes (the Exceptions.BindFailure*Attribute constants).
+        /// Best-effort: on any failure the plain TypeError with the same message remains set.
         /// </summary>
         private static void RaiseBindFailure(string message, string methodName, IReadOnlyList<string> signatures, string overloadsHint)
         {
@@ -1147,8 +1145,6 @@ namespace Python.Runtime
 
             try
             {
-                // Normalize the freshly raised error into an exception instance, decorate
-                // it, and restore it as the pending error.
                 Runtime.PyErr_Fetch(out var errType, out var errVal, out var errTb);
                 try
                 {
@@ -1194,7 +1190,7 @@ namespace Python.Runtime
                         }
                     }
 
-                    // Decoration must never replace the bind failure with its own error.
+                    // A failed attribute set must not replace the bind failure with its own error
                     if (Exceptions.ErrorOccurred())
                     {
                         Runtime.PyErr_Clear();
@@ -1207,6 +1203,7 @@ namespace Python.Runtime
             }
             catch
             {
+                // The error state may have been consumed by the failed fetch/restore
                 if (!Exceptions.ErrorOccurred())
                 {
                     Exceptions.SetError(Exceptions.TypeError, message);
