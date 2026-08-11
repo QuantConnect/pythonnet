@@ -1016,12 +1016,6 @@ namespace Python.Runtime
                 // If we already have an exception pending, don't create a new one
                 if (!Exceptions.ErrorOccurred())
                 {
-                    // Unknown kwarg names get the Python-style error; the generic message below does not echo kwargs.
-                    if (TryRaiseUnexpectedKeywordArgumentError(kw, info, methodinfo))
-                    {
-                        return default;
-                    }
-
                     var value = new StringBuilder("No method matches given arguments");
                     // Use the snake_case name Python callers use, matching the hinted signatures below.
                     if (methodinfo != null && methodinfo.Length > 0)
@@ -1036,6 +1030,10 @@ namespace Python.Runtime
                     value.Append(": ");
                     AppendArgumentTypes(to: value, args);
 
+                    // The argument types echo above covers positional args only; name the first
+                    // unknown kwarg (if any) so a misspelled keyword argument is visible.
+                    AppendUnexpectedKeywordArgument(value, kw, info);
+
                     // List the candidate overloads so the caller can see what was
                     // expected (e.g. that an int overload exists when a float was
                     // passed). Applies to every "no match" case, not just numeric ones.
@@ -1045,7 +1043,12 @@ namespace Python.Runtime
                     var overloads = MethodSignatureFormatter.FormatOverloads(candidates);
                     if (overloads.Length > 0)
                     {
-                        value.Append(". ").Append(overloads);
+                        // The kwarg hint may already end the sentence with a question mark.
+                        if (value[value.Length - 1] != '?')
+                        {
+                            value.Append('.');
+                        }
+                        value.Append(' ').Append(overloads);
                     }
 
                     Exceptions.RaiseTypeError(value.ToString());
@@ -1130,15 +1133,16 @@ namespace Python.Runtime
         }
 
         /// <summary>
-        /// Raises "got an unexpected keyword argument" and returns true when a kwarg name is
-        /// accepted by no candidate overload; returns false to let the generic no-match error be raised.
+        /// Appends "Got an unexpected keyword argument" to the no-match message when a kwarg
+        /// name is accepted by no candidate overload, with a "Did you mean" suggestion when a
+        /// similar parameter name exists. Appends nothing when every kwarg name is valid.
         /// </summary>
-        private bool TryRaiseUnexpectedKeywordArgumentError(BorrowedReference kw, MethodBase info, MethodInfo[] methodinfo)
+        private void AppendUnexpectedKeywordArgument(StringBuilder to, BorrowedReference kw, MethodBase info)
         {
             var kwCount = kw == null ? 0 : (int)Runtime.PyDict_Size(kw);
             if (kwCount <= 0)
             {
-                return false;
+                return;
             }
 
             // Same candidate set Bind considered; ParameterNames are already in the caller's convention.
@@ -1170,32 +1174,15 @@ namespace Python.Runtime
 
             if (unexpectedName == null)
             {
-                return false;
+                return;
             }
 
-            string methodName = null;
-            if (methodinfo != null && methodinfo.Length > 0)
-            {
-                methodName = MethodSignatureFormatter.SnakeCaseName(methodinfo[0]);
-            }
-            else if (list.Count > 0)
-            {
-                methodName = MethodSignatureFormatter.SnakeCaseName(list[0].MethodBase);
-            }
-            if (string.IsNullOrEmpty(methodName))
-            {
-                return false;
-            }
-
-            var message = $"{methodName}() got an unexpected keyword argument '{unexpectedName}'";
+            to.Append($". Got an unexpected keyword argument '{unexpectedName}'");
             var suggestion = ClosestParameterName(unexpectedName, parameterNames);
             if (suggestion != null)
             {
-                message += $". Did you mean '{suggestion}'?";
+                to.Append($". Did you mean '{suggestion}'?");
             }
-
-            Exceptions.RaiseTypeError(message);
-            return true;
         }
 
         /// <summary>
