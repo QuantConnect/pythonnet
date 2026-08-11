@@ -729,6 +729,16 @@ namespace Python.Test
         {
 
         }
+
+        public static string BindDiagnosisMethod(string symbol, double quantity, bool asynchronous = false, string tag = "")
+        {
+            return "double";
+        }
+
+        public static string BindDiagnosisMethod(string symbol, int quantity, bool asynchronous = false, string tag = "")
+        {
+            return "int";
+        }
     }
 
 

@@ -1042,6 +1042,16 @@ namespace Python.Runtime
                         value.Append(". ").Append(overloads);
                     }
 
+                    // Point at the argument that failed against the nearest overload so
+                    // the caller doesn't have to diff the signatures by eye. Appended
+                    // after the overloads block: consumers that extract the hint from
+                    // that marker onwards keep this line too.
+                    var mismatch = DiagnoseClosestOverloadMismatch(candidates, args, kw);
+                    if (mismatch.Length > 0)
+                    {
+                        value.Append('\n').Append(mismatch);
+                    }
+
                     Exceptions.RaiseTypeError(value.ToString());
                 }
 
@@ -1214,6 +1224,260 @@ namespace Python.Runtime
                 MethodInformation = methodInformation;
                 ImplicitOperations = implicitOperations;
             }
+        }
+
+        /// <summary>
+        /// Builds a one-line diagnosis of the first argument that fails to match the
+        /// nearest candidate overload (the one with the most leading convertible
+        /// arguments), e.g. "Argument mismatch: argument 3 ('asynchronous') expected
+        /// bool, got str." Returns an empty string when there is nothing conclusive to
+        /// report (e.g. a pure arity mismatch). Only runs on the bind-failure path; it
+        /// never throws and never leaves a Python error pending.
+        /// </summary>
+        private static string DiagnoseClosestOverloadMismatch(IEnumerable<MethodBase> candidates, BorrowedReference args, BorrowedReference kw)
+        {
+            try
+            {
+                if (candidates == null)
+                {
+                    return string.Empty;
+                }
+
+                var pyArgCount = args == null ? 0 : (int)Runtime.PyTuple_Size(args);
+
+                // Snapshot the keyword arguments with strong references so they stay
+                // valid while candidates are probed.
+                List<KeyValuePair<string, PyObject>> kwargs = null;
+                if (kw != null && Runtime.PyDict_Size(kw) > 0)
+                {
+                    kwargs = new List<KeyValuePair<string, PyObject>>();
+                    using var keyList = Runtime.PyDict_Keys(kw);
+                    using var valueList = Runtime.PyDict_Values(kw);
+                    var kwCount = (int)Runtime.PyList_Size(keyList.Borrow());
+                    for (var i = 0; i < kwCount; i++)
+                    {
+                        var name = Runtime.GetManagedString(Runtime.PyList_GetItem(keyList.Borrow(), i));
+                        if (name != null)
+                        {
+                            kwargs.Add(new KeyValuePair<string, PyObject>(
+                                name, new PyObject(Runtime.PyList_GetItem(valueList.Borrow(), i))));
+                        }
+                    }
+                }
+
+                var bestScore = -1;
+                var bestMismatchIndex = -1;
+                ParameterInfo bestMismatchParameter = null;
+                string bestKwargName = null;
+                PyObject bestKwargValue = null;
+
+                foreach (var method in candidates)
+                {
+                    if (method == null || OperatorMethod.IsOperatorMethod(method))
+                    {
+                        continue;
+                    }
+
+                    var pi = method.GetParameters();
+                    var paramsArrayIndex = pi.Length > 0 && Attribute.IsDefined(pi[pi.Length - 1], typeof(ParamArrayAttribute))
+                        ? pi.Length - 1
+                        : -1;
+
+                    var score = 0;
+                    var mismatchIndex = -1;
+                    var limit = Math.Min(pyArgCount, pi.Length);
+                    for (var i = 0; i < limit; i++)
+                    {
+                        if (i == paramsArrayIndex)
+                        {
+                            // Remaining arguments feed the params array; probing its
+                            // element conversions here would be guesswork, count them
+                            // as matched.
+                            score = limit;
+                            break;
+                        }
+
+                        var op = Runtime.PyTuple_GetItem(args, i);
+                        if (op == null)
+                        {
+                            Exceptions.Clear();
+                            break;
+                        }
+
+                        if (!ArgumentMatchesParameter(op, pi[i]))
+                        {
+                            mismatchIndex = i;
+                            break;
+                        }
+                        score++;
+                    }
+
+                    string kwargName = null;
+                    PyObject kwargValue = null;
+                    ParameterInfo kwargParameter = null;
+                    if (mismatchIndex == -1 && kwargs != null)
+                    {
+                        foreach (var pair in kwargs)
+                        {
+                            var parameter = pi.FirstOrDefault(p => p.Name == pair.Key || p.Name.ToSnakeCase() == pair.Key);
+                            if (parameter == null)
+                            {
+                                // Not a parameter of this overload; flagging unknown
+                                // keyword names is out of scope here.
+                                continue;
+                            }
+
+                            if (ArgumentMatchesParameter(pair.Value.Reference, parameter))
+                            {
+                                score++;
+                            }
+                            else
+                            {
+                                kwargName = pair.Key;
+                                kwargValue = pair.Value;
+                                kwargParameter = parameter;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (mismatchIndex == -1 && kwargName == null)
+                    {
+                        // Everything given matched: the failure was arity or keyword
+                        // related, nothing conclusive to pinpoint for this candidate.
+                        continue;
+                    }
+
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        bestMismatchIndex = mismatchIndex;
+                        bestKwargName = kwargName;
+                        bestKwargValue = kwargValue;
+                        bestMismatchParameter = mismatchIndex != -1 ? pi[mismatchIndex] : kwargParameter;
+                    }
+                }
+
+                if (bestMismatchParameter == null)
+                {
+                    return string.Empty;
+                }
+
+                var expected = MethodSignatureFormatter.FormatType(bestMismatchParameter.ParameterType);
+                var parameterName = bestMismatchParameter.Name.ToSnakeCase();
+                if (bestKwargName != null)
+                {
+                    return $"Argument mismatch: keyword argument '{bestKwargName}' expected {expected}, got {GetPythonTypeName(bestKwargValue.Reference)}.";
+                }
+
+                var mismatchedArg = Runtime.PyTuple_GetItem(args, bestMismatchIndex);
+                var got = mismatchedArg == null ? Util.BadStr : GetPythonTypeName(mismatchedArg);
+                return $"Argument mismatch: argument {bestMismatchIndex + 1} ('{parameterName}') expected {expected}, got {got}.";
+            }
+            catch
+            {
+                // Best-effort hint only; never mask the original failure.
+                return string.Empty;
+            }
+            finally
+            {
+                // Probing conversions may have left a Python error set; the caller is
+                // about to raise the real TypeError.
+                Exceptions.Clear();
+            }
+        }
+
+        /// <summary>
+        /// Mirror of the per-argument acceptance rules the binder applies when matching
+        /// an overload (type alias equality, matching type codes, lossless numeric
+        /// conversions, implicit operators), used to find the first mismatching
+        /// argument for the bind-failure diagnosis. Lenient where probing is unreliable
+        /// (by-ref, generic and untyped parameters) so it under-reports rather than
+        /// blames the wrong argument.
+        /// </summary>
+        private static bool ArgumentMatchesParameter(BorrowedReference op, ParameterInfo parameter)
+        {
+            var parameterType = parameter.ParameterType;
+            if (parameterType.IsByRef || parameterType.ContainsGenericParameters || parameterType == typeof(object))
+            {
+                return true;
+            }
+
+            Type clrtype = null;
+            using (var pyoptype = Runtime.PyObject_Type(op))
+            {
+                Exceptions.Clear();
+                if (!pyoptype.IsNull())
+                {
+                    clrtype = Converter.GetTypeByAlias(pyoptype.Borrow());
+                }
+            }
+
+            if (clrtype == null)
+            {
+                // Not a primitive-aliased Python value (e.g. a wrapped CLR object):
+                // probe the conversion itself.
+                var converted = Converter.ToManaged(op, parameterType, out _, false);
+                Exceptions.Clear();
+                return converted;
+            }
+
+            if (parameterType == clrtype)
+            {
+                return true;
+            }
+
+            var pytype = Converter.GetPythonTypeByAlias(parameterType);
+            using (var pyoptype = Runtime.PyObject_Type(op))
+            {
+                Exceptions.Clear();
+                if (!pyoptype.IsNull() && pytype == pyoptype.Borrow())
+                {
+                    return true;
+                }
+            }
+
+            var underlyingType = Nullable.GetUnderlyingType(parameterType) ?? parameterType;
+            if (Type.GetTypeCode(underlyingType) == Type.GetTypeCode(clrtype))
+            {
+                return true;
+            }
+
+            if (underlyingType == typeof(decimal) || underlyingType == typeof(double)
+                || (Runtime.PyFloat_Check(op) && Type.GetTypeCode(underlyingType).IsInteger() && !underlyingType.IsEnum))
+            {
+                var converted = Converter.ToManaged(op, parameterType, out _, false);
+                Exceptions.Clear();
+                if (converted)
+                {
+                    return true;
+                }
+            }
+
+            var opImplicit = parameterType.GetMethod("op_Implicit", new[] { clrtype });
+            return opImplicit != null && opImplicit.ReturnType == parameterType;
+        }
+
+        /// <summary>
+        /// The Python type name of a value (e.g. "str", "float64"), for error messages.
+        /// </summary>
+        private static string GetPythonTypeName(BorrowedReference op)
+        {
+            using var pyType = Runtime.PyObject_Type(op);
+            if (!pyType.IsNull())
+            {
+                using var name = Runtime.PyObject_GetAttrString(pyType.Borrow(), "__name__");
+                if (!name.IsNull())
+                {
+                    var managed = Runtime.GetManagedString(name.Borrow());
+                    if (!string.IsNullOrEmpty(managed))
+                    {
+                        return managed;
+                    }
+                }
+            }
+            Exceptions.Clear();
+            return Util.BadStr;
         }
 
         protected static void AppendArgumentTypes(StringBuilder to, BorrowedReference args)
