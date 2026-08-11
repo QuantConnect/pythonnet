@@ -87,9 +87,8 @@ namespace Python.Test
 
         public static int CalculationResult { get; set; }
 
-        // Short members: every one of these is a substring of a longer missed name like
-        // 'set_account_type', so suggestion tests can assert they are not offered as
-        // suggestions for it while a similarly-named longer member is.
+        // Short members, all substrings of a longer miss like 'set_account_type', which
+        // must not suggest them.
         public static int T()
         {
             return 0;
@@ -106,8 +105,7 @@ namespace Python.Test
     }
 
     /// <summary>
-    /// Supports missing-attribute suggestion tests for enum values whose real name extends
-    /// the guessed name with an extra suffix (a common miss on enum-like constant sets).
+    /// Supports suggestion tests for enum members that extend the guessed name with a suffix.
     /// </summary>
     public enum SuggestionEnum
     {

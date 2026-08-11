@@ -220,11 +220,8 @@ def _suggestions(message):
 def test_missing_attribute_does_not_suggest_short_members():
     """A long missed name must not collect 1-2 letter members via substring containment.
 
-    Types like QCAlgorithm expose many 1-2 letter members (indicator shortcuts, greek
-    letters); every one of them is a substring of a long missed name, so they used to
-    flood the hint (e.g. 'set_account_type' -> "Did you mean: 'cc', 'co', 'a', 'c',
-    't'?") while the member the user most likely meant was not within the edit-distance
-    threshold and did not appear at all.
+    Every short member is a substring of a long miss, so hints used to read
+    "Did you mean: 'cc', 'co', 'a', 'c', 't'?" while the intended member was absent.
     """
     from Python.Test import SuggestionTest
 

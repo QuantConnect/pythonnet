@@ -69,13 +69,8 @@ def test_missing_enum_member_hasattr_still_false():
 
 
 def test_missing_enum_member_suffix_extended_name_suggested():
-    """A guessed name that the real member extends with a suffix must be suggested.
-
-    Enum-like constant sets often have members that extend the natural guess (e.g.
-    BrokerageName.INTERACTIVE_BROKERS_BROKERAGE for a guessed INTERACTIVE_BROKERS);
-    such members are many edits away, so a pure edit-distance threshold missed them.
-    Both the PascalCase and the UPPER_SNAKE guess must surface every extension.
-    """
+    """A guessed name that the real member extends with a suffix must be suggested,
+    from both the PascalCase and the UPPER_SNAKE spelling of the guess."""
     import re
     from Python.Test import SuggestionEnum
 
