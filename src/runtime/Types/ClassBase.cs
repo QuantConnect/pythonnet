@@ -49,7 +49,7 @@ namespace Python.Runtime
         // getattr(self, "_optional", None) on a .NET-derived object, or a mistyped enum value).
         // Memoize the fully-built " Did you mean: ...?" hint (empty when there is nothing to
         // suggest) per (type, missing-name) so repeats are a dictionary lookup instead of an
-        // O(members) reflection + Levenshtein scan on every miss.
+        // O(members) reflection + similarity scan on every miss.
         private static readonly ConcurrentDictionary<(Type Type, string Name), string> _suggestionCache = new();
 
         internal ClassBase(Type tp)
@@ -837,21 +837,36 @@ namespace Python.Runtime
         // Builds the " Did you mean: 'x', 'y'?" hint for a missing attribute, or an empty
         // string when no member is similar enough to suggest. The result is cached in
         // _suggestionCache, so this runs at most once per (type, missing-name).
+        //
+        // Similarity is Jaro-Winkler rather than a Levenshtein threshold: the prefix-favoring
+        // measure keeps suffix-extended real targets that an edit-distance cutoff rejects
+        // (BrokerageName.InteractiveBrokers -> INTERACTIVE_BROKERS_BROKERAGE is 11 edits away
+        // but 0.92 similar), while naturally rejecting the short-name noise edit distance
+        // admits ('cash' is within 2 edits of 'ASI'). Substring containment is kept as a
+        // fallback signal for fragment lookups Jaro-Winkler cannot see (its match window
+        // rules out 'cash' vs 'set_cash'), but only for fragments long enough to be
+        // meaningful, so 1-2 letter members no longer qualify for every long missed name.
         private static string ComputeSimilarMemberNames(Type type, string name)
         {
             const int MaxSuggestions = 5;
-            var threshold = Math.Max(2, name.Length / 3);
+            const double SimilarityThreshold = 0.87;
 
-            var scored = new List<(string Name, int Distance, SuggestionKind Kind)>();
+            var scored = new List<(string Name, double Score, SuggestionKind Kind)>();
             foreach (var candidate in GetCandidateMemberNames(type))
             {
-                var distance = LevenshteinDistance(name, candidate.Key);
-                var related = distance <= threshold
-                    || candidate.Key.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0
-                    || name.IndexOf(candidate.Key, StringComparison.OrdinalIgnoreCase) >= 0;
-                if (related)
+                var score = JaroWinklerSimilarity(name, candidate.Key);
+                if (score < SimilarityThreshold)
                 {
-                    scored.Add((candidate.Key, distance, candidate.Value));
+                    // Containment matches score by how much of the longer name the fragment
+                    // covers, so they always rank below any Jaro-Winkler match.
+                    score = IsMeaningfulContainment(name, candidate.Key)
+                        ? (double)Math.Min(name.Length, candidate.Key.Length) / Math.Max(name.Length, candidate.Key.Length)
+                        : 0;
+                }
+
+                if (score > 0)
+                {
+                    scored.Add((candidate.Key, score, candidate.Value));
                 }
             }
 
@@ -861,7 +876,7 @@ namespace Python.Runtime
             }
 
             var ordered = scored
-                .OrderBy(t => t.Distance)
+                .OrderByDescending(t => t.Score)
                 .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -895,30 +910,113 @@ namespace Python.Runtime
             };
         }
 
-        private static int LevenshteinDistance(string a, string b)
+        // A containment signal is only trustworthy when the contained fragment carries real
+        // information: at least 3 characters, and a candidate contained in the missed name
+        // must additionally cover at least half of it. Without the length gates every 1-2
+        // letter member (single-letter methods, greek-letter properties) is a substring of
+        // any long missed name and floods the suggestion list.
+        private static bool IsMeaningfulContainment(string name, string candidate)
         {
+            const int MinFragmentLength = 3;
+
+            if (name.Length >= MinFragmentLength
+                && candidate.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            return candidate.Length >= MinFragmentLength
+                && 2 * candidate.Length >= name.Length
+                && name.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        /// <summary>
+        /// Case-insensitive Jaro-Winkler similarity in [0, 1]: the Jaro similarity (matching
+        /// characters within a sliding window, penalizing transpositions) boosted by up to
+        /// 0.1 per shared prefix character (capped at 4), so names that agree on their
+        /// leading characters rank higher than names with the same edit distance elsewhere.
+        /// </summary>
+        private static double JaroWinklerSimilarity(string a, string b)
+        {
+            const double PrefixScale = 0.1;
+            const int MaxPrefixLength = 4;
+
             a = a.ToLowerInvariant();
             b = b.ToLowerInvariant();
+
+            var jaro = JaroSimilarity(a, b);
+
+            var prefix = 0;
+            var maxPrefix = Math.Min(MaxPrefixLength, Math.Min(a.Length, b.Length));
+            while (prefix < maxPrefix && a[prefix] == b[prefix])
+            {
+                prefix++;
+            }
+
+            return jaro + prefix * PrefixScale * (1 - jaro);
+        }
+
+        private static double JaroSimilarity(string a, string b)
+        {
+            if (a == b)
+            {
+                return 1;
+            }
+
             var n = a.Length;
             var m = b.Length;
-            if (n == 0) return m;
-            if (m == 0) return n;
-
-            var prev = new int[m + 1];
-            var curr = new int[m + 1];
-            for (var j = 0; j <= m; j++) prev[j] = j;
-
-            for (var i = 1; i <= n; i++)
+            if (n == 0 || m == 0)
             {
-                curr[0] = i;
-                for (var j = 1; j <= m; j++)
-                {
-                    var cost = a[i - 1] == b[j - 1] ? 0 : 1;
-                    curr[j] = Math.Min(Math.Min(curr[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost);
-                }
-                (prev, curr) = (curr, prev);
+                return 0;
             }
-            return prev[m];
+
+            var window = Math.Max(0, Math.Max(n, m) / 2 - 1);
+            var aMatched = new bool[n];
+            var bMatched = new bool[m];
+
+            var matches = 0;
+            for (var i = 0; i < n; i++)
+            {
+                var lo = Math.Max(0, i - window);
+                var hi = Math.Min(m, i + window + 1);
+                for (var j = lo; j < hi; j++)
+                {
+                    if (!bMatched[j] && a[i] == b[j])
+                    {
+                        aMatched[i] = bMatched[j] = true;
+                        matches++;
+                        break;
+                    }
+                }
+            }
+
+            if (matches == 0)
+            {
+                return 0;
+            }
+
+            var transpositions = 0;
+            var k = 0;
+            for (var i = 0; i < n; i++)
+            {
+                if (!aMatched[i])
+                {
+                    continue;
+                }
+                while (!bMatched[k])
+                {
+                    k++;
+                }
+                if (a[i] != b[k])
+                {
+                    transpositions++;
+                }
+                k++;
+            }
+            transpositions /= 2;
+
+            return ((double)matches / n + (double)matches / m
+                + (double)(matches - transpositions) / matches) / 3;
         }
     }
 }

@@ -86,5 +86,33 @@ namespace Python.Test
         }
 
         public static int CalculationResult { get; set; }
+
+        // Short members: every one of these is a substring of a longer missed name like
+        // 'set_account_type', so suggestion tests can assert they are not offered as
+        // suggestions for it while a similarly-named longer member is.
+        public static int T()
+        {
+            return 0;
+        }
+
+        public static int CC()
+        {
+            return 0;
+        }
+
+        public static void SetAccountCurrency(string currency)
+        {
+        }
+    }
+
+    /// <summary>
+    /// Supports missing-attribute suggestion tests for enum values whose real name extends
+    /// the guessed name with an extra suffix (a common miss on enum-like constant sets).
+    /// </summary>
+    public enum SuggestionEnum
+    {
+        InteractiveBrokersBrokerage,
+        InteractiveBrokersFix,
+        Binance,
     }
 }

@@ -68,6 +68,29 @@ def test_missing_enum_member_hasattr_still_false():
     assert not hasattr(DayOfWeek, "Sundey")
 
 
+def test_missing_enum_member_suffix_extended_name_suggested():
+    """A guessed name that the real member extends with a suffix must be suggested.
+
+    Enum-like constant sets often have members that extend the natural guess (e.g.
+    BrokerageName.INTERACTIVE_BROKERS_BROKERAGE for a guessed INTERACTIVE_BROKERS);
+    such members are many edits away, so a pure edit-distance threshold missed them.
+    Both the PascalCase and the UPPER_SNAKE guess must surface every extension.
+    """
+    import re
+    from Python.Test import SuggestionEnum
+
+    for miss in ("InteractiveBrokers", "INTERACTIVE_BROKERS"):
+        with pytest.raises(AttributeError) as exc_info:
+            getattr(SuggestionEnum, miss)
+
+        message = str(exc_info.value)
+        assert "Did you mean" in message
+        suggested = re.findall(r"'([^']+)'", message.split("Did you mean")[1])
+        assert "INTERACTIVE_BROKERS_BROKERAGE" in suggested
+        assert "INTERACTIVE_BROKERS_FIX" in suggested
+        assert "BINANCE" not in suggested
+
+
 def test_byte_enum():
     """Test byte enum."""
     assert Test.ByteEnum.Zero == Test.ByteEnum(0)
