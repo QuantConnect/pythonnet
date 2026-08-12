@@ -86,5 +86,31 @@ namespace Python.Test
         }
 
         public static int CalculationResult { get; set; }
+
+        // Short members, all substrings of a longer miss like 'set_account_type', which
+        // must not suggest them.
+        public static int T()
+        {
+            return 0;
+        }
+
+        public static int CC()
+        {
+            return 0;
+        }
+
+        public static void SetAccountCurrency(string currency)
+        {
+        }
+    }
+
+    /// <summary>
+    /// Supports suggestion tests for enum members that extend the guessed name with a suffix.
+    /// </summary>
+    public enum SuggestionEnum
+    {
+        InteractiveBrokersBrokerage,
+        InteractiveBrokersFix,
+        Binance,
     }
 }

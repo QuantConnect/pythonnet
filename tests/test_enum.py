@@ -68,6 +68,24 @@ def test_missing_enum_member_hasattr_still_false():
     assert not hasattr(DayOfWeek, "Sundey")
 
 
+def test_missing_enum_member_suffix_extended_name_suggested():
+    """A guessed name that the real member extends with a suffix must be suggested,
+    from both the PascalCase and the UPPER_SNAKE spelling of the guess."""
+    import re
+    from Python.Test import SuggestionEnum
+
+    for miss in ("InteractiveBrokers", "INTERACTIVE_BROKERS"):
+        with pytest.raises(AttributeError) as exc_info:
+            getattr(SuggestionEnum, miss)
+
+        message = str(exc_info.value)
+        assert "Did you mean" in message
+        suggested = re.findall(r"'([^']+)'", message.split("Did you mean")[1])
+        assert "INTERACTIVE_BROKERS_BROKERAGE" in suggested
+        assert "INTERACTIVE_BROKERS_FIX" in suggested
+        assert "BINANCE" not in suggested
+
+
 def test_byte_enum():
     """Test byte enum."""
     assert Test.ByteEnum.Zero == Test.ByteEnum(0)

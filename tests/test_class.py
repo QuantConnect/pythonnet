@@ -211,6 +211,40 @@ def test_missing_property_suggests_data_only():
     assert "'calculation_results'" not in hint
 
 
+def _suggestions(message):
+    """Extract the quoted member names from a "Did you mean" hint."""
+    import re
+    return re.findall(r"'([^']+)'", message.split("Did you mean")[1])
+
+
+def test_missing_attribute_does_not_suggest_short_members():
+    """A long missed name must not collect 1-2 letter members via substring containment.
+
+    Every short member is a substring of a long miss, so hints used to read
+    "Did you mean: 'cc', 'co', 'a', 'c', 't'?" while the intended member was absent.
+    """
+    from Python.Test import SuggestionTest
+
+    with pytest.raises(AttributeError) as exc_info:
+        _ = SuggestionTest.set_account_type
+
+    message = str(exc_info.value)
+    assert "Did you mean" in message
+    suggested = _suggestions(message)
+    assert "set_account_currency" in suggested
+    assert all(len(s) > 2 for s in suggested)
+
+
+def test_missing_attribute_fragment_suggests_containing_member():
+    """Typing a meaningful fragment of a member name still suggests that member."""
+    from Python.Test import SuggestionTest
+
+    with pytest.raises(AttributeError) as exc_info:
+        _ = SuggestionTest.currency
+
+    assert "set_account_currency" in _suggestions(str(exc_info.value))
+
+
 def test_missing_static_member_no_similar():
     """A static member with no similar name keeps the standard message (no hint)."""
     from System import Math

@@ -1052,6 +1052,14 @@ namespace Python.Runtime
                             }
                             value.Append(' ').Append(overloads);
                         }
+
+                        // After the overloads block: consumers that extract the hint from
+                        // its marker onwards must keep this line too.
+                        var mismatch = DiagnoseClosestOverloadMismatch(candidates, args, kw);
+                        if (mismatch.Length > 0)
+                        {
+                            value.Append('\n').Append(mismatch);
+                        }
                     }
                     catch
                     {
@@ -1059,14 +1067,6 @@ namespace Python.Runtime
                         // input; an exception here would escape the tp_call slot into CPython
                         // and mask the bind failure. Raise with whatever was appended so far.
                         Exceptions.Clear();
-                    }
-
-                    // After the overloads block: consumers that extract the hint from
-                    // its marker onwards must keep this line too.
-                    var mismatch = DiagnoseClosestOverloadMismatch(candidates, args, kw);
-                    if (mismatch.Length > 0)
-                    {
-                        value.Append('\n').Append(mismatch);
                     }
 
                     Exceptions.RaiseTypeError(value.ToString());

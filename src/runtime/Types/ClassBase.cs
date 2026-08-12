@@ -49,7 +49,7 @@ namespace Python.Runtime
         // getattr(self, "_optional", None) on a .NET-derived object, or a mistyped enum value).
         // Memoize the fully-built " Did you mean: ...?" hint (empty when there is nothing to
         // suggest) per (type, missing-name) so repeats are a dictionary lookup instead of an
-        // O(members) reflection + Levenshtein scan on every miss.
+        // O(members) reflection + similarity scan on every miss.
         private static readonly ConcurrentDictionary<(Type Type, string Name), string> _suggestionCache = new();
 
         internal ClassBase(Type tp)
@@ -837,21 +837,31 @@ namespace Python.Runtime
         // Builds the " Did you mean: 'x', 'y'?" hint for a missing attribute, or an empty
         // string when no member is similar enough to suggest. The result is cached in
         // _suggestionCache, so this runs at most once per (type, missing-name).
+        //
+        // Jaro-Winkler (prefix-favoring) keeps suffix-extended targets that an edit-distance
+        // cutoff rejects (InteractiveBrokers -> INTERACTIVE_BROKERS_BROKERAGE); gated
+        // containment covers fragment lookups outside its match window ('cash' -> 'set_cash').
         private static string ComputeSimilarMemberNames(Type type, string name)
         {
             const int MaxSuggestions = 5;
-            var threshold = Math.Max(2, name.Length / 3);
+            // In evaluation over real member sets, intended targets scored >= 0.90 and noise <= 0.85.
+            const double SimilarityThreshold = 0.87;
 
-            var scored = new List<(string Name, int Distance, SuggestionKind Kind)>();
+            var scored = new List<(string Name, double Score, SuggestionKind Kind)>();
             foreach (var candidate in GetCandidateMemberNames(type))
             {
-                var distance = Util.LevenshteinDistance(name, candidate.Key);
-                var related = distance <= threshold
-                    || candidate.Key.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0
-                    || name.IndexOf(candidate.Key, StringComparison.OrdinalIgnoreCase) >= 0;
-                if (related)
+                var score = Util.JaroWinklerSimilarity(name, candidate.Key);
+                if (score < SimilarityThreshold)
                 {
-                    scored.Add((candidate.Key, distance, candidate.Value));
+                    // Coverage scoring ranks containment matches below any similarity match.
+                    score = IsMeaningfulContainment(name, candidate.Key)
+                        ? (double)Math.Min(name.Length, candidate.Key.Length) / Math.Max(name.Length, candidate.Key.Length)
+                        : 0;
+                }
+
+                if (score > 0)
+                {
+                    scored.Add((candidate.Key, score, candidate.Value));
                 }
             }
 
@@ -861,7 +871,7 @@ namespace Python.Runtime
             }
 
             var ordered = scored
-                .OrderBy(t => t.Distance)
+                .OrderByDescending(t => t.Score)
                 .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -893,6 +903,23 @@ namespace Python.Runtime
                 PropertyInfo propertyInfo => (propertyInfo.ToSnakeCase(), SuggestionKind.Data),
                 _ => (member.Name.ToSnakeCase(), SuggestionKind.Data),
             };
+        }
+
+        // Without the length gates every 1-2 letter member is a substring of any long
+        // missed name and floods the suggestion list.
+        private static bool IsMeaningfulContainment(string name, string candidate)
+        {
+            const int MinFragmentLength = 3;
+
+            if (name.Length >= MinFragmentLength
+                && candidate.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            return candidate.Length >= MinFragmentLength
+                && 2 * candidate.Length >= name.Length
+                && name.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
     }

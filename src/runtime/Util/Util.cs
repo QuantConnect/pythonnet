@@ -363,5 +363,91 @@ namespace Python.Runtime
             }
             return prev[m];
         }
+
+        /// <summary>
+        /// Case-insensitive Jaro-Winkler similarity in [0, 1] (Jaro boosted by shared prefix).
+        /// </summary>
+        internal static double JaroWinklerSimilarity(string a, string b)
+        {
+            const double PrefixScale = 0.1;
+            const int MaxPrefixLength = 4;
+
+            a = a.ToLowerInvariant();
+            b = b.ToLowerInvariant();
+
+            var jaro = JaroSimilarity(a, b);
+
+            var prefix = 0;
+            var maxPrefix = Math.Min(MaxPrefixLength, Math.Min(a.Length, b.Length));
+            while (prefix < maxPrefix && a[prefix] == b[prefix])
+            {
+                prefix++;
+            }
+
+            return jaro + prefix * PrefixScale * (1 - jaro);
+        }
+
+        private static double JaroSimilarity(string a, string b)
+        {
+            if (a == b)
+            {
+                return 1;
+            }
+
+            var n = a.Length;
+            var m = b.Length;
+            if (n == 0 || m == 0)
+            {
+                return 0;
+            }
+
+            var window = Math.Max(0, Math.Max(n, m) / 2 - 1);
+            var aMatched = new bool[n];
+            var bMatched = new bool[m];
+
+            var matches = 0;
+            for (var i = 0; i < n; i++)
+            {
+                var lo = Math.Max(0, i - window);
+                var hi = Math.Min(m, i + window + 1);
+                for (var j = lo; j < hi; j++)
+                {
+                    if (!bMatched[j] && a[i] == b[j])
+                    {
+                        aMatched[i] = bMatched[j] = true;
+                        matches++;
+                        break;
+                    }
+                }
+            }
+
+            if (matches == 0)
+            {
+                return 0;
+            }
+
+            var transpositions = 0;
+            var k = 0;
+            for (var i = 0; i < n; i++)
+            {
+                if (!aMatched[i])
+                {
+                    continue;
+                }
+                while (!bMatched[k])
+                {
+                    k++;
+                }
+                if (a[i] != b[k])
+                {
+                    transpositions++;
+                }
+                k++;
+            }
+            transpositions /= 2;
+
+            return ((double)matches / n + (double)matches / m
+                + (double)(matches - transpositions) / matches) / 3;
+        }
     }
 }
