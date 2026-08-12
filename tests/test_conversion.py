@@ -544,7 +544,9 @@ def test_datetime_conversion():
     from datetime import datetime
 
     ob = ConversionTest()
-    assert type(ob.DateTimeField) is type(datetime(1,1,1))
+    # System.DateTime converts to a datetime subclass that also supports
+    # arithmetic and ordering against pure datetime.date operands
+    assert isinstance(ob.DateTimeField, datetime)
     assert ob.DateTimeField.day == 1
 
     ob.DateTimeField = datetime(2000,1,2)
@@ -557,6 +559,32 @@ def test_datetime_conversion():
 
     with pytest.raises(TypeError):
         ConversionTest().DateTimeField = "spam"
+
+def test_datetime_date_coercion():
+    """Converted System.DateTime values coerce operations against pure
+    datetime.date operands using their date part instead of raising TypeError."""
+    from datetime import date, datetime, timedelta
+
+    ob = ConversionTest()
+    ob.DateTimeField = datetime(2019, 8, 15, 10, 30, 0)
+    value = ob.DateTimeField
+
+    assert (value - date(2019, 7, 1)).days == 45
+    assert (date(2019, 7, 1) - value).days == -45
+    assert value > date(2019, 7, 1)
+    assert date(2019, 7, 1) <= value
+    assert value <= date(2019, 8, 15)
+    assert value >= date(2019, 8, 15)
+    # equality with a pure date stays False (hash contract preserved)
+    assert not value == date(2019, 8, 15)
+
+    # plain datetime behavior is unchanged
+    assert value == datetime(2019, 8, 15, 10, 30, 0)
+    assert hash(value) == hash(datetime(2019, 8, 15, 10, 30, 0))
+    assert value - datetime(2019, 8, 15) == timedelta(hours=10, minutes=30)
+    assert value + timedelta(days=1) == datetime(2019, 8, 16, 10, 30, 0)
+    assert repr(value) == repr(datetime(2019, 8, 15, 10, 30))
+    assert str(value) == str(datetime(2019, 8, 15, 10, 30))
 
 def test_string_conversion():
     """Test string / unicode conversion."""

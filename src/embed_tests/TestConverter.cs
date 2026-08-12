@@ -279,6 +279,134 @@ def GetNextDay(dateTime):
             }
         }
 
+        // The datetime instances produced for System.DateTime values coerce operations
+        // against pure datetime.date operands using their date part instead of raising
+        // TypeError, while behaving exactly like plain datetimes everywhere else.
+        private static PyModule GetDateTimeCoercionModule()
+        {
+            return PyModule.FromString("datetime_coercion_test", @"
+from datetime import date, datetime, timedelta
+import pickle
+
+TODAY = date(2019, 7, 1)
+
+def dte(dt):
+    return (dt - TODAY).days
+
+def reverse_dte(dt):
+    return (TODAY - dt).days
+
+def compare_with_dates(dt):
+    earlier = date(2019, 7, 1)
+    later = date(2019, 12, 31)
+    return [earlier < dt, earlier <= dt, dt > earlier, dt >= earlier,
+            dt < later, dt <= later, later > dt, later >= dt]
+
+def same_day_comparisons(dt):
+    same = date(dt.year, dt.month, dt.day)
+    return [dt <= same, dt >= same, dt < same, dt > same, dt == same]
+
+def datetime_behavior_unchanged(dt):
+    plain = datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond)
+    shifted = dt + timedelta(days=1)
+    return [isinstance(dt, datetime), dt == plain, hash(dt) == hash(plain),
+            dt - plain == timedelta(0), shifted - dt == timedelta(days=1),
+            dt < shifted, str(dt) == str(plain), repr(dt) == repr(plain),
+            dt.strftime('%Y-%m-%d %H:%M') == plain.strftime('%Y-%m-%d %H:%M')]
+
+def pickle_as_plain_datetime(dt):
+    restored = pickle.loads(pickle.dumps(dt))
+    plain = datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond)
+    return [type(restored) is datetime, restored == plain]
+");
+        }
+
+        [Test]
+        public void ConvertedDateTimeSubtractionWithPureDateUsesDatePart()
+        {
+            using (Py.GIL())
+            {
+                using var module = GetDateTimeCoercionModule();
+                // e.g. contract expiry minus the user's date.today()
+                using var pyExpiry = Converter.ToPython(new DateTime(2019, 8, 15, 10, 30, 0)).MoveToPyObject();
+
+                using var dte = module.InvokeMethod("dte", pyExpiry);
+                Assert.AreEqual(45, dte.As<int>());
+
+                using var reverseDte = module.InvokeMethod("reverse_dte", pyExpiry);
+                Assert.AreEqual(-45, reverseDte.As<int>());
+            }
+        }
+
+        [Test]
+        public void ConvertedDateTimeComparisonWithPureDateUsesDatePart()
+        {
+            using (Py.GIL())
+            {
+                using var module = GetDateTimeCoercionModule();
+                using var pyDateTime = Converter.ToPython(new DateTime(2019, 8, 15, 10, 30, 0)).MoveToPyObject();
+
+                using var comparisons = module.InvokeMethod("compare_with_dates", pyDateTime);
+                var results = comparisons.As<bool[]>();
+                for (var i = 0; i < results.Length; i++)
+                {
+                    Assert.IsTrue(results[i], $"comparison {i} was false");
+                }
+            }
+        }
+
+        [Test]
+        public void ConvertedDateTimeSameDayComparisonWithPureDate()
+        {
+            using (Py.GIL())
+            {
+                using var module = GetDateTimeCoercionModule();
+                using var pyDateTime = Converter.ToPython(new DateTime(2019, 8, 15, 10, 30, 0)).MoveToPyObject();
+
+                using var comparisons = module.InvokeMethod("same_day_comparisons", pyDateTime);
+                var results = comparisons.As<bool[]>();
+                Assert.IsTrue(results[0], "dt <= same-day date");
+                Assert.IsTrue(results[1], "dt >= same-day date");
+                Assert.IsFalse(results[2], "dt < same-day date");
+                Assert.IsFalse(results[3], "dt > same-day date");
+                // equality with a pure date stays False: making it true would break the
+                // hash contract since hash(datetime) != hash(date)
+                Assert.IsFalse(results[4], "dt == same-day date");
+            }
+        }
+
+        [Test]
+        public void ConvertedDateTimeBehavesLikePlainDateTime()
+        {
+            using (Py.GIL())
+            {
+                using var module = GetDateTimeCoercionModule();
+                using var pyDateTime = Converter.ToPython(new DateTime(2019, 8, 15, 10, 30, 0, 5)).MoveToPyObject();
+
+                using var checks = module.InvokeMethod("datetime_behavior_unchanged", pyDateTime);
+                var results = checks.As<bool[]>();
+                for (var i = 0; i < results.Length; i++)
+                {
+                    Assert.IsTrue(results[i], $"behavior check {i} failed");
+                }
+            }
+        }
+
+        [Test]
+        public void ConvertedDateTimePicklesAsPlainDateTime()
+        {
+            using (Py.GIL())
+            {
+                using var module = GetDateTimeCoercionModule();
+                using var pyDateTime = Converter.ToPython(new DateTime(2019, 8, 15, 10, 30, 0)).MoveToPyObject();
+
+                using var checks = module.InvokeMethod("pickle_as_plain_datetime", pyDateTime);
+                var results = checks.As<bool[]>();
+                Assert.IsTrue(results[0], "unpickled type should be plain datetime.datetime");
+                Assert.IsTrue(results[1], "unpickled value should equal the original");
+            }
+        }
+
         [Test]
         public void ConvertTimestampRoundTrip()
         {
