@@ -908,6 +908,28 @@ class GMT(tzinfo):
         }
 
         /// <summary>
+        /// True for Python floats (including subclasses like numpy.float64) and for
+        /// numbers with __float__ but no __index__ (like numpy.float32); __index__
+        /// marks a type as losslessly int-convertible, so those are not float-like.
+        /// </summary>
+        private static bool IsFloatLike(BorrowedReference value)
+        {
+            // fast path for the common case: actual ints
+            if (Runtime.PyInt_Check(value) || Runtime.PyBool_Check(value))
+            {
+                return false;
+            }
+
+            if (Runtime.PyObject_TypeCheck(value, Runtime.PyFloatType))
+            {
+                return true;
+            }
+
+            return Runtime.PyObject_HasAttrString(value, "__float__") != 0
+                && Runtime.PyObject_HasAttrString(value, "__index__") == 0;
+        }
+
+        /// <summary>
         /// Convert a Python value to an instance of a primitive managed type.
         /// </summary>
         internal static bool ToPrimitive(BorrowedReference value, Type obType, out object result, bool setError, out bool usedImplicit)
@@ -918,14 +940,17 @@ class GMT(tzinfo):
 
             TypeCode tc = Type.GetTypeCode(obType);
 
-            // A Python float with a fractional part must not be silently truncated
-            // into an integer parameter. Integral-valued floats (e.g. 5.0) are still
-            // accepted. This keeps single- and multi-overload binding consistent:
-            // MethodBinder only treats integral floats as candidates for integer
-            // parameters, and this guard enforces the same rule at conversion time.
-            if (tc.IsInteger() && Runtime.PyFloat_Check(value))
+            // Reject non-integral float-like values (incl. numpy floats) for integer
+            // targets; the PyNumber_Long path below would silently truncate them.
+            if (tc.IsInteger() && IsFloatLike(value))
             {
                 double dbl = Runtime.PyFloat_AsDouble(value);
+                if (dbl == -1.0 && Exceptions.ErrorOccurred())
+                {
+                    // don't let a failed __float__ probe leak
+                    Exceptions.Clear();
+                    goto type_error;
+                }
                 if (double.IsNaN(dbl) || double.IsInfinity(dbl) || Math.Truncate(dbl) != dbl)
                 {
                     goto type_error;

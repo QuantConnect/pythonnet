@@ -1104,6 +1104,52 @@ def test_default_params():
     with pytest.raises(TypeError):
         MethodTest.DefaultParams(1,2,3,4,5)
 
+def test_unexpected_keyword_argument_with_suggestion():
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.order_like_method("SPY", 10, as_tag="EmergencyFlatten")
+    message = str(excinfo.value)
+    assert "No method matches given arguments for order_like_method" in message
+    assert "Got an unexpected keyword argument 'as_tag'" in message
+    assert "Did you mean 'tag'?" in message
+
+    # PascalCase call path: parameter names are the original ones.
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.OrderLikeMethod("SPY", 10, asTag="EmergencyFlatten")
+    message = str(excinfo.value)
+    assert "No method matches given arguments for order_like_method" in message
+    assert "Got an unexpected keyword argument 'asTag'" in message
+    assert "Did you mean 'tag'?" in message
+
+
+def test_unexpected_keyword_argument_without_suggestion():
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.order_like_method("SPY", 10, completely_unrelated_name=1)
+    message = str(excinfo.value)
+    assert "No method matches given arguments for order_like_method" in message
+    assert "Got an unexpected keyword argument " \
+           "'completely_unrelated_name'" in message
+    assert "Did you mean" not in message
+
+
+def test_unexpected_keyword_argument_reports_first_in_call_order():
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.order_like_method("SPY", 10, first_bogus=1, second_bogus=2)
+    assert "Got an unexpected keyword argument 'first_bogus'" in str(excinfo.value)
+
+
+def test_valid_keyword_arguments_still_bind():
+    res = MethodTest.order_like_method("SPY", 10, asynchronous=True, tag="mytag")
+    assert res == "SPY:10:True:mytag"
+
+
+def test_valid_keyword_argument_names_keep_no_match_message():
+    # 'd' is supplied both positionally and by name: valid names, unbindable call.
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.DefaultParams(1, 2, 3, 4, d=5)
+    message = str(excinfo.value)
+    assert "No method matches given arguments for default_params" in message
+    assert "unexpected keyword argument" not in message
+
 def test_optional_params():
     res = MethodTest.OptionalParams(1, 2, 3, 4)
     assert res == "1234"
@@ -1261,3 +1307,19 @@ def test_method_encoding():
 def test_method_with_pointer_array_argument():
     with pytest.raises(TypeError):
         MethodTest.PointerArray([0])
+
+
+def test_bind_failure_pinpoints_mismatched_argument():
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.bind_diagnosis_method("SPY", -10, "exit signal")
+    message = str(excinfo.value)
+    assert message.startswith("No method matches given arguments for bind_diagnosis_method: ")
+    assert "The following overloads are available:" in message
+    assert "Argument mismatch: argument 3 ('asynchronous') expected bool, got str." in message
+
+
+def test_bind_failure_pinpoints_mismatched_keyword_argument():
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.bind_diagnosis_method("SPY", 10, tag=5)
+    message = str(excinfo.value)
+    assert "Argument mismatch: keyword argument 'tag' expected str, got int." in message
