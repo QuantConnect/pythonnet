@@ -267,6 +267,57 @@ def test_int64_conversion():
         _ = System.Int64(-9223372036854775809)
 
 
+def test_numpy_float_to_int_conversion():
+    """Non-integral numpy floats are rejected for integer targets, not truncated."""
+    np = pytest.importorskip("numpy")
+
+    ob = ConversionTest()
+
+    # integral-valued numpy floats convert
+    ob.Int32Field = np.float64(20.0)
+    assert ob.Int32Field == 20
+
+    ob.Int32Field = np.float32(21.0)
+    assert ob.Int32Field == 21
+
+    ob.Int64Field = np.float64(22.0)
+    assert ob.Int64Field == 22
+
+    # non-integral numpy floats are rejected, not truncated
+    with pytest.raises(TypeError):
+        ConversionTest().Int32Field = np.float64(20.5)
+
+    with pytest.raises(TypeError):
+        ConversionTest().Int32Field = np.float32(20.5)
+
+    with pytest.raises(TypeError):
+        ConversionTest().Int64Field = np.float64(20.5)
+
+    # numpy integer scalars keep converting
+    ob.Int32Field = np.int32(7)
+    assert ob.Int32Field == 7
+
+    ob.Int32Field = np.int64(8)
+    assert ob.Int32Field == 8
+
+    ob.Int64Field = np.int64(9)
+    assert ob.Int64Field == 9
+
+    # plain float behavior is unchanged
+    ob.Int32Field = 23.0
+    assert ob.Int32Field == 23
+
+    with pytest.raises(TypeError):
+        ConversionTest().Int32Field = 23.5
+
+    # method binding applies the same rule
+    from Python.Test import MethodTest
+    assert MethodTest.TestOverloadedNoObject(np.float64(5.0)) == "Got int"
+
+    with pytest.raises(TypeError):
+        MethodTest.TestOverloadedNoObject(np.float64(5.5))
+
+
 def test_uint16_conversion():
     """Test uint16 conversion."""
     assert System.UInt16.MaxValue == 65535
