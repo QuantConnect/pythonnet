@@ -154,7 +154,7 @@ namespace Python.Runtime
         /// CLR types without a Python equivalent keep their name, with generics rendered
         /// as <c>Name[Arg1, Arg2]</c>.
         /// </summary>
-        private static string FormatType(Type type)
+        internal static string FormatType(Type type)
         {
             if (type.IsByRef)
             {

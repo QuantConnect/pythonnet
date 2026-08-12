@@ -1261,3 +1261,19 @@ def test_method_encoding():
 def test_method_with_pointer_array_argument():
     with pytest.raises(TypeError):
         MethodTest.PointerArray([0])
+
+
+def test_bind_failure_pinpoints_mismatched_argument():
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.bind_diagnosis_method("SPY", -10, "exit signal")
+    message = str(excinfo.value)
+    assert message.startswith("No method matches given arguments for bind_diagnosis_method: ")
+    assert "The following overloads are available:" in message
+    assert "Argument mismatch: argument 3 ('asynchronous') expected bool, got str." in message
+
+
+def test_bind_failure_pinpoints_mismatched_keyword_argument():
+    with pytest.raises(TypeError) as excinfo:
+        MethodTest.bind_diagnosis_method("SPY", 10, tag=5)
+    message = str(excinfo.value)
+    assert "Argument mismatch: keyword argument 'tag' expected str, got int." in message
