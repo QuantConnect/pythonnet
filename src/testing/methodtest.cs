@@ -709,6 +709,11 @@ namespace Python.Test
             return $"{a}{b}{c}{d}XXX";
         }
 
+        public static string OrderLikeMethod(string symbol, decimal quantity, bool asynchronous = false, string tag = "", object orderProperties = null)
+        {
+            return string.Format("{0}:{1}:{2}:{3}", symbol, quantity, asynchronous, tag);
+        }
+
         public static string ParamsArrayOverloaded(int i = 1)
         {
             return "without params-array";

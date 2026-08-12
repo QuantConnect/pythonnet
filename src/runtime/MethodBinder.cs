@@ -1017,29 +1017,48 @@ namespace Python.Runtime
                 if (!Exceptions.ErrorOccurred())
                 {
                     var value = new StringBuilder("No method matches given arguments");
-                    // Use the snake_case name Python callers use, matching the hinted signatures below.
-                    if (methodinfo != null && methodinfo.Length > 0)
+                    try
                     {
-                        value.Append($" for {MethodSignatureFormatter.SnakeCaseName(methodinfo[0])}");
-                    }
-                    else if (list.Count > 0)
-                    {
-                        value.Append($" for {MethodSignatureFormatter.SnakeCaseName(list[0].MethodBase)}");
-                    }
+                        // Use the snake_case name Python callers use, matching the hinted signatures below.
+                        if (methodinfo != null && methodinfo.Length > 0)
+                        {
+                            value.Append($" for {MethodSignatureFormatter.SnakeCaseName(methodinfo[0])}");
+                        }
+                        else if (list.Count > 0)
+                        {
+                            value.Append($" for {MethodSignatureFormatter.SnakeCaseName(list[0].MethodBase)}");
+                        }
 
-                    value.Append(": ");
-                    AppendArgumentTypes(to: value, args);
+                        value.Append(": ");
+                        AppendArgumentTypes(to: value, args);
 
-                    // List the candidate overloads so the caller can see what was
-                    // expected (e.g. that an int overload exists when a float was
-                    // passed). Applies to every "no match" case, not just numeric ones.
-                    var candidates = methodinfo != null && methodinfo.Length > 0
-                        ? methodinfo.Cast<MethodBase>()
-                        : list?.Select(m => m.MethodBase);
-                    var overloads = MethodSignatureFormatter.FormatOverloads(candidates);
-                    if (overloads.Length > 0)
+                        // The argument types echo above covers positional args only; name the first
+                        // unknown kwarg (if any) so a misspelled keyword argument is visible.
+                        AppendUnexpectedKeywordArgument(value, kw, info);
+
+                        // List the candidate overloads so the caller can see what was
+                        // expected (e.g. that an int overload exists when a float was
+                        // passed). Applies to every "no match" case, not just numeric ones.
+                        var candidates = methodinfo != null && methodinfo.Length > 0
+                            ? methodinfo.Cast<MethodBase>()
+                            : list?.Select(m => m.MethodBase);
+                        var overloads = MethodSignatureFormatter.FormatOverloads(candidates);
+                        if (overloads.Length > 0)
+                        {
+                            // The kwarg hint may already end the sentence with a question mark.
+                            if (value[value.Length - 1] != '?')
+                            {
+                                value.Append('.');
+                            }
+                            value.Append(' ').Append(overloads);
+                        }
+                    }
+                    catch
                     {
-                        value.Append(". ").Append(overloads);
+                        // The details above are best-effort diagnostics over arbitrary caller
+                        // input; an exception here would escape the tp_call slot into CPython
+                        // and mask the bind failure. Raise with whatever was appended so far.
+                        Exceptions.Clear();
                     }
 
                     // After the overloads block: consumers that extract the hint from
@@ -1129,6 +1148,86 @@ namespace Python.Runtime
             }
 
             return Converter.ToPython(result, returnType);
+        }
+
+        /// <summary>
+        /// Appends "Got an unexpected keyword argument" to the no-match message when a kwarg
+        /// name is accepted by no candidate overload, with a "Did you mean" suggestion when a
+        /// similar parameter name exists. Appends nothing when every kwarg name is valid.
+        /// </summary>
+        private void AppendUnexpectedKeywordArgument(StringBuilder to, BorrowedReference kw, MethodBase info)
+        {
+            var kwCount = kw == null ? 0 : (int)Runtime.PyDict_Size(kw);
+            if (kwCount <= 0)
+            {
+                return;
+            }
+
+            // Same candidate set Bind considered; ParameterNames are already in the caller's convention.
+            var methods = info == null
+                ? GetMethods()
+                : new List<MethodInformation>(1) { new MethodInformation(info, true) };
+            var parameterNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var method in methods)
+            {
+                foreach (var parameterName in method.ParameterNames)
+                {
+                    parameterNames.Add(parameterName);
+                }
+            }
+
+            // Report the first unknown kwarg in call order, like CPython does.
+            string unexpectedName = null;
+            using (var keyList = Runtime.PyDict_Keys(kw))
+            {
+                for (var i = 0; i < kwCount && unexpectedName == null; i++)
+                {
+                    var name = Runtime.GetManagedString(Runtime.PyList_GetItem(keyList.Borrow(), i));
+                    if (name != null && !parameterNames.Contains(name))
+                    {
+                        unexpectedName = name;
+                    }
+                }
+            }
+
+            if (unexpectedName == null)
+            {
+                return;
+            }
+
+            to.Append($". Got an unexpected keyword argument '{unexpectedName}'");
+            var suggestion = ClosestParameterName(unexpectedName, parameterNames);
+            if (suggestion != null)
+            {
+                to.Append($". Did you mean '{suggestion}'?");
+            }
+        }
+
+        /// <summary>
+        /// Closest parameter name to suggest, or null: small edit distance, or containment
+        /// between names of 3+ characters (e.g. 'as_tag' suggests 'tag').
+        /// </summary>
+        private static string ClosestParameterName(string name, HashSet<string> parameterNames)
+        {
+            const int MinContainmentLength = 3;
+            var threshold = Math.Max(2, name.Length / 3);
+            string best = null;
+            var bestDistance = int.MaxValue;
+            foreach (var candidate in parameterNames)
+            {
+                var distance = Util.LevenshteinDistance(name, candidate);
+                var related = distance <= threshold
+                    || (candidate.Length >= MinContainmentLength && name.Length >= MinContainmentLength
+                        && (candidate.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0
+                            || name.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0));
+                if (related && (distance < bestDistance
+                    || (distance == bestDistance && string.CompareOrdinal(candidate, best) < 0)))
+                {
+                    bestDistance = distance;
+                    best = candidate;
+                }
+            }
+            return best;
         }
 
         /// <summary>
