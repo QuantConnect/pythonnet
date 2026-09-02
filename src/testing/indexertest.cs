@@ -1,4 +1,6 @@
+using System;
 using System.Collections;
+using System.Collections.Generic;
 
 namespace Python.Test
 {
@@ -410,6 +412,38 @@ namespace Python.Test
                 t[key] = value;
             }
         }
+    }
+
+    /// <summary>
+    /// IDictionary whose Remove throws: `del ob[key]` must surface it as a catchable Python error.
+    /// </summary>
+    public class ThrowingRemoveDictionary : IDictionary<string, string>
+    {
+        private readonly Dictionary<string, string> _items = new Dictionary<string, string>();
+
+        public string Marker => "alive";
+
+        public string this[string key]
+        {
+            get { return _items[key]; }
+            set { _items[key] = value; }
+        }
+
+        public ICollection<string> Keys => _items.Keys;
+        public ICollection<string> Values => _items.Values;
+        public int Count => _items.Count;
+        public bool IsReadOnly => false;
+        public void Add(string key, string value) => _items.Add(key, value);
+        public void Add(KeyValuePair<string, string> item) => _items.Add(item.Key, item.Value);
+        public void Clear() => _items.Clear();
+        public bool Contains(KeyValuePair<string, string> item) => _items.ContainsKey(item.Key);
+        public bool ContainsKey(string key) => _items.ContainsKey(key);
+        public void CopyTo(KeyValuePair<string, string>[] array, int arrayIndex) { }
+        public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => _items.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => _items.GetEnumerator();
+        public bool Remove(string key) => throw new InvalidOperationException("remove failed");
+        public bool Remove(KeyValuePair<string, string> item) => throw new InvalidOperationException("remove failed");
+        public bool TryGetValue(string key, out string value) => _items.TryGetValue(key, out value);
     }
 
     public class PublicInheritedIndexerTest : PublicIndexerTest { }
