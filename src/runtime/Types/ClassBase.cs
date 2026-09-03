@@ -573,7 +573,7 @@ namespace Python.Runtime
         /// </summary>
         static int DeleteItemImpl(ClassBase cls, BorrowedReference ob, BorrowedReference idx)
         {
-            if (cls.indexer == null || !cls.indexer.CanDelete)
+            if (cls.indexer == null || !cls.type.Valid || !cls.indexer.CanDelete(cls.type.Value))
             {
                 Exceptions.SetError(Exceptions.TypeError, "object doesn't support item deletion");
                 return -1;

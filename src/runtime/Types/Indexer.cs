@@ -33,9 +33,22 @@ namespace Python.Runtime
             get { return SetterBinder.Count > 0; }
         }
 
-        public bool CanDelete
+        // The deleter is resolved on the first `del`: most types are never deleted from, so the
+        // interface walk only runs for the ones that are. Called under the GIL, like the slot itself.
+        [NonSerialized] private bool _deleterResolved;
+
+        public bool CanDelete(Type type)
         {
-            get { return DeleterBinder?.Count > 0; }
+            if (!_deleterResolved)
+            {
+                _deleterResolved = true;
+                DeleterBinder ??= new MethodBinder();
+                if (DeleterBinder.Count == 0)
+                {
+                    ResolveDeleter(type);
+                }
+            }
+            return DeleterBinder.Count > 0;
         }
 
 
@@ -68,7 +81,7 @@ namespace Python.Runtime
         /// Resolves the method behind <c>del ob[key]</c>: IDictionary&lt;K,V&gt;.Remove(K), else
         /// IList&lt;T&gt;.RemoveAt(int). Types with neither don't support item deletion.
         /// </summary>
-        internal void ResolveDeleter(Type type)
+        private void ResolveDeleter(Type type)
         {
             // Bind the interface method itself, not a member looked up by name: explicit implementations
             // (e.g. ConcurrentDictionary.Remove, which only exposes TryRemove publicly) are reached this way.
@@ -89,7 +102,7 @@ namespace Python.Runtime
                     }
                 }
             }
-            if (CanDelete)
+            if (DeleterBinder.Count > 0)
             {
                 return;
             }

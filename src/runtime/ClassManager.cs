@@ -681,8 +681,6 @@ namespace Python.Runtime
                 }
             }
 
-            ci.indexer?.ResolveDeleter(type);
-
             return ci;
         }
 
