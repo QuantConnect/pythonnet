@@ -245,6 +245,13 @@ namespace Python.Runtime
         /// </summary>
         public static int mp_ass_subscript(BorrowedReference ob, BorrowedReference idx, BorrowedReference v)
         {
+            // `del arr[i]` arrives here with a null value; arrays are fixed-size, so refuse it up front.
+            if (v.IsNull)
+            {
+                Exceptions.RaiseTypeError("array does not support item deletion");
+                return -1;
+            }
+
             var obj = (CLRObject)GetManagedObject(ob)!;
             var items = (Array)obj.inst;
             Type itemType = obj.inst.GetType().GetElementType();

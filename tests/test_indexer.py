@@ -642,3 +642,128 @@ def test_public_inherited_overloaded_indexer():
 
     with pytest.raises(TypeError):
         ob[[]]
+
+
+def test_del_settable_indexer_raises_type_error():
+    """`del ob[key]` on a type with a settable indexer but no delete support must raise
+    a catchable TypeError, not crash the process (PythonnetEnterprise GH #167)."""
+    ob = Test.PublicIndexerTest()
+    ob[0] = "zero"
+
+    with pytest.raises(TypeError):
+        del ob[0]
+
+    # The interpreter is alive and the object is untouched and still usable.
+    assert ob[0] == "zero"
+    ob[0] = "one"
+    assert ob[0] == "one"
+
+
+def test_del_multi_arg_indexer_raises_type_error():
+    """Tuple-key counterpart: the multi-parameter setter path must not see the null value."""
+    ob = Test.MultiArgIndexerTest()
+    ob[0, 1] = "zero-one"
+
+    with pytest.raises(TypeError):
+        del ob[0, 1]
+
+    assert ob[0, 1] == "zero-one"
+
+
+def test_del_dictionary_item():
+    """`del d[key]` removes the key via IDictionary<K,V>.Remove; a missing key is a KeyError."""
+    from System.Collections.Generic import Dictionary
+
+    d = Dictionary[str, str]()
+    d["MyKey"] = "MyValue"
+
+    with pytest.raises(KeyError):
+        del d["missing"]
+    assert d.Count == 1
+
+    del d["MyKey"]
+    assert d.Count == 0
+    assert not d.ContainsKey("MyKey")
+
+    with pytest.raises(KeyError):
+        del d["MyKey"]
+
+
+def test_del_dictionary_wrong_key_type():
+    from System.Collections.Generic import Dictionary
+
+    d = Dictionary[str, str]()
+    d["a"] = "b"
+
+    with pytest.raises(TypeError):
+        del d[1]
+
+    assert d.Count == 1
+
+
+def test_del_concurrent_dictionary_item():
+    """ConcurrentDictionary implements IDictionary<K,V>.Remove explicitly (only TryRemove is a
+    public member). It is the type behind QCAlgorithm.RuntimeStatistics in GH #167."""
+    from System.Collections.Concurrent import ConcurrentDictionary
+
+    d = ConcurrentDictionary[str, str]()
+    d["MyKey"] = "MyValue"
+    assert d["MyKey"] == "MyValue"
+
+    del d["MyKey"]
+
+    assert d.Count == 0
+    assert not d.ContainsKey("MyKey")
+
+    with pytest.raises(KeyError):
+        del d["MyKey"]
+
+
+def test_del_list_item():
+    """`del l[i]` removes the element via IList<T>.RemoveAt; out of range surfaces the .NET error."""
+    from System import ArgumentOutOfRangeException
+    from System.Collections.Generic import List
+
+    l = List[str]()
+    l.Add("a")
+    l.Add("b")
+
+    with pytest.raises(ArgumentOutOfRangeException):
+        del l[5]
+    assert l.Count == 2
+
+    del l[0]
+    assert l.Count == 1
+    assert l[0] == "b"
+
+
+def test_del_array_item_raises_type_error():
+    from System import Array
+
+    a = Array[int]([1, 2, 3])
+
+    with pytest.raises(TypeError):
+        del a[0]
+
+    assert a[0] == 1
+
+
+def test_del_on_object_without_indexer_raises_type_error():
+    from System import Uri
+
+    with pytest.raises(TypeError):
+        del Uri("http://www.example.com")[0]
+
+
+def test_throwing_remove_does_not_crash():
+    """A managed Remove that throws must raise a catchable Python exception and leave the
+    interpreter and the object usable."""
+    ob = Test.ThrowingRemoveDictionary()
+    ob["k"] = "v"
+
+    with pytest.raises(Exception) as excinfo:
+        del ob["k"]
+    assert "InvalidOperationException" in type(excinfo.value).__name__
+
+    assert ob.Marker == "alive"
+    assert ob["k"] == "v"

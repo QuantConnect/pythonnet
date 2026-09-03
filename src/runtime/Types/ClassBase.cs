@@ -507,6 +507,13 @@ namespace Python.Runtime
             BorrowedReference tp = Runtime.PyObject_TYPE(ob);
             var cls = (ClassBase)GetManagedObject(tp)!;
 
+            // CPython routes `del ob[key]` through this same slot with a null value. None of the
+            // assignment code below can take a null, so deletion must be handled before anything else.
+            if (v.IsNull)
+            {
+                return DeleteItemImpl(cls, ob, idx);
+            }
+
             if (cls.indexer == null || !cls.indexer.CanSet)
             {
                 Exceptions.SetError(Exceptions.TypeError, "object doesn't support item assignment");
@@ -554,6 +561,44 @@ namespace Python.Runtime
 
             if (Exceptions.ErrorOccurred())
             {
+                return -1;
+            }
+
+            return 0;
+        }
+
+        /// <summary>
+        /// Implements __delitem__ (del ob[key]) for reflected classes: IDictionary&lt;K,V&gt;.Remove or
+        /// IList&lt;T&gt;.RemoveAt through the binder, TypeError for everything else.
+        /// </summary>
+        static int DeleteItemImpl(ClassBase cls, BorrowedReference ob, BorrowedReference idx)
+        {
+            if (cls.indexer == null || !cls.type.Valid || !cls.indexer.CanDelete(cls.type.Value))
+            {
+                Exceptions.SetError(Exceptions.TypeError, "object doesn't support item deletion");
+                return -1;
+            }
+
+            if (Runtime.PyTuple_Check(idx))
+            {
+                Exceptions.SetError(Exceptions.TypeError, "object doesn't support multi-index item deletion");
+                return -1;
+            }
+
+            using var args = Runtime.PyTuple_New(1);
+            Runtime.PyTuple_SetItem(args.Borrow(), 0, idx);
+
+            // The binder converts the key and turns a managed exception into a Python error.
+            using var result = cls.indexer.DeleteItem(ob, args.Borrow());
+            if (result.IsNull() || Exceptions.ErrorOccurred())
+            {
+                return -1;
+            }
+
+            // IDictionary<K,V>.Remove reports a missing key by returning false; match dict semantics.
+            if (result.Borrow() == Runtime.PyFalse)
+            {
+                Exceptions.SetError(Exceptions.KeyError, idx);
                 return -1;
             }
 

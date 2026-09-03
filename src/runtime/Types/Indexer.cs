@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 namespace Python.Runtime
@@ -11,11 +13,13 @@ namespace Python.Runtime
     {
         public MethodBinder GetterBinder;
         public MethodBinder SetterBinder;
+        public MethodBinder DeleterBinder;
 
         public Indexer()
         {
             GetterBinder = new MethodBinder();
             SetterBinder = new MethodBinder();
+            DeleterBinder = new MethodBinder();
         }
 
 
@@ -27,6 +31,24 @@ namespace Python.Runtime
         public bool CanSet
         {
             get { return SetterBinder.Count > 0; }
+        }
+
+        // The deleter is resolved on the first `del`: most types are never deleted from, so the
+        // interface walk only runs for the ones that are. Called under the GIL, like the slot itself.
+        [NonSerialized] private bool _deleterResolved;
+
+        public bool CanDelete(Type type)
+        {
+            if (!_deleterResolved)
+            {
+                _deleterResolved = true;
+                DeleterBinder ??= new MethodBinder();
+                if (DeleterBinder.Count == 0)
+                {
+                    ResolveDeleter(type);
+                }
+            }
+            return DeleterBinder.Count > 0;
         }
 
 
@@ -53,6 +75,54 @@ namespace Python.Runtime
         internal void SetItem(BorrowedReference inst, BorrowedReference args)
         {
             SetterBinder.Invoke(inst, args, null);
+        }
+
+        /// <summary>
+        /// Resolves the method behind <c>del ob[key]</c>: IDictionary&lt;K,V&gt;.Remove(K), else
+        /// IList&lt;T&gt;.RemoveAt(int). Types with neither don't support item deletion.
+        /// </summary>
+        private void ResolveDeleter(Type type)
+        {
+            // Bind the interface method itself, not a member looked up by name: explicit implementations
+            // (e.g. ConcurrentDictionary.Remove, which only exposes TryRemove publicly) are reached this way.
+            var interfaces = type.GetInterfaces().AsEnumerable();
+            if (type.IsInterface)
+            {
+                interfaces = interfaces.Prepend(type);
+            }
+
+            foreach (var iface in interfaces)
+            {
+                if (iface.IsConstructedGenericType && iface.GetGenericTypeDefinition() == typeof(IDictionary<,>))
+                {
+                    var remove = iface.GetMethod(nameof(IDictionary<int, int>.Remove), new[] { iface.GetGenericArguments()[0] });
+                    if (remove != null)
+                    {
+                        DeleterBinder.AddMethod(remove, true);
+                    }
+                }
+            }
+            if (DeleterBinder.Count > 0)
+            {
+                return;
+            }
+
+            foreach (var iface in interfaces)
+            {
+                if (iface.IsConstructedGenericType && iface.GetGenericTypeDefinition() == typeof(IList<>))
+                {
+                    var removeAt = iface.GetMethod(nameof(IList<int>.RemoveAt), new[] { typeof(int) });
+                    if (removeAt != null)
+                    {
+                        DeleterBinder.AddMethod(removeAt, true);
+                    }
+                }
+            }
+        }
+
+        internal NewReference DeleteItem(BorrowedReference inst, BorrowedReference args)
+        {
+            return DeleterBinder.Invoke(inst, args, null);
         }
 
         internal bool NeedsDefaultArgs(BorrowedReference args)
