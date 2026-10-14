@@ -10,6 +10,7 @@ This document follows the conventions laid out in [Keep a CHANGELOG][].
 ### Added
 
 -   Extension methods declared in non-framework assemblies are bound to the type they extend, so they can be called from the instance like in C# (e.g. `order_status.is_open()`)
+-   Types with an implicit conversion to a numeric type support Python arithmetic, comparisons, `float()` and `int()` through that conversion, unless they declare the operator themselves
 -   Ability to instantiate new .NET arrays using `Array[T](dim1, dim2, ...)` syntax
 -   Python operator method will call C# operator method for supported binary and unary operators ([#1324][p1324]).
 -   Add GetPythonThreadID and Interrupt methods in PythonEngine
