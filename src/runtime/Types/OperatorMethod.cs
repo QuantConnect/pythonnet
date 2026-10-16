@@ -136,25 +136,35 @@ namespace Python.Runtime
         /// </summary>
         public static void RemoveUnboundSlotWrappers(BorrowedReference pyType, Type clrType)
         {
-            var dict = Util.ReadRef(pyType, TypeOffset.tp_dict);
-            var fixedSlots = GetOperatorCandidates(clrType)
-                .Where(method => OpMethodMap.ContainsKey(method.Name))
-                .Select(method => OpMethodMap[method.Name].MethodName)
-                .Distinct();
-            foreach (var pyName in fixedSlots)
+            // best effort: a wrapper left behind only keeps the previous behavior, so nothing here fails the type creation
+            try
             {
-                RemoveSlotWrapper(dict, pyName);
-                RemoveSlotWrapper(dict, ReversePyMethodName(pyName));
+                var dict = Util.ReadRef(pyType, TypeOffset.tp_dict);
+                var fixedSlots = GetOperatorCandidates(clrType)
+                    .Where(method => OpMethodMap.ContainsKey(method.Name))
+                    .Select(method => OpMethodMap[method.Name].MethodName)
+                    .Distinct();
+                foreach (var pyName in fixedSlots)
+                {
+                    RemoveSlotWrapper(dict, pyName);
+                    RemoveSlotWrapper(dict, ReversePyMethodName(pyName));
+                }
+            }
+            catch
+            {
+                // pass
             }
         }
 
         private static void RemoveSlotWrapper(BorrowedReference dict, string name)
         {
             var member = Runtime.PyDict_GetItemString(dict, name);
-            // the CLR operators are managed method objects, anything else was added by PyType_Ready
-            if (!member.IsNull && ManagedType.GetManagedObject(member) == null && Runtime.PyDict_DelItemString(dict, name) != 0)
+            // only the slot wrappers PyType_Ready added, the CLR operators are managed method objects
+            if (!member.IsNull && Runtime.PyObject_TYPE(member) == Runtime.PyWrapperDescriptorType
+                && Runtime.PyDict_DelItemString(dict, name) != 0)
             {
-                throw PythonException.ThrowLastAsClrException();
+                // don't let a failed delete leak, the wrapper just stays
+                Exceptions.Clear();
             }
         }
 

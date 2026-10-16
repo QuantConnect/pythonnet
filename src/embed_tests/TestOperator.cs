@@ -650,5 +650,25 @@ except TypeError:
             Assert.AreEqual("custom", scope.Get<string>("custom"));
             Assert.AreEqual("TypeError", scope.Get<string>("plain"));
         }
+
+        public class ForwardOnlyOperableWithReflectedMethod
+        {
+            public static ForwardOnlyOperableWithReflectedMethod operator +(ForwardOnlyOperableWithReflectedMethod a, ForwardOnlyOperableWithReflectedMethod b) => a;
+
+            // a CLR member named like the reflected method, not a slot wrapper
+            public string __radd__(double other) => "clr";
+        }
+
+        [Test]
+        public void ClrMemberNamedLikeTheReflectedMethodIsKept()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Exec(@"
+from Python.EmbeddingTest import TestOperator
+result = 1.0 + TestOperator.ForwardOnlyOperableWithReflectedMethod()
+");
+            Assert.AreEqual("clr", scope.Get<string>("result"));
+        }
     }
 }
