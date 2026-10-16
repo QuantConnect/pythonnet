@@ -9,6 +9,7 @@ This document follows the conventions laid out in [Keep a CHANGELOG][].
 
 ### Added
 
+-   Extension methods declared in non-framework assemblies are bound to the type they extend, so they can be called from the instance like in C# (e.g. `order_status.is_open()`). Those marked `[EditorBrowsable(EditorBrowsableState.Never)]`, or declared in a class marked so, keep their static form only
 -   Ability to instantiate new .NET arrays using `Array[T](dim1, dim2, ...)` syntax
 -   Python operator method will call C# operator method for supported binary and unary operators ([#1324][p1324]).
 -   Add GetPythonThreadID and Interrupt methods in PythonEngine

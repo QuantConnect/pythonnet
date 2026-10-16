@@ -416,6 +416,17 @@ namespace Python.Runtime
                 }
             }
 
+            // Extension methods are bound as members so they can be called from the instance. A real member with the same name wins, as in C#
+            var extensionMethods = ExtensionMethods.GetMethodsToBind(type).Where(em => !originalMemberNames.Contains(em.Name)).ToArray();
+            if (extensionMethods.Length > 0)
+            {
+                foreach (var em in extensionMethods)
+                {
+                    local.Add(em.Name);
+                }
+                info = info.Concat(extensionMethods).ToArray();
+            }
+
             // Now again to filter w/o losing overloaded member info
             for (i = 0; i < info.Length; i++)
             {

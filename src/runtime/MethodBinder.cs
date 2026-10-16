@@ -534,6 +534,17 @@ namespace Python.Runtime
                     pi = pi.Take(1).ToArray();
                 }
 
+                // An extension method called through an instance gets the instance as its first CLR argument
+                bool isExtension = inst != null && methodInformation.IsExtension;
+                if (isExtension)
+                {
+                    pi = pi.Skip(1).ToArray();
+                    if (hasNamedArgs)
+                    {
+                        paramNames = paramNames.Skip(1).ToArray();
+                    }
+                }
+
                 // Must be done after IsOperator section
                 int clrArgCount = pi.Length;
 
@@ -773,6 +784,15 @@ namespace Python.Runtime
                             }
                             else continue;
                         }
+                    }
+
+                    if (isExtension)
+                    {
+                        if (ManagedType.GetManagedObject(inst) is CLRObject co)
+                        {
+                            margs = new[] { co.inst }.Concat(margs).ToArray();
+                        }
+                        else continue;
                     }
 
                     var match = new MatchedMethod(kwargsMatched, margs, outs, methodInformation, implicitConversions);
@@ -1238,8 +1258,11 @@ namespace Python.Runtime
         {
             private ParameterInfo[] _parameterInfo;
             private string[] _parametersNames;
+            private bool? _isExtension;
 
             public MethodBase MethodBase { get; }
+
+            public bool IsExtension => _isExtension ??= ExtensionMethods.IsExtensionMethod(MethodBase);
 
             public bool IsOriginal { get; set; }
 
