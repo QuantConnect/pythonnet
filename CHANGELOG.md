@@ -92,7 +92,6 @@ Instead, `PyIterable` does that.
 
 ### Fixed
 
--   An operation a type supports in one direction only, like `1.0 + x` when `x` only declares `x + x`, raises `TypeError` instead of recursing until `RecursionError`
 -   Fix incorrect dereference of wrapper object in `tp_repr`, which may result in a program crash
 -   Fixed parameterless .NET constructor being silently called when a matching constructor overload is not found ([#238][i238])
 -   Fix incorrect dereference in params array handling
