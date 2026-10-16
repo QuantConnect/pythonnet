@@ -550,5 +550,105 @@ c = a >> b.Num
 assert c.Num == a.Num >> b.Num
 ");
         }
+
+        public class ForwardOnlyOperable
+        {
+            public static ForwardOnlyOperable operator +(ForwardOnlyOperable a, ForwardOnlyOperable b) => a;
+        }
+
+        public class ReverseOnlyOperable
+        {
+            public static ReverseOnlyOperable operator +(double a, ReverseOnlyOperable b) => b;
+        }
+
+        [Flags]
+        public enum OperableFlags
+        {
+            A = 1,
+            B = 2
+        }
+
+        private const string OperationErrors = @"
+def error(operation):
+    try:
+        operation()
+    except Exception as e:
+        return type(e).__name__
+";
+
+        [Test]
+        public void UnsupportedReflectedOperationRaisesTypeError()
+        {
+            // the reflected operation has no CLR overload, it used to recurse until RecursionError
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Exec(OperationErrors + @"
+from Python.EmbeddingTest import TestOperator
+x = TestOperator.ForwardOnlyOperable()
+supported = error(lambda: x + x), error(lambda: x.__add__(x))
+unsupported = error(lambda: 1.0 + x), error(lambda: 1 + x), error(lambda: sum([x])), error(lambda: x + 1.0)
+has_reflected = hasattr(x, '__radd__')
+");
+            Assert.AreEqual(new string[] { null, null }, scope.Get<string[]>("supported"));
+            CollectionAssert.AreEqual(new[] { "TypeError", "TypeError", "TypeError", "TypeError" }, scope.Get<string[]>("unsupported"));
+            Assert.IsFalse(scope.Get<bool>("has_reflected"));
+        }
+
+        [Test]
+        public void UnsupportedForwardOperationRaisesTypeError()
+        {
+            // the forward operation has no CLR overload, it used to recurse until RecursionError
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Exec(OperationErrors + @"
+from Python.EmbeddingTest import TestOperator
+y = TestOperator.ReverseOnlyOperable()
+supported = error(lambda: 1.0 + y)
+unsupported = error(lambda: y + 1.0), error(lambda: y + y)
+has_forward = hasattr(y, '__add__')
+");
+            Assert.IsNull(scope.Get<string>("supported"));
+            CollectionAssert.AreEqual(new[] { "TypeError", "TypeError" }, scope.Get<string[]>("unsupported"));
+            Assert.IsFalse(scope.Get<bool>("has_forward"));
+        }
+
+        [Test]
+        public void UnsupportedReflectedFlagsOperationRaisesTypeError()
+        {
+            // the [Flags] bitwise operators are forward only
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Exec(OperationErrors + @"
+from Python.EmbeddingTest import TestOperator
+flags = TestOperator.OperableFlags.A | TestOperator.OperableFlags.B
+supported = error(lambda: flags & TestOperator.OperableFlags.A)
+unsupported = error(lambda: 1 & flags), error(lambda: 1 | flags)
+");
+            Assert.IsNull(scope.Get<string>("supported"));
+            CollectionAssert.AreEqual(new[] { "TypeError", "TypeError" }, scope.Get<string[]>("unsupported"));
+        }
+
+        [Test]
+        public void PythonSubclassCanStillDefineTheReflectedOperation()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Exec(@"
+from Python.EmbeddingTest import TestOperator
+class Custom(TestOperator.ForwardOnlyOperable):
+    def __radd__(self, other):
+        return 'custom'
+class Plain(TestOperator.ForwardOnlyOperable):
+    pass
+custom = 1.0 + Custom()
+try:
+    1.0 + Plain()
+    plain = None
+except TypeError:
+    plain = 'TypeError'
+");
+            Assert.AreEqual("custom", scope.Get<string>("custom"));
+            Assert.AreEqual("TypeError", scope.Get<string>("plain"));
+        }
     }
 }

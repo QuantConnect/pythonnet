@@ -127,6 +127,37 @@ namespace Python.Runtime
             }
         }
 
+        /// <summary>
+        /// PyType_Ready adds a slot wrapper for the forward and the reflected method of every number slot
+        /// <see cref="FixupSlots"/> set (__add__ and __radd__ for nb_add) the type does not define. With no CLR
+        /// overload behind them they call the very slot that dispatched to them, so an operation the type does
+        /// not support, like 1.0 + x when x only declares x + x, recursed until RecursionError. Removing them
+        /// lets the slot return NotImplemented, so Python raises its usual TypeError.
+        /// </summary>
+        public static void RemoveUnboundSlotWrappers(BorrowedReference pyType, Type clrType)
+        {
+            var dict = Util.ReadRef(pyType, TypeOffset.tp_dict);
+            var fixedSlots = GetOperatorCandidates(clrType)
+                .Where(method => OpMethodMap.ContainsKey(method.Name))
+                .Select(method => OpMethodMap[method.Name].MethodName)
+                .Distinct();
+            foreach (var pyName in fixedSlots)
+            {
+                RemoveSlotWrapper(dict, pyName);
+                RemoveSlotWrapper(dict, ReversePyMethodName(pyName));
+            }
+        }
+
+        private static void RemoveSlotWrapper(BorrowedReference dict, string name)
+        {
+            var member = Runtime.PyDict_GetItemString(dict, name);
+            // the CLR operators are managed method objects, anything else was added by PyType_Ready
+            if (!member.IsNull && ManagedType.GetManagedObject(member) == null && Runtime.PyDict_DelItemString(dict, name) != 0)
+            {
+                throw PythonException.ThrowLastAsClrException();
+            }
+        }
+
         static IEnumerable<MethodInfo> GetOperatorCandidates(Type clrType)
         {
             const BindingFlags flags = BindingFlags.Public | BindingFlags.Static;
