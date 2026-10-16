@@ -417,8 +417,8 @@ namespace Python.Runtime
             }
             else if (ImplicitNumericOps.IsSupported(type))
             {
-                // Types with an implicit numeric conversion get Python's number protocol, keeping the operators they declare themselves
-                var ops = ImplicitNumericOps.GetMethods(type).Where(op => !local.Contains(op.Name)).ToArray();
+                // Types with an implicit numeric conversion get Python's number protocol, keeping the operators they declare or inherit
+                var ops = ImplicitNumericOps.GetMethods(type);
                 foreach (var op in ops)
                 {
                     local.Add(op.Name);
