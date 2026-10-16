@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using NUnit.Framework;
 using Python.Runtime;
@@ -72,6 +73,19 @@ namespace Python.EmbeddingTest
         public static T Identity<T>(this T value) => value;
 
         public static string Twice(this string value) => value + value;
+
+        // hidden from IntelliSense, so not advertised on the instance either
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static string Hidden(this ExtendedModel model) => "hidden";
+
+        [EditorBrowsable(EditorBrowsableState.Advanced)]
+        public static string Advanced(this ExtendedModel model) => "advanced";
+    }
+
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static class HiddenExtendedModelExtensions
+    {
+        public static string HiddenByClass(this ExtendedModel model) => "hidden by class";
     }
 
     public class TestExtensionMethods
@@ -128,6 +142,12 @@ def framework_targets():
 
 def open_generic_not_bound():
     return hasattr(ExtendedModel(), 'identity')
+
+def editor_browsable():
+    model = ExtendedModel()
+    bound = hasattr(model, 'hidden'), hasattr(model, 'hidden_by_class'), model.advanced()
+    static = ExtendedModelExtensions.hidden(model), HiddenExtendedModelExtensions.hidden_by_class(model)
+    return bound, static
 
 def python_native_not_bound():
     return hasattr('ab', 'twice'), ExtendedModelExtensions.twice('ab')
@@ -236,6 +256,18 @@ def python_native_not_bound():
         {
             using var _ = Py.GIL();
             Assert.IsFalse((bool)module.open_generic_not_bound());
+        }
+
+        [Test]
+        public void EditorBrowsableNeverKeepsTheStaticFormOnly()
+        {
+            using var _ = Py.GIL();
+            var result = module.editor_browsable();
+            Assert.IsFalse((bool)result[0][0]);
+            Assert.IsFalse((bool)result[0][1]);
+            Assert.AreEqual("advanced", (string)result[0][2]);
+            Assert.AreEqual("hidden", (string)result[1][0]);
+            Assert.AreEqual("hidden by class", (string)result[1][1]);
         }
 
         [Test]

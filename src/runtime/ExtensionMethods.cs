@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -50,7 +51,7 @@ namespace Python.Runtime
             foreach (var type in exportedTypes)
             {
                 // extension methods can only live in non-generic static classes
-                if (!type.IsAbstract || !type.IsSealed || type.IsGenericType || !type.IsDefined(typeof(ExtensionAttribute), false))
+                if (!type.IsAbstract || !type.IsSealed || type.IsGenericType || !type.IsDefined(typeof(ExtensionAttribute), false) || IsHidden(type))
                 {
                     continue;
                 }
@@ -63,7 +64,7 @@ namespace Python.Runtime
                     }
 
                     var extendedType = method.GetParameters()[0].ParameterType;
-                    if (!IsBindableTarget(extendedType))
+                    if (!IsBindableTarget(extendedType) || IsHidden(method))
                     {
                         continue;
                     }
@@ -145,6 +146,16 @@ namespace Python.Runtime
                 return true;
             }
             return type.IsGenericType && type.GetGenericArguments().Any(IsBindableTarget);
+        }
+
+        /// <summary>
+        /// [EditorBrowsable(Never)] hides a member from IntelliSense while keeping it callable, so it is not advertised
+        /// on the instances either: hidden extension methods, or all those of a hidden class, keep their static form only
+        /// </summary>
+        private static bool IsHidden(MemberInfo member)
+        {
+            return member.IsDefined(typeof(EditorBrowsableAttribute), false)
+                && member.GetCustomAttribute<EditorBrowsableAttribute>(false)!.State == EditorBrowsableState.Never;
         }
 
         private static bool IsFrameworkAssembly(Assembly assembly)
