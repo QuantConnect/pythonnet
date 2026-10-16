@@ -295,6 +295,7 @@ namespace Python.Runtime
             {
                 throw PythonException.ThrowLastAsClrException();
             }
+            OperatorMethod.RemoveUnboundSlotWrappers(type, clrType);
 
             var dict = Util.ReadRef(type, TypeOffset.tp_dict);
             string mn = clrType.Namespace ?? "";
