@@ -14,6 +14,8 @@ namespace Python.Runtime
     internal static class ExtensionMethods
     {
         private static readonly ConcurrentDictionary<Type, List<MethodInfo>> _methodsByExtendedType = new();
+        private static readonly ConcurrentDictionary<Assembly, bool> _isFrameworkAssembly = new();
+        private static volatile bool _hasInterfaceTargets;
 
         // The framework ships thousands of extension methods (LINQ above all); binding them onto
         // every collection would bloat each class, so only user assemblies are indexed.
@@ -25,6 +27,8 @@ namespace Python.Runtime
         internal static void Clear()
         {
             _methodsByExtendedType.Clear();
+            _isFrameworkAssembly.Clear();
+            _hasInterfaceTargets = false;
         }
 
         internal static bool IsExtensionMethod(MethodBase method)
@@ -37,7 +41,8 @@ namespace Python.Runtime
         /// </summary>
         internal static void Register(Assembly assembly, IEnumerable<Type> exportedTypes)
         {
-            if (IsFrameworkAssembly(assembly))
+            // The compiler marks the assemblies declaring extension methods, C# itself skips the unmarked ones
+            if (IsFrameworkAssembly(assembly) || !assembly.IsDefined(typeof(ExtensionAttribute), false))
             {
                 return;
             }
@@ -58,10 +63,14 @@ namespace Python.Runtime
                     }
 
                     var extendedType = method.GetParameters()[0].ParameterType;
-                    // The binder cannot infer open generic targets (this T, this IEnumerable<T>) from the instance
-                    if (extendedType.ContainsGenericParameters || extendedType.IsByRef)
+                    if (!IsBindableTarget(extendedType))
                     {
                         continue;
+                    }
+
+                    if (extendedType.IsInterface)
+                    {
+                        _hasInterfaceTargets = true;
                     }
 
                     var methods = _methodsByExtendedType.GetOrAdd(extendedType, _ => new List<MethodInfo>());
@@ -77,38 +86,74 @@ namespace Python.Runtime
         /// Gets the extension methods to bind to the given type: those extending the type itself and the
         /// interfaces it introduces. Extensions of base classes are inherited through the Python type hierarchy.
         /// </summary>
-        internal static List<MethodInfo> GetMethodsToBind(Type type)
+        internal static IReadOnlyList<MethodInfo> GetMethodsToBind(Type type)
         {
-            var result = new List<MethodInfo>();
-            AddMethods(type, result);
+            List<MethodInfo>? result = null;
+            AddMethods(type, ref result);
 
-            if (!type.IsInterface)
+            if (_hasInterfaceTargets && !type.IsInterface)
             {
-                var baseInterfaces = type.BaseType?.GetInterfaces() ?? Type.EmptyTypes;
-                foreach (var @interface in type.GetInterfaces().Except(baseInterfaces))
+                Type[]? baseInterfaces = null;
+                foreach (var @interface in type.GetInterfaces())
                 {
-                    AddMethods(@interface, result);
+                    if (!_methodsByExtendedType.ContainsKey(@interface))
+                    {
+                        continue;
+                    }
+
+                    baseInterfaces ??= type.BaseType?.GetInterfaces() ?? Type.EmptyTypes;
+                    if (Array.IndexOf(baseInterfaces, @interface) < 0)
+                    {
+                        AddMethods(@interface, ref result);
+                    }
                 }
             }
 
-            return result;
+            return result ?? (IReadOnlyList<MethodInfo>)Array.Empty<MethodInfo>();
         }
 
-        private static void AddMethods(Type extendedType, List<MethodInfo> result)
+        private static void AddMethods(Type extendedType, ref List<MethodInfo>? result)
         {
             if (_methodsByExtendedType.TryGetValue(extendedType, out var methods))
             {
                 lock (methods)
                 {
-                    result.AddRange(methods);
+                    (result ??= new List<MethodInfo>()).AddRange(methods);
                 }
             }
         }
 
+        /// <summary>
+        /// Whether the extension methods of the given type should be bound to its instances. The binder cannot
+        /// infer open generic targets (this T, this IEnumerable&lt;T&gt;) from the instance. Targets made only of
+        /// framework types (object, IEnumerable, double[], List&lt;int&gt;) are shared by countless classes, which
+        /// would all be bloated with them (Accord.Math alone extends each primitive array with ~600 methods),
+        /// so those keep their static form only.
+        /// </summary>
+        private static bool IsBindableTarget(Type type)
+        {
+            if (type.IsByRef || type.ContainsGenericParameters)
+            {
+                return false;
+            }
+            if (type.HasElementType)
+            {
+                return IsBindableTarget(type.GetElementType()!);
+            }
+            if (!IsFrameworkAssembly(type.Assembly))
+            {
+                return true;
+            }
+            return type.IsGenericType && type.GetGenericArguments().Any(IsBindableTarget);
+        }
+
         private static bool IsFrameworkAssembly(Assembly assembly)
         {
-            var name = assembly.GetName().Name ?? string.Empty;
-            return _frameworkAssemblyPrefixes.Any(prefix => name == prefix || name.StartsWith(prefix + ".", StringComparison.Ordinal));
+            return _isFrameworkAssembly.GetOrAdd(assembly, a =>
+            {
+                var name = a.GetName().Name ?? string.Empty;
+                return _frameworkAssemblyPrefixes.Any(prefix => name == prefix || name.StartsWith(prefix + ".", StringComparison.Ordinal));
+            });
         }
     }
 }

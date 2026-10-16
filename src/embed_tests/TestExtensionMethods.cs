@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
@@ -28,6 +30,13 @@ namespace Python.EmbeddingTest
         public double Side => 2;
     }
 
+    public class DisposableExtendedModel : ExtendedModel, IDisposable
+    {
+        public void Dispose()
+        {
+        }
+    }
+
     public static class ExtendedStatusExtensions
     {
         public static bool IsOpen(this ExtendedStatus status) => status == ExtendedStatus.Open;
@@ -45,7 +54,20 @@ namespace Python.EmbeddingTest
 
         public static double Area(this IExtendedShape shape) => shape.Side * shape.Side;
 
+        public static int CountModels(this List<ExtendedModel> models) => models.Count;
+
+        public static string Names(this IEnumerable<ExtendedModel> models) => string.Join(",", models.Select(model => model.Name));
+
+        // targets made only of framework types are not bound, they would bloat every class sharing them
         public static int Total(this List<int> values) => values.Sum();
+
+        public static double SumAll(this double[] values) => values.Sum();
+
+        public static string Tag(this object value) => "tag";
+
+        public static int CountItems(this IEnumerable values) => values.Cast<object>().Count();
+
+        public static bool Release(this IDisposable disposable) => true;
 
         public static T Identity<T>(this T value) => value;
 
@@ -60,7 +82,9 @@ namespace Python.EmbeddingTest
 from clr import AddReference
 AddReference(""System"")
 AddReference(""Python.EmbeddingTest"")
+from System import Array
 from System.Collections.Generic import List
+from System.Text import StringBuilder
 from Python.EmbeddingTest import *
 
 def enum_instance():
@@ -85,10 +109,22 @@ def member_wins():
     return ExtendedModel().existing()
 
 def closed_generic():
+    models = List[ExtendedModel]()
+    models.Add(ExtendedModel())
+    models.Add(ExtendedModel())
+    return models.count_models(), models.names()
+
+def framework_targets():
     values = List[int]()
     values.Add(1)
     values.Add(2)
-    return values.total()
+    array = Array[float]([1.5, 2.5])
+    bound = (hasattr(values, 'total'), hasattr(array, 'sum_all'), hasattr(ExtendedModel(), 'tag'),
+        hasattr(StringBuilder(), 'tag'), hasattr(values, 'count_items'), hasattr(DisposableExtendedModel(), 'release'))
+    static = (ExtendedModelExtensions.total(values), ExtendedModelExtensions.sum_all(array),
+        ExtendedModelExtensions.tag(ExtendedModel()), ExtendedModelExtensions.count_items(values),
+        ExtendedModelExtensions.release(DisposableExtendedModel()))
+    return bound, static
 
 def open_generic_not_bound():
     return hasattr(ExtendedModel(), 'identity')
@@ -168,10 +204,31 @@ def python_native_not_bound():
         }
 
         [Test]
-        public void ClosedGenericTargetIsBound()
+        public void ClosedGenericTargetOverAUserTypeIsBound()
         {
             using var _ = Py.GIL();
-            Assert.AreEqual(3, (int)module.closed_generic());
+            var result = module.closed_generic();
+            Assert.AreEqual(2, (int)result[0]);
+            Assert.AreEqual("model,model", (string)result[1]);
+        }
+
+        [Test]
+        public void FrameworkOnlyTargetsKeepTheStaticFormOnly()
+        {
+            using var _ = Py.GIL();
+            var result = module.framework_targets();
+            var bound = result[0];
+            for (var i = 0; i < 6; i++)
+            {
+                Assert.IsFalse((bool)bound[i], $"index {i}");
+            }
+
+            var staticForms = result[1];
+            Assert.AreEqual(3, (int)staticForms[0]);
+            Assert.AreEqual(4.0, (double)staticForms[1]);
+            Assert.AreEqual("tag", (string)staticForms[2]);
+            Assert.AreEqual(2, (int)staticForms[3]);
+            Assert.IsTrue((bool)staticForms[4]);
         }
 
         [Test]
