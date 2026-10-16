@@ -415,6 +415,27 @@ namespace Python.Runtime
                     info = info.Concat(opsImpl.GetMethods(OpsHelper.BindingFlags)).ToArray();
                 }
             }
+            else if (ImplicitNumericOps.IsSupported(type))
+            {
+                // Types with an implicit numeric conversion get Python's number protocol, keeping the operators they declare or inherit
+                var ops = ImplicitNumericOps.GetMethods(type);
+                foreach (var op in ops)
+                {
+                    local.Add(op.Name);
+                }
+                info = info.Concat(ops).ToArray();
+            }
+
+            // Extension methods are bound as members so they can be called from the instance. A real member with the same name wins, as in C#
+            var extensionMethods = ExtensionMethods.GetMethodsToBind(type).Where(em => !originalMemberNames.Contains(em.Name)).ToArray();
+            if (extensionMethods.Length > 0)
+            {
+                foreach (var em in extensionMethods)
+                {
+                    local.Add(em.Name);
+                }
+                info = info.Concat(extensionMethods).ToArray();
+            }
 
             // Now again to filter w/o losing overloaded member info
             for (i = 0; i < info.Length; i++)

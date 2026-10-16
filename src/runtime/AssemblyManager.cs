@@ -62,6 +62,7 @@ namespace Python.Runtime
             // test/usage after the first init cycle. Clear so the scan runs fresh.
             assembliesNamesCache.Clear();
             assemblies.Clear();
+            ExtensionMethods.Clear();
 
             AppDomain domain = AppDomain.CurrentDomain;
 
@@ -356,7 +357,8 @@ namespace Python.Runtime
             // gather a list of all of the namespaces contributed to by
             // the assembly.
 
-            foreach (Type t in GetTypes(assembly))
+            var types = GetTypes(assembly);
+            foreach (Type t in types)
             {
                 string ns = t.Namespace ?? "";
                 if (!namespaces.ContainsKey(ns))
@@ -383,6 +385,8 @@ namespace Python.Runtime
                     GenericUtil.Register(t);
                 }
             }
+
+            ExtensionMethods.Register(assembly, types);
         }
 
         public static AssemblyName[] ListAssemblies()
