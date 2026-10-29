@@ -35,7 +35,7 @@
         <PackagePath>contentFiles/any/any/</PackagePath>
         <PackageCopyToOutput>true</PackageCopyToOutput>
       </TfmSpecificPackageFile>
-      <TfmSpecificPackageFile Include="../../pythonnet/**">
+      <TfmSpecificPackageFile Include="../../pythonnet/**" Exclude="../../pythonnet/**/.*">
         <PackagePath>contentFiles/any/any/pythonnet</PackagePath>
         <PackageCopyToOutput>true</PackageCopyToOutput>
       </TfmSpecificPackageFile>
