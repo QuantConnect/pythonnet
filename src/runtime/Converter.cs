@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
+using System.Threading;
 
 using Python.Runtime.Native;
 using System.Linq;
@@ -149,7 +150,7 @@ class datetime(_datetime):
                 var result = Runtime.PyObject_GetAttrString(dateTimeSubclassMod, "datetime").MoveToPyObject();
                 PythonException.ThrowIfIsNull(result);
                 return result;
-            });
+            }, LazyThreadSafetyMode.PublicationOnly);
 
             timeSpanCtor = Runtime.PyObject_GetAttrString(dateTimeMod.Borrow(), "timedelta").MoveToPyObject();
             PythonException.ThrowIfIsNull(timeSpanCtor);
@@ -172,7 +173,7 @@ class GMT(tzinfo):
                 var result = Runtime.PyObject_GetAttrString(tzInfoMod, "GMT").MoveToPyObject();
                 PythonException.ThrowIfIsNull(result);
                 return result;
-            });
+            }, LazyThreadSafetyMode.PublicationOnly);
 
             pyTupleNoKind = Runtime.PyTuple_New(7).MoveToPyObject();
             pyTupleKind = Runtime.PyTuple_New(8).MoveToPyObject();

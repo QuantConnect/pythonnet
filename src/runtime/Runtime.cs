@@ -244,7 +244,7 @@ namespace Python.Runtime
                 var op = PyObject_CallObject(decimalCtor.BorrowNullable(), BorrowedReference.Null).MoveToPyObject();
                 SetPyMemberTypeOf(out var result, op);
                 return result;
-            });
+            }, LazyThreadSafetyMode.PublicationOnly);
 
             _PyObject_NextNotImplemented = Get_PyObject_NextNotImplemented();
             {

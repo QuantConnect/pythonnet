@@ -94,6 +94,7 @@ Instead, `PyIterable` does that.
 
 ### Fixed
 
+-   Fix deadlock when several threads holding the GIL first resolve the Python `Decimal`, `datetime` or `tzinfo` types at the same time
 -   Fix incorrect dereference of wrapper object in `tp_repr`, which may result in a program crash
 -   Fixed parameterless .NET constructor being silently called when a matching constructor overload is not found ([#238][i238])
 -   Fix incorrect dereference in params array handling
