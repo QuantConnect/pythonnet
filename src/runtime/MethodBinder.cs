@@ -470,11 +470,17 @@ namespace Python.Runtime
         /// </summary>
         internal Binding Bind(BorrowedReference inst, BorrowedReference args, BorrowedReference kw)
         {
-            return Bind(inst, args, kw, null);
+            return Bind(inst, args, kw, null, out _);
         }
 
-        internal Binding Bind(BorrowedReference inst, BorrowedReference args, BorrowedReference kw, MethodBase info)
+        /// <param name="conversionError">
+        /// When no overload matches, receives why the last argument conversion attempted failed,
+        /// if converting it threw (e.g. a throwing implicit operator)
+        /// </param>
+        internal Binding Bind(BorrowedReference inst, BorrowedReference args, BorrowedReference kw, MethodBase info, out string? conversionError)
         {
+            conversionError = null;
+
             // If we have KWArgs create dictionary and collect them.
             // An empty kwargs dict (e.g. calling with **{}) is equivalent to no kwargs at all,
             // so we only create the dictionary if there are actual keyword arguments,
@@ -597,6 +603,8 @@ namespace Python.Runtime
                             }
                         }
 
+                        // Only a conversion that rejects the last candidate tried explains why nothing matched
+                        conversionError = null;
                         NewReference tempObject = default;
 
                         // At this point, if op is IntPtr.Zero we don't have a KWArg and are not using default
@@ -687,7 +695,7 @@ namespace Python.Runtime
                                         if (underlyingType == typeof(decimal) || underlyingType == typeof(double))
                                         {
                                             clrtype = parameter.ParameterType;
-                                            typematch = Converter.ToManaged(op, clrtype, out arg, false);
+                                            typematch = Converter.ToManaged(op, clrtype, out arg, false, out _, out conversionError);
                                             if (typematch)
                                             {
                                                 implicitConversions++;
@@ -700,7 +708,7 @@ namespace Python.Runtime
                                         else if (Runtime.PyFloat_Check(op) && argtypecode.IsInteger() && !underlyingType.IsEnum)
                                         {
                                             clrtype = parameter.ParameterType;
-                                            typematch = Converter.ToManaged(op, clrtype, out arg, false);
+                                            typematch = Converter.ToManaged(op, clrtype, out arg, false, out _, out conversionError);
                                             if (typematch)
                                             {
                                                 implicitConversions++;
@@ -745,7 +753,7 @@ namespace Python.Runtime
                             outs++;
                         }
 
-                        if (!Converter.ToManaged(op, clrtype, out arg, false))
+                        if (!Converter.ToManaged(op, clrtype, out arg, false, out _, out conversionError))
                         {
                             tempObject.Dispose();
                             margs = null;
@@ -812,10 +820,8 @@ namespace Python.Runtime
 
             if (matches.Count > 0 || (matchesUsingImplicitConversion != null && matchesUsingImplicitConversion.Count > 0))
             {
-                // A rejected overload's conversion probe may have raised a Python error
-                // even though probing converts with setError: false (e.g. a throwing
-                // implicit operator raises unconditionally so Invoke can surface it as
-                // the failure reason when nothing matches). Once an overload matched,
+                // A rejected overload's conversion probe may have left a Python error
+                // pending (e.g. a raising user decoder). Once an overload matched,
                 // that error must not survive the successful call: CPython would fail
                 // it with "SystemError: ... returned a result with an error set".
                 Exceptions.Clear();
@@ -1027,12 +1033,18 @@ namespace Python.Runtime
 
         internal virtual NewReference Invoke(BorrowedReference inst, BorrowedReference args, BorrowedReference kw, MethodBase info, MethodInfo[] methodinfo)
         {
-            Binding binding = Bind(inst, args, kw, info);
+            Binding binding = Bind(inst, args, kw, info, out var conversionError);
             object result;
             IntPtr ts = IntPtr.Zero;
 
             if (binding == null)
             {
+                // A conversion that threw has a more specific cause than the generic no-match message
+                if (conversionError != null && !Exceptions.ErrorOccurred())
+                {
+                    Exceptions.RaiseTypeError(conversionError);
+                }
+
                 // If we already have an exception pending, don't create a new one
                 if (!Exceptions.ErrorOccurred())
                 {

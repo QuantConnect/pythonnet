@@ -111,6 +111,7 @@ namespace Python.Runtime
             {
                 Exceptions.SetError(Exceptions.TypeError,
                     $"invalid parameter type for sq_contains: should be {Converter.GetTypeByAlias(v)}, found {parameters[0].ParameterType}");
+                return -1;
             }
 
             // If the argument is None, we return false. Python allows using None as key,

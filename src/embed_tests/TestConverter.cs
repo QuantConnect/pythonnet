@@ -718,6 +718,72 @@ from System import Uri
             Exceptions.Clear();
         }
 
+        // The implicit operators of ErroredImplicitConversion throw: the conversion reports why,
+        // and only raises it when asked to set errors
+        [TestCase(true, true)]
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        [TestCase(false, false)]
+        public void ThrowingImplicitConversionOnlyLeavesErrorWhenSettingErrors(bool setError, bool fromClrObject)
+        {
+            using var _ = Py.GIL();
+
+            using var pyValue = fromClrObject ? new TestMethodBinder.ErroredImplicitConversion().ToPython() : "value".ToPython();
+            var targetType = fromClrObject ? typeof(string) : typeof(TestMethodBinder.ErroredImplicitConversion);
+            var expectedError = fromClrObject
+                ? "Failed to implicitly convert Python.EmbeddingTest.TestMethodBinder+ErroredImplicitConversion to System.String"
+                : "Failed to implicitly convert System.String to Python.EmbeddingTest.TestMethodBinder+ErroredImplicitConversion";
+
+            Assert.IsFalse(Converter.ToManaged(pyValue, targetType, out var _, setError, out var _, out var conversionError));
+            Assert.AreEqual(expectedError, conversionError);
+            Assert.AreEqual(setError, Exceptions.ErrorOccurred());
+            if (setError)
+            {
+                var error = PythonException.FetchCurrentRaw();
+                Assert.AreEqual(expectedError, error.Message);
+            }
+        }
+
+        [Test]
+        public void ThrowingImplicitConversionDoesNotLeakFromConvertibleToType()
+        {
+            using var _ = Py.GIL();
+
+            using var pyValue = new TestMethodBinder.ErroredImplicitConversion().ToPython();
+            Assert.Throws<InvalidCastException>(() => ((IConvertible)pyValue).ToType(typeof(string), null));
+            Assert.IsFalse(Exceptions.ErrorOccurred());
+        }
+
+        [Test]
+        public void ThrowingImplicitConversionDoesNotLeakFromDynamicConversion()
+        {
+            using var _ = Py.GIL();
+
+            dynamic pyValue = new TestMethodBinder.ErroredImplicitConversion().ToPython();
+            Assert.Throws<Microsoft.CSharp.RuntimeBinder.RuntimeBinderException>(() => { var converted = (string)pyValue; });
+            Assert.IsFalse(Exceptions.ErrorOccurred());
+            pyValue.Dispose();
+        }
+
+        [Test]
+        public void ThrowingImplicitConversionDoesNotLeakFromArrayContains()
+        {
+            using var _ = Py.GIL();
+
+            var module = PyModule.FromString("ThrowingImplicitConversionArrayContainsModule", @"
+from clr import AddReference
+AddReference('Python.EmbeddingTest')
+from System import Array, String
+from Python.EmbeddingTest import TestMethodBinder
+
+def contains():
+    return TestMethodBinder.ErroredImplicitConversion() in Array[String](['value'])
+");
+            using var contained = module.GetAttr("contains").Invoke();
+            Assert.IsFalse(contained.As<bool>());
+            Assert.IsFalse(Exceptions.ErrorOccurred());
+        }
+
         [TestCase(true)]
         [TestCase(false)]
         public void FailedConversionOfNonClrValueManagedTypesOnlyLeavesErrorWhenSettingErrors(bool setError)

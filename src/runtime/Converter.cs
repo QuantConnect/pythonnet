@@ -479,7 +479,7 @@ class GMT(tzinfo):
             out object? result, bool setError)
         {
             var usedImplicit = false;
-            return ToManaged(value, type, out result, setError, out usedImplicit);
+            return ToManaged(value, type, out result, setError, out usedImplicit, out _);
         }
         /// <summary>
         /// Return a managed object for the given Python object, taking funny
@@ -488,29 +488,37 @@ class GMT(tzinfo):
         /// <param name="value">A Python object</param>
         /// <param name="type">The desired managed type</param>
         /// <param name="result">Receives the managed object</param>
-        /// <param name="setError">If true, call <c>Exceptions.SetError</c> with the reason for failure.</param>
+        /// <param name="setError">
+        /// If true, call <c>Exceptions.SetError</c> with the reason for failure.
+        /// If false, a failed conversion doesn't raise a Python error.
+        /// </param>
+        /// <param name="conversionError">
+        /// Receives why the conversion failed when the value matched the type but converting
+        /// it threw (e.g. a throwing implicit operator), whether or not <paramref name="setError"/> is set
+        /// </param>
         /// <returns>True on success</returns>
         internal static bool ToManaged(BorrowedReference value, Type type,
-            out object? result, bool setError, out bool usedImplicit)
+            out object? result, bool setError, out bool usedImplicit, out string? conversionError)
         {
             if (type.IsByRef)
             {
                 type = type.GetElementType();
             }
-            return Converter.ToManagedValue(value, type, out result, setError, out usedImplicit);
+            return Converter.ToManagedValue(value, type, out result, setError, out usedImplicit, out conversionError);
         }
 
         internal static bool ToManagedValue(BorrowedReference value, Type obType,
             out object result, bool setError)
         {
             var usedImplicit = false;
-            return ToManagedValue(value, obType, out result, setError, out usedImplicit);
+            return ToManagedValue(value, obType, out result, setError, out usedImplicit, out _);
         }
 
         internal static bool ToManagedValue(BorrowedReference value, Type obType,
-            out object? result, bool setError, out bool usedImplicit)
+            out object? result, bool setError, out bool usedImplicit, out string? conversionError)
         {
             usedImplicit = false;
+            conversionError = null;
             if (obType == typeof(PyObject))
             {
                 result = new PyObject(value);
@@ -562,9 +570,11 @@ class GMT(tzinfo):
                             catch
                             {
                                 // Failed to convert using implicit conversion,  must catch the error to stop program from exploding on Linux
-                                // Raised even when setError is false: MethodBinder.Invoke surfaces a pending
-                                // error as the binding failure reason instead of its generic no-match message
-                                Exceptions.RaiseTypeError($"Failed to implicitly convert {type} to {obType}");
+                                conversionError = $"Failed to implicitly convert {type} to {obType}";
+                                if (setError)
+                                {
+                                    Exceptions.RaiseTypeError(conversionError);
+                                }
                                 return false;
                             }
                         }
@@ -587,7 +597,11 @@ class GMT(tzinfo):
 
                     if (!cb.type.Valid)
                     {
-                        Exceptions.SetError(Exceptions.TypeError, cb.type.DeletedMessage);
+                        conversionError = cb.type.DeletedMessage;
+                        if (setError)
+                        {
+                            Exceptions.SetError(Exceptions.TypeError, conversionError);
+                        }
                         return false;
                     }
                     result = cb.type.Value;
@@ -737,7 +751,7 @@ class GMT(tzinfo):
             var underlyingType = Nullable.GetUnderlyingType(obType);
             if (underlyingType != null)
             {
-                return ToManagedValue(value, underlyingType, out result, setError, out usedImplicit);
+                return ToManagedValue(value, underlyingType, out result, setError, out usedImplicit, out conversionError);
             }
 
             TypeCode typeCode = Type.GetTypeCode(obType);
@@ -758,7 +772,7 @@ class GMT(tzinfo):
             var opImplicit = obType.GetMethod("op_Implicit", new[] { obType });
             if (opImplicit != null)
             {
-                if (ToManagedValue(value, opImplicit.ReturnType, out result, setError, out usedImplicit))
+                if (ToManagedValue(value, opImplicit.ReturnType, out result, setError, out usedImplicit, out conversionError))
                 {
                     opImplicit = obType.GetMethod("op_Implicit", new[] { result.GetType() });
                     if (opImplicit != null)
@@ -770,9 +784,11 @@ class GMT(tzinfo):
                         catch
                         {
                             // Failed to convert using implicit conversion,  must catch the error to stop program from exploding on Linux
-                            // Raised even when setError is false: MethodBinder.Invoke surfaces a pending
-                            // error as the binding failure reason instead of its generic no-match message
-                            Exceptions.RaiseTypeError($"Failed to implicitly convert {result.GetType()} to {obType}");
+                            conversionError = $"Failed to implicitly convert {result.GetType()} to {obType}";
+                            if (setError)
+                            {
+                                Exceptions.RaiseTypeError(conversionError);
+                            }
                             return false;
                         }
                     }
@@ -1051,11 +1067,11 @@ class GMT(tzinfo):
                             // references returned through key, dicValue are borrowed.
                             if (Runtime.PyDict_Next(value, out pos, out key, out dicValue) != 0)
                             {
-                                if (!ToManaged(key, typeArguments[0], out var convertedKey, setError, out usedImplicit))
+                                if (!ToManaged(key, typeArguments[0], out var convertedKey, setError, out usedImplicit, out _))
                                 {
                                     goto type_error;
                                 }
-                                if (!ToManaged(dicValue, typeArguments[1], out var convertedValue, setError, out usedImplicit))
+                                if (!ToManaged(dicValue, typeArguments[1], out var convertedValue, setError, out usedImplicit, out _))
                                 {
                                     goto type_error;
                                 }
@@ -1656,8 +1672,7 @@ class GMT(tzinfo):
 
                 if (!Converter.ToManaged(item.Borrow(), elementType, out var obj, setError))
                 {
-                    // some element conversion paths raise even when setError is false
-                    // (e.g. failed implicit operators, deleted types)
+                    // a conversion sub-path may have left an error pending (e.g. a raising user decoder)
                     if (!setError)
                     {
                         Exceptions.Clear();
