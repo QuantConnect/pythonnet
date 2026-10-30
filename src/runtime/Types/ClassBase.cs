@@ -375,6 +375,45 @@ namespace Python.Runtime
                     return reprString is null ? new NewReference(Runtime.PyNone) : Runtime.PyString_FromString(reprString);
                 }
 
+                // show an overridden ToString() so containers of .NET objects print readably: [SPY, AIG].
+                // ValueType.ToString() only returns the type name, so structs without their own keep the default
+                var toStringOwner = instType;
+                if (co.inst is IPythonDerivedType)
+                {
+                    // the generated type of a Python subclass overrides every virtual method, so like
+                    // PythonDerivedType.InvokeMethod only count a ToString the Python class defines
+                    using var pyToString = Runtime.PyObject_GetAttrString(ob, "ToString");
+                    if (pyToString.IsNull())
+                    {
+                        Exceptions.Clear();
+                    }
+                    if (pyToString.IsNull() || GetManagedObject(pyToString.Borrow()) is not null)
+                    {
+                        while (typeof(IPythonDerivedType).IsAssignableFrom(toStringOwner))
+                        {
+                            toStringOwner = toStringOwner.BaseType;
+                        }
+                    }
+                }
+                var toStringType = toStringOwner.GetMethod("ToString", Type.EmptyTypes)?.DeclaringType;
+                if (toStringType != typeof(object) && toStringType != typeof(ValueType))
+                {
+                    string? text = null;
+                    try
+                    {
+                        // enums match their str(), the Python-facing member name
+                        text = co.inst is Enum enumValue ? EnumObject.ToPythonString(enumValue) : co.inst.ToString();
+                    }
+                    catch (Exception)
+                    {
+                        // repr() used to succeed for types whose ToString() throws, keep it that way
+                    }
+                    if (text is not null)
+                    {
+                        return Runtime.PyString_FromString(text);
+                    }
+                }
+
                 //otherwise use the standard object.__repr__(inst)
                 using var args = Runtime.PyTuple_New(1);
                 Runtime.PyTuple_SetItem(args.Borrow(), 0, ob);

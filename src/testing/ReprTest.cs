@@ -68,6 +68,22 @@ namespace Python.Test
 
         }
 
+        public class NullToString
+        {
+            public override string ToString()
+            {
+                return null;
+            }
+        }
+
+        public class ThrowingToString
+        {
+            public override string ToString()
+            {
+                throw new InvalidOperationException("ToString() failed");
+            }
+        }
+
         public class Quux
         {
             public string ToString(string format)
