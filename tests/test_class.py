@@ -45,8 +45,8 @@ def test_class_default_str():
 
 def test_class_default_repr():
     """Test the default __repr__ implementation for managed objects."""
-    s = System.String("this is a test")
-    assert repr(s).startswith("<System.String object")
+    o = System.Object()
+    assert repr(o).startswith("<System.Object object")
 
 
 def test_non_public_class():

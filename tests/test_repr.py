@@ -17,55 +17,47 @@ def test_system_string():
     """Test system string"""
     ob = System.String("hello")
     assert str(ob) == "hello"
-    assert "<System.String object at " in ob.__repr__()
-    assert ob.__repr__().endswith(" [hello]>")
+    assert ob.__repr__() == "hello"
 
 def test_str_only():
     """Test class implementing ToString() but not __repr__()"""
     ob = ReprTest.Bar()
     assert str(ob) == "I implement ToString() but not __repr__()!"
-    assert "<Python.Test.Bar object at " in ob.__repr__()
-    assert ob.__repr__().endswith(" [I implement ToString() but not __repr__()!]>")
+    assert ob.__repr__() == "I implement ToString() but not __repr__()!"
 
 def test_str_only_nested_in_list():
     """Test containers show the ToString() of elements implementing ToString() but not __repr__()"""
     obs = [ReprTest.Bar(), ReprTest.Bar()]
-    assert str(obs).count("[I implement ToString() but not __repr__()!]>") == 2
+    assert str(obs) == "[I implement ToString() but not __repr__()!, I implement ToString() but not __repr__()!]"
 
 def test_no_tostring_override():
     """Test object not overriding ToString() keeps the default repr"""
     ob = System.Object()
     assert repr(ob).startswith("<System.Object object at ")
-    assert repr(ob).endswith(">")
-    assert "[" not in repr(ob)
 
 def test_tostring_returns_null():
     """Test class whose ToString() returns null"""
     ob = ReprTest.NullToString()
     assert "<Python.Test.NullToString object at " in repr(ob)
-    assert "[" not in repr(ob)
 
 def test_tostring_throws():
     """Test class whose ToString() throws"""
     ob = ReprTest.ThrowingToString()
     assert "<Python.Test.ThrowingToString object at " in repr(ob)
-    assert "[" not in repr(ob)
 
 def test_hierarchy1():
     """Test inheritance hierarchy with base & middle class implementing ToString"""
     ob1 = ReprTest.BazBase()
     assert str(ob1) == "Base class implementing ToString()!"
-    assert "<Python.Test.BazBase object at " in ob1.__repr__()
+    assert ob1.__repr__() == "Base class implementing ToString()!"
 
     ob2 = ReprTest.BazMiddle()
     assert str(ob2) == "Middle class implementing ToString()!"
-    assert "<Python.Test.BazMiddle object at " in ob2.__repr__()
-    assert ob2.__repr__().endswith(" [Middle class implementing ToString()!]>")
+    assert ob2.__repr__() == "Middle class implementing ToString()!"
 
     ob3 = ReprTest.Baz()
     assert str(ob3) == "Middle class implementing ToString()!"
-    assert "<Python.Test.Baz object at " in ob3.__repr__()
-    assert ob3.__repr__().endswith(" [Middle class implementing ToString()!]>")
+    assert ob3.__repr__() == "Middle class implementing ToString()!"
 
 def bad_tostring():
     """Test ToString that can't be used by str()"""

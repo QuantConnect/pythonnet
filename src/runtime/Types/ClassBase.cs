@@ -375,35 +375,29 @@ namespace Python.Runtime
                     return reprString is null ? new NewReference(Runtime.PyNone) : Runtime.PyString_FromString(reprString);
                 }
 
+                // show an overridden ToString() so containers of .NET objects print readably: [SPY, AIG]
+                if (instType.GetMethod("ToString", Type.EmptyTypes)?.DeclaringType != typeof(object))
+                {
+                    string? text = null;
+                    try
+                    {
+                        text = co.inst.ToString();
+                    }
+                    catch (Exception)
+                    {
+                        // repr() used to succeed for types whose ToString() throws, keep it that way
+                    }
+                    if (text is not null)
+                    {
+                        return Runtime.PyString_FromString(text);
+                    }
+                }
+
                 //otherwise use the standard object.__repr__(inst)
                 using var args = Runtime.PyTuple_New(1);
                 Runtime.PyTuple_SetItem(args.Borrow(), 0, ob);
                 using var reprFunc = Runtime.PyObject_GetAttr(Runtime.PyBaseObjectType, PyIdentifier.__repr__);
-                var defaultRepr = Runtime.PyObject_Call(reprFunc.Borrow(), args.Borrow(), null);
-                if (defaultRepr.IsNull() || instType.GetMethod("ToString", Type.EmptyTypes)?.DeclaringType == typeof(object))
-                {
-                    return defaultRepr;
-                }
-
-                // like IronPython, show an overridden ToString() so containers of .NET objects print readably:
-                // <QuantConnect.Symbol object at 0x7f9b74b40608 [SPY]>
-                string text;
-                try
-                {
-                    text = co.inst.ToString();
-                }
-                catch (Exception)
-                {
-                    // repr() used to succeed for types whose ToString() throws, keep it that way
-                    return defaultRepr;
-                }
-                if (text is null)
-                {
-                    return defaultRepr;
-                }
-                var defaultReprString = Runtime.GetManagedString(defaultRepr.Borrow());
-                defaultRepr.Dispose();
-                return Runtime.PyString_FromString($"{defaultReprString.Substring(0, defaultReprString.Length - 1)} [{text}]>");
+                return Runtime.PyObject_Call(reprFunc.Borrow(), args.Borrow(), null);
             }
             catch (Exception e)
             {
