@@ -1159,6 +1159,31 @@ def contains(dictionary, key):
             Assert.IsFalse(result);
         }
 
+        [TestCase(typeof(TestKeyValueContainer<string, string>), 1)]
+        [TestCase(typeof(DynamicClassDictionary<string, string>), 1)]
+        // the failed conversion of the key leaves a string behind, which ContainsKey can't take
+        [TestCase(typeof(TestKeyValueContainer<TestMethodBinder.ErroredImplicitConversion, string>), "key")]
+        public void ContainsWithKeyOfWrongTypeRaisesTypeError(Type dictType, object key)
+        {
+            using var _ = Py.GIL();
+
+            var module = PyModule.FromString("ContainsWithKeyOfWrongTypeRaisesTypeError", $@"
+def contains(dictionary, key):
+    try:
+        key in dictionary
+    except TypeError as e:
+        return str(e)
+");
+
+            using var contains = module.GetAttr("contains");
+            using var pyDictionary = Activator.CreateInstance(dictType).ToPython();
+            using var pyKey = key.ToPython();
+
+            var error = contains.Invoke(pyDictionary, pyKey).As<string>();
+            StringAssert.StartsWith("invalid parameter type for sq_contains", error);
+            Assert.IsFalse(Exceptions.ErrorOccurred());
+        }
+
         [TestCaseSource(nameof(IDictionaryContainsTestCases))]
         public void CanCheckIfNoneIsInDictionary(Type dictType)
         {
