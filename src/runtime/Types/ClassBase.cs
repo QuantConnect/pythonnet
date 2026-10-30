@@ -377,7 +377,25 @@ namespace Python.Runtime
 
                 // show an overridden ToString() so containers of .NET objects print readably: [SPY, AIG].
                 // ValueType.ToString() only returns the type name, so structs without their own keep the default
-                var toStringType = instType.GetMethod("ToString", Type.EmptyTypes)?.DeclaringType;
+                var toStringOwner = instType;
+                if (co.inst is IPythonDerivedType)
+                {
+                    // the generated type of a Python subclass overrides every virtual method, so like
+                    // PythonDerivedType.InvokeMethod only count a ToString the Python class defines
+                    using var pyToString = Runtime.PyObject_GetAttrString(ob, "ToString");
+                    if (pyToString.IsNull())
+                    {
+                        Exceptions.Clear();
+                    }
+                    if (pyToString.IsNull() || GetManagedObject(pyToString.Borrow()) is not null)
+                    {
+                        while (typeof(IPythonDerivedType).IsAssignableFrom(toStringOwner))
+                        {
+                            toStringOwner = toStringOwner.BaseType;
+                        }
+                    }
+                }
+                var toStringType = toStringOwner.GetMethod("ToString", Type.EmptyTypes)?.DeclaringType;
                 if (toStringType != typeof(object) && toStringType != typeof(ValueType))
                 {
                     string? text = null;

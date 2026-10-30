@@ -44,6 +44,24 @@ def test_struct_without_tostring_override():
     assert repr(ob).startswith("<System.Collections.Generic.List")
     assert " object at " in repr(ob)
 
+def test_namespace_subclass():
+    """Test Python subclasses with a __namespace__ only show a ToString() that is actually overridden"""
+    class ReprPlainNs(System.Object):
+        __namespace__ = "ReprTestNs"
+
+    class ReprBarNs(ReprTest.Bar):
+        __namespace__ = "ReprTestNs"
+
+    class ReprOverrideNs(System.Object):
+        __namespace__ = "ReprTestNs"
+
+        def ToString(self):
+            return "I implement ToString() in Python!"
+
+    assert " object at " in repr(ReprPlainNs())
+    assert repr(ReprBarNs()) == "I implement ToString() but not __repr__()!"
+    assert repr(ReprOverrideNs()) == "I implement ToString() in Python!"
+
 def test_no_tostring_override():
     """Test object not overriding ToString() keeps the default repr"""
     ob = System.Object()
