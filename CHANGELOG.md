@@ -10,6 +10,7 @@ This document follows the conventions laid out in [Keep a CHANGELOG][].
 ### Added
 
 -   Extension methods declared in non-framework assemblies are bound to the type they extend, so they can be called from the instance like in C# (e.g. `order_status.is_open()`). Those marked `[EditorBrowsable(EditorBrowsableState.Never)]`, or declared in a class marked so, keep their static form only
+-   `repr()` of a .NET object whose type overrides `ToString()` returns that text (the Python-facing member name for enums), so containers of such objects print readably (e.g. `[SPY, AIG]`), unless the type declares a public `__repr__()`
 -   Types with an implicit conversion to a numeric type support Python arithmetic, comparisons, `float()` and `int()` through that conversion, behaving like a Python `int` for integral conversions and a `float` otherwise, unless they declare or inherit the operator
 -   Ability to instantiate new .NET arrays using `Array[T](dim1, dim2, ...)` syntax
 -   Python operator method will call C# operator method for supported binary and unary operators ([#1324][p1324]).

@@ -30,6 +30,20 @@ def test_str_only_nested_in_list():
     obs = [ReprTest.Bar(), ReprTest.Bar()]
     assert str(obs) == "[I implement ToString() but not __repr__()!, I implement ToString() but not __repr__()!]"
 
+def test_enum():
+    """Test enums show the same Python-facing member name as str()"""
+    from System import DayOfWeek
+    from System.IO import FileAccess
+    assert repr(DayOfWeek.Monday) == str(DayOfWeek.Monday) == "MONDAY"
+    assert str([DayOfWeek.Monday, FileAccess.ReadWrite]) == "[MONDAY, READ_WRITE]"
+
+def test_struct_without_tostring_override():
+    """Test struct not overriding ToString() keeps the default repr instead of ValueType's type name"""
+    from System.Collections.Generic import List
+    ob = List[int]().GetEnumerator()
+    assert repr(ob).startswith("<System.Collections.Generic.List")
+    assert " object at " in repr(ob)
+
 def test_no_tostring_override():
     """Test object not overriding ToString() keeps the default repr"""
     ob = System.Object()

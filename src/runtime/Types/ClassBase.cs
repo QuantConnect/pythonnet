@@ -375,13 +375,16 @@ namespace Python.Runtime
                     return reprString is null ? new NewReference(Runtime.PyNone) : Runtime.PyString_FromString(reprString);
                 }
 
-                // show an overridden ToString() so containers of .NET objects print readably: [SPY, AIG]
-                if (instType.GetMethod("ToString", Type.EmptyTypes)?.DeclaringType != typeof(object))
+                // show an overridden ToString() so containers of .NET objects print readably: [SPY, AIG].
+                // ValueType.ToString() only returns the type name, so structs without their own keep the default
+                var toStringType = instType.GetMethod("ToString", Type.EmptyTypes)?.DeclaringType;
+                if (toStringType != typeof(object) && toStringType != typeof(ValueType))
                 {
                     string? text = null;
                     try
                     {
-                        text = co.inst.ToString();
+                        // enums match their str(), the Python-facing member name
+                        text = co.inst is Enum enumValue ? EnumObject.ToPythonString(enumValue) : co.inst.ToString();
                     }
                     catch (Exception)
                     {
