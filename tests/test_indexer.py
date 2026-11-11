@@ -646,7 +646,7 @@ def test_public_inherited_overloaded_indexer():
 
 def test_del_settable_indexer_raises_type_error():
     """`del ob[key]` on a type with a settable indexer but no delete support must raise
-    a catchable TypeError, not crash the process (PythonnetEnterprise GH #167)."""
+    a catchable TypeError, not crash the process."""
     ob = Test.PublicIndexerTest()
     ob[0] = "zero"
 
