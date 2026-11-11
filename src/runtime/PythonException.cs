@@ -111,10 +111,11 @@ namespace Python.Runtime
 
             try
             {
-                var normalizedValue = new NewReference(value.Borrow());
+                // an error set without a value, as PyErr_SetNone does, only gets one once normalized
+                var normalizedValue = new NewReference(value.BorrowNullable(), canBeNull: true);
                 Runtime.PyErr_NormalizeException(type: ref type, val: ref normalizedValue, tb: ref traceback);
 
-                return FromPyErr(typeRef: type.Borrow(), valRef: value.Borrow(), nValRef: normalizedValue.Borrow(), tbRef: traceback.BorrowNullable(), out dispatchInfo);
+                return FromPyErr(typeRef: type.Borrow(), valRef: value.IsNull() ? normalizedValue.Borrow() : value.Borrow(), nValRef: normalizedValue.Borrow(), tbRef: traceback.BorrowNullable(), out dispatchInfo);
             }
             finally
             {

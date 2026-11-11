@@ -114,6 +114,19 @@ except Exception as ex:
         }
 
         [Test]
+        public void TestErrorSetWithoutValue()
+        {
+            using var _ = Py.GIL();
+            // what PyErr_SetNone does, as C extensions use it: the error's value stays NULL until it is normalized
+            Runtime.Runtime.PyErr_SetObject(Exceptions.ValueError.Reference, BorrowedReference.Null);
+
+            var ex = Assert.Throws<PythonException>(() => PythonException.ThrowLastAsClrException());
+
+            Assert.AreEqual("ValueError", ex.Type.Name);
+            Assert.IsTrue(Runtime.Runtime.PyErr_Occurred().IsNull);
+        }
+
+        [Test]
         public void TestPythonExceptionFormat()
         {
             try
