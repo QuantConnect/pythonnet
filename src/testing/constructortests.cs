@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 
 namespace Python.Test
 {
@@ -87,16 +88,24 @@ namespace Python.Test
 
     public class FinalizedConstructorTest
     {
+        public static int Finalized;
+
         private readonly List<int> items = new List<int>();
 
         public FinalizedConstructorTest()
         {
         }
 
+        public FinalizedConstructorTest(Exception toThrow)
+        {
+            throw toThrow;
+        }
+
         ~FinalizedConstructorTest()
         {
             // throws, terminating the process, if no constructor ever ran on this instance
             items.Clear();
+            Interlocked.Increment(ref Finalized);
         }
     }
 }
