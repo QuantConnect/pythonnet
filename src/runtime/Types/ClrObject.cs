@@ -10,6 +10,8 @@ namespace Python.Runtime
     internal sealed class CLRObject : ManagedType
     {
         internal readonly object inst;
+        // Set when tp_new ran the zero-argument constructor on this object, before __init__.
+        internal bool ranZeroArgCtorInNew;
 
         static NewReference Create(object ob, BorrowedReference tp)
         {

@@ -113,6 +113,16 @@ namespace Python.Runtime
             object obj = FormatterServices.GetUninitializedObject(type);
             var pythonObj = self.NewObjectToPython(obj, tp);
 
+            // Constructing the reflected type itself always continues with __init__ (MetaType.tp_call),
+            // which binds and runs the matching constructor: running one here too would run a constructor
+            // twice on the same object. A Python subclass's __init__ may never call the base __init__, so
+            // it still gets the base constructor here, before its own __init__ runs; that includes a subclass
+            // declaring __namespace__, whose generated .NET type is registered as its own reflected type.
+            if (tp == ClassManager.GetClass(type).Reference && self is not ClassDerivedObject)
+            {
+                return pythonObj;
+            }
+
             try
             {
                 var binder = new MethodBinder();
@@ -126,6 +136,10 @@ namespace Python.Runtime
                 if (binding != null)
                 {
                     binding.info.Invoke(obj, BindingFlags.Default, null, binding.args, null);
+                    if (GetManagedObject(pythonObj.Borrow()) is CLRObject co)
+                    {
+                        co.ranZeroArgCtorInNew = true;
+                    }
                 }
             }
             catch (Exception)

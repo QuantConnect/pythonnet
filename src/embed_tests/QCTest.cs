@@ -17,6 +17,11 @@ namespace Python.EmbeddingTest
         private static dynamic withArgs_PythonSuperInitInt;
 
         private static dynamic pureCSharpConstruction;
+        private static dynamic pureCSharpDefaultConstruction;
+        private static dynamic pureCSharpOptionalArgsConstruction;
+        private static dynamic pureCSharpOptionalArgsDefaultConstruction;
+        private static dynamic pythonSuperInitDefaultAfterOtherConstruction;
+        private static dynamic reinitAfterConstruction;
 
         private static dynamic containsTest;
         private static dynamic module;
@@ -68,6 +73,25 @@ class PythonSuperInitNone(SuperInit):
 
 def PureCSharpConstruction():
     return SuperInit(1)
+
+def PureCSharpDefaultConstruction():
+    return SuperInit()
+
+def PureCSharpOptionalArgsConstruction():
+    return OptionalArgsInit(5)
+
+def PureCSharpOptionalArgsDefaultConstruction():
+    return OptionalArgsInit()
+
+class PythonSuperInitDefaultAfterOtherConstruction(SuperInit):
+    def __init__(self):
+        self.other = SuperInit()
+        super().__init__()
+
+def ReinitAfterConstruction():
+    instance = PythonSuperInitNone()
+    instance.__init__()
+    return instance
 ";
 
         [OneTimeSetUp]
@@ -88,6 +112,11 @@ def PureCSharpConstruction():
             withArgs_PythonSuperInitInt = pyModule.GetAttr("WithArgs_PythonSuperInitInt");
 
             pureCSharpConstruction = pyModule.GetAttr("PureCSharpConstruction");
+            pureCSharpDefaultConstruction = pyModule.GetAttr("PureCSharpDefaultConstruction");
+            pureCSharpOptionalArgsConstruction = pyModule.GetAttr("PureCSharpOptionalArgsConstruction");
+            pureCSharpOptionalArgsDefaultConstruction = pyModule.GetAttr("PureCSharpOptionalArgsDefaultConstruction");
+            pythonSuperInitDefaultAfterOtherConstruction = pyModule.GetAttr("PythonSuperInitDefaultAfterOtherConstruction");
+            reinitAfterConstruction = pyModule.GetAttr("ReinitAfterConstruction");
         }
 
         [OneTimeTearDown]
@@ -127,7 +156,63 @@ def PureCSharpConstruction():
             {
                 var instance = pureCSharpConstruction();
                 Assert.AreEqual(1, (int)instance.CalledInt);
+                Assert.AreEqual(0, (int)instance.CalledDefault);
+            }
+        }
+
+        [Test]
+        public void PureCSharpDefaultConstruction()
+        {
+            using (Py.GIL())
+            {
+                var instance = pureCSharpDefaultConstruction();
+                Assert.AreEqual(0, (int)instance.CalledInt);
                 Assert.AreEqual(1, (int)instance.CalledDefault);
+            }
+        }
+
+        [Test]
+        public void PureCSharpOptionalArgsConstruction()
+        {
+            using (Py.GIL())
+            {
+                var instance = pureCSharpOptionalArgsConstruction();
+                Assert.AreEqual(1, (int)instance.Calls);
+                Assert.AreEqual(5, (int)instance.Value);
+            }
+        }
+
+        [Test]
+        public void PureCSharpOptionalArgsDefaultConstruction()
+        {
+            using (Py.GIL())
+            {
+                var instance = pureCSharpOptionalArgsDefaultConstruction();
+                Assert.AreEqual(1, (int)instance.Calls);
+                Assert.AreEqual(0, (int)instance.Value);
+            }
+        }
+
+        [Test]
+        public void NoArgs_DefaultConstructorAfterOtherConstruction()
+        {
+            using (Py.GIL())
+            {
+                var instance = pythonSuperInitDefaultAfterOtherConstruction();
+                Assert.AreEqual(0, (int)instance.CalledInt);
+                Assert.AreEqual(1, (int)instance.CalledDefault);
+                Assert.AreEqual(1, (int)instance.other.CalledDefault);
+            }
+        }
+
+        [Test]
+        public void ReinitAfterConstructionRunsConstructorAgain()
+        {
+            using (Py.GIL())
+            {
+                var instance = reinitAfterConstruction();
+                Assert.AreEqual(0, (int)instance.CalledInt);
+                Assert.AreEqual(2, (int)instance.CalledDefault);
             }
         }
 
@@ -161,7 +246,7 @@ def PureCSharpConstruction():
             {
                 var instance = withArgs_PythonSuperInitDefault(1);
                 Assert.AreEqual(0, (int)instance.CalledInt);
-                Assert.AreEqual(2, (int)instance.CalledDefault);
+                Assert.AreEqual(1, (int)instance.CalledDefault);
             }
         }
 
@@ -196,7 +281,7 @@ def PureCSharpConstruction():
             {
                 var instance = pythonSuperInitNone();
                 Assert.AreEqual(0, (int)instance.CalledInt);
-                Assert.AreEqual(2, (int)instance.CalledDefault);
+                Assert.AreEqual(1, (int)instance.CalledDefault);
             }
         }
 
@@ -208,7 +293,7 @@ def PureCSharpConstruction():
                 var instance = pythonSuperInitDefault.Invoke();
 
                 Assert.AreEqual(0, (int)instance.CalledInt);
-                Assert.AreEqual(2, (int)instance.CalledDefault);
+                Assert.AreEqual(1, (int)instance.CalledDefault);
             }
         }
     }
@@ -243,6 +328,17 @@ def PureCSharpConstruction():
         public SuperInit()
         {
             CalledDefault++;
+        }
+    }
+
+    public class OptionalArgsInit
+    {
+        public int Calls { get; private set; }
+        public int Value { get; private set; }
+        public OptionalArgsInit(int value = 0)
+        {
+            Calls++;
+            Value = value;
         }
     }
 

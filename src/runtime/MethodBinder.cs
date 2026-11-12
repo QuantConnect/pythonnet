@@ -1107,6 +1107,19 @@ namespace Python.Runtime
                 return default;
             }
 
+            if (binding.info is ConstructorInfo && ManagedType.GetManagedObject(inst) is CLRObject { ranZeroArgCtorInNew: true } co)
+            {
+                co.ranZeroArgCtorInNew = false;
+                // A zero-argument base __init__() call binds the constructor tp_new already ran on this
+                // Python subclass instance (same type's constructors, same zero arguments): don't run it twice.
+                if (binding.info.DeclaringType == co.inst.GetType()
+                    && Runtime.PyTuple_Size(args) == 0
+                    && (kw == null || Runtime.PyDict_Size(kw) == 0))
+                {
+                    return new NewReference(Runtime.PyNone);
+                }
+            }
+
             if (allow_threads)
             {
                 ts = PythonEngine.BeginAllowThreads();
