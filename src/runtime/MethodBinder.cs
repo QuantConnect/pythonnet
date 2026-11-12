@@ -1112,7 +1112,11 @@ namespace Python.Runtime
                 co.ranZeroArgCtorInNew = false;
                 // A zero-argument base __init__() call binds the constructor tp_new already ran on this
                 // Python subclass instance (same type's constructors, same zero arguments): don't run it twice.
-                if (binding.info.DeclaringType == co.inst.GetType()
+                // A __namespace__ subclass's generated type mirrors each base constructor and chains to it, so
+                // its parameterless constructor has already run the base type's parameterless one.
+                var instType = co.inst.GetType();
+                if ((binding.info.DeclaringType == instType
+                        || co.inst is IPythonDerivedType && binding.info.DeclaringType == instType.BaseType && binding.args.Length == 0)
                     && Runtime.PyTuple_Size(args) == 0
                     && (kw == null || Runtime.PyDict_Size(kw) == 0))
                 {

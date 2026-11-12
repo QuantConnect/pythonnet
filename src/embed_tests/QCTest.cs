@@ -22,6 +22,10 @@ namespace Python.EmbeddingTest
         private static dynamic pureCSharpOptionalArgsDefaultConstruction;
         private static dynamic pythonSuperInitDefaultAfterOtherConstruction;
         private static dynamic reinitAfterConstruction;
+        private static dynamic pythonOptionalArgsSuperInitDefault;
+        private static dynamic pythonOptionalArgsSuperInitValue;
+        private static dynamic namespacedSuperInitNone;
+        private static dynamic namespacedSuperInitDefault;
 
         private static dynamic containsTest;
         private static dynamic module;
@@ -88,6 +92,22 @@ class PythonSuperInitDefaultAfterOtherConstruction(SuperInit):
         self.other = SuperInit()
         super().__init__()
 
+class PythonOptionalArgsSuperInitDefault(OptionalArgsInit):
+    def __init__(self):
+        super().__init__()
+
+class PythonOptionalArgsSuperInitValue(OptionalArgsInit):
+    def __init__(self):
+        super().__init__(5)
+
+class NamespacedSuperInitNone(SuperInit):
+    __namespace__ = 'Python.EmbeddingTest.QCTests'
+
+class NamespacedSuperInitDefault(SuperInit):
+    __namespace__ = 'Python.EmbeddingTest.QCTests'
+    def __init__(self):
+        super().__init__()
+
 def ReinitAfterConstruction():
     instance = PythonSuperInitNone()
     instance.__init__()
@@ -117,6 +137,10 @@ def ReinitAfterConstruction():
             pureCSharpOptionalArgsDefaultConstruction = pyModule.GetAttr("PureCSharpOptionalArgsDefaultConstruction");
             pythonSuperInitDefaultAfterOtherConstruction = pyModule.GetAttr("PythonSuperInitDefaultAfterOtherConstruction");
             reinitAfterConstruction = pyModule.GetAttr("ReinitAfterConstruction");
+            pythonOptionalArgsSuperInitDefault = pyModule.GetAttr("PythonOptionalArgsSuperInitDefault");
+            pythonOptionalArgsSuperInitValue = pyModule.GetAttr("PythonOptionalArgsSuperInitValue");
+            namespacedSuperInitNone = pyModule.GetAttr("NamespacedSuperInitNone");
+            namespacedSuperInitDefault = pyModule.GetAttr("NamespacedSuperInitDefault");
         }
 
         [OneTimeTearDown]
@@ -202,6 +226,51 @@ def ReinitAfterConstruction():
                 Assert.AreEqual(0, (int)instance.CalledInt);
                 Assert.AreEqual(1, (int)instance.CalledDefault);
                 Assert.AreEqual(1, (int)instance.other.CalledDefault);
+            }
+        }
+
+        [Test]
+        public void OptionalArgs_DefaultConstructor()
+        {
+            using (Py.GIL())
+            {
+                var instance = pythonOptionalArgsSuperInitDefault();
+                Assert.AreEqual(1, (int)instance.Calls);
+                Assert.AreEqual(0, (int)instance.Value);
+            }
+        }
+
+        [Test]
+        public void OptionalArgs_ValueConstructor()
+        {
+            using (Py.GIL())
+            {
+                var instance = pythonOptionalArgsSuperInitValue();
+                // the base constructor runs in tp_new before __init__, then again with the given value
+                Assert.AreEqual(2, (int)instance.Calls);
+                Assert.AreEqual(5, (int)instance.Value);
+            }
+        }
+
+        [Test]
+        public void Namespaced_NoInit()
+        {
+            using (Py.GIL())
+            {
+                var instance = namespacedSuperInitNone();
+                Assert.AreEqual(0, (int)instance.CalledInt);
+                Assert.AreEqual(1, (int)instance.CalledDefault);
+            }
+        }
+
+        [Test]
+        public void Namespaced_DefaultConstructor()
+        {
+            using (Py.GIL())
+            {
+                var instance = namespacedSuperInitDefault();
+                Assert.AreEqual(0, (int)instance.CalledInt);
+                Assert.AreEqual(1, (int)instance.CalledDefault);
             }
         }
 
