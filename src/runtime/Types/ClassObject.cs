@@ -120,6 +120,11 @@ namespace Python.Runtime
             // declaring __namespace__, whose generated .NET type is registered as its own reflected type.
             if (tp == ClassManager.GetClass(type).Reference && self is not ClassDerivedObject)
             {
+                GC.SuppressFinalize(obj);
+                if (GetManagedObject(pythonObj.Borrow()) is CLRObject newObject)
+                {
+                    newObject.awaitingCtor = true;
+                }
                 return pythonObj;
             }
 
@@ -138,7 +143,7 @@ namespace Python.Runtime
                     binding.info.Invoke(obj, BindingFlags.Default, null, binding.args, null);
                     if (GetManagedObject(pythonObj.Borrow()) is CLRObject co)
                     {
-                        co.ranZeroArgCtorInNew = true;
+                        co.ctorRanInNew = binding.info;
                     }
                 }
             }

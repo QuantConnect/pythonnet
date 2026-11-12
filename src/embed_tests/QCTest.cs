@@ -26,6 +26,7 @@ namespace Python.EmbeddingTest
         private static dynamic pythonOptionalArgsSuperInitValue;
         private static dynamic namespacedSuperInitNone;
         private static dynamic namespacedSuperInitDefault;
+        private static dynamic pythonSelectedOverloadInit;
 
         private static dynamic containsTest;
         private static dynamic module;
@@ -34,6 +35,7 @@ from clr import AddReference
 AddReference(""System"")
 AddReference(""Python.EmbeddingTest"")
 from Python.EmbeddingTest import *
+import System
 class PythonModule(Algo):
     def TestA(self):
         try:
@@ -100,6 +102,10 @@ class PythonOptionalArgsSuperInitValue(OptionalArgsInit):
     def __init__(self):
         super().__init__(5)
 
+class PythonSelectedOverloadInit(SelectedOverloadInit):
+    def __init__(self):
+        super().__init__.__overloads__[System.String]()
+
 class NamespacedSuperInitNone(SuperInit):
     __namespace__ = 'Python.EmbeddingTest.QCTests'
 
@@ -141,6 +147,7 @@ def ReinitAfterConstruction():
             pythonOptionalArgsSuperInitValue = pyModule.GetAttr("PythonOptionalArgsSuperInitValue");
             namespacedSuperInitNone = pyModule.GetAttr("NamespacedSuperInitNone");
             namespacedSuperInitDefault = pyModule.GetAttr("NamespacedSuperInitDefault");
+            pythonSelectedOverloadInit = pyModule.GetAttr("PythonSelectedOverloadInit");
         }
 
         [OneTimeTearDown]
@@ -249,6 +256,17 @@ def ReinitAfterConstruction():
                 // the base constructor runs in tp_new before __init__, then again with the given value
                 Assert.AreEqual(2, (int)instance.Calls);
                 Assert.AreEqual(5, (int)instance.Value);
+            }
+        }
+
+        [Test]
+        public void SelectedOverload_OptionalArgsConstructor()
+        {
+            using (Py.GIL())
+            {
+                var instance = pythonSelectedOverloadInit();
+                // tp_new ran the parameterless constructor; the explicitly selected one must still run
+                Assert.AreEqual("optional", (string)instance.Selected);
             }
         }
 
@@ -408,6 +426,19 @@ def ReinitAfterConstruction():
         {
             Calls++;
             Value = value;
+        }
+    }
+
+    public class SelectedOverloadInit
+    {
+        public string Selected { get; private set; }
+        public SelectedOverloadInit()
+        {
+            Selected = "default";
+        }
+        public SelectedOverloadInit(string value = "optional")
+        {
+            Selected = value;
         }
     }
 

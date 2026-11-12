@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace Python.Runtime
@@ -10,8 +11,11 @@ namespace Python.Runtime
     internal sealed class CLRObject : ManagedType
     {
         internal readonly object inst;
-        // Set when tp_new ran the zero-argument constructor on this object, before __init__.
-        internal bool ranZeroArgCtorInNew;
+        // The zero-argument constructor tp_new ran on this object before __init__, if any.
+        internal MethodBase ctorRanInNew;
+        // Set when tp_new returned this object without running a constructor: its finalization stays
+        // suppressed until one runs, so a failed __init__ doesn't leave it to its finalizer uninitialized.
+        internal bool awaitingCtor;
 
         static NewReference Create(object ob, BorrowedReference tp)
         {

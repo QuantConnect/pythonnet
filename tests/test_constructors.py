@@ -2,6 +2,8 @@
 
 """Test CLR class constructor support."""
 
+import os
+import subprocess
 import pytest
 import sys
 
@@ -104,3 +106,39 @@ def test_string_constructor():
 
     with pytest.raises(TypeError):
         String(arr, 5, 4)
+
+
+_FAILED_CONSTRUCTION_SCRIPT = """
+import os, sys
+bin_path = sys.argv[1]
+sys.path.append(bin_path)
+from clr_loader import get_coreclr
+from pythonnet import set_runtime
+set_runtime(get_coreclr(runtime_config=os.path.join(bin_path, "Python.Test.runtimeconfig.json")))
+import clr
+clr.AddReference("Python.Test")
+from Python.Test import FinalizedConstructorTest
+from System import GC
+try:
+    FinalizedConstructorTest("unsupported")
+except TypeError:
+    print("caught")
+GC.Collect()
+GC.WaitForPendingFinalizers()
+GC.Collect()
+print("alive")
+"""
+
+
+@pytest.mark.skipif(os.environ.get("PYTHONNET_RUNTIME") != "netcore", reason="loads the netcore runtime")
+def test_failed_construction_does_not_finalize_uninitialized_object():
+    """A failed T(...) must not leave an object whose constructor never ran
+    to its finalizer, which would terminate the process"""
+    from Python.Test import FinalizedConstructorTest
+
+    bin_path = os.path.dirname(FinalizedConstructorTest().GetType().Assembly.Location)
+    result = subprocess.run([sys.executable, "-c", _FAILED_CONSTRUCTION_SCRIPT, bin_path],
+                            capture_output=True, text=True, timeout=300)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[-2:] == ["caught", "alive"]

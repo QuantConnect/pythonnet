@@ -712,10 +712,11 @@ namespace Python.Runtime
                 return true;
 
             var initialized = base.Init(obj, args, kw);
-            // tp_new's mark only stands in for a base __init__() call made by this construction
+            // tp_new's marks only apply to this construction's __init__
             if (GetManagedObject(obj) is CLRObject co)
             {
-                co.ranZeroArgCtorInNew = false;
+                co.ctorRanInNew = null;
+                co.awaitingCtor = false;
             }
             return initialized;
         }
