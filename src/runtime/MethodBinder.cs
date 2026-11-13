@@ -1107,6 +1107,37 @@ namespace Python.Runtime
                 return default;
             }
 
+            if (binding.info is ConstructorInfo && ManagedType.GetManagedObject(inst) is CLRObject co)
+            {
+                if (co.awaitingCtor)
+                {
+                    // tp_new suppressed finalization until a constructor runs; register it before the
+                    // constructor body, as for a .NET 'new', so the object is finalized even if it throws.
+                    co.awaitingCtor = false;
+                    GC.ReRegisterForFinalize(co.inst);
+                }
+                else if (co.ctorRanInNew != null)
+                {
+                    var ranInNew = co.ctorRanInNew;
+                    co.ctorRanInNew = null;
+                    // A zero-argument base __init__() call that binds the constructor tp_new already ran on this
+                    // Python subclass instance must not run it twice. A __namespace__ subclass's generated type
+                    // mirrors each base constructor and chains to it, so its parameterless constructor has
+                    // already run the base type's parameterless one.
+                    var ranInNewAlready = binding.info == ranInNew
+                        || co.inst is IPythonDerivedType
+                            && binding.info.DeclaringType == ranInNew.DeclaringType.BaseType
+                            && binding.args.Length == 0
+                            && ranInNew.GetParameters().Length == 0;
+                    if (ranInNewAlready
+                        && Runtime.PyTuple_Size(args) == 0
+                        && (kw == null || Runtime.PyDict_Size(kw) == 0))
+                    {
+                        return new NewReference(Runtime.PyNone);
+                    }
+                }
+            }
+
             if (allow_threads)
             {
                 ts = PythonEngine.BeginAllowThreads();

@@ -711,7 +711,14 @@ namespace Python.Runtime
                 // initialization must be done in tp_new
                 return true;
 
-            return base.Init(obj, args, kw);
+            var initialized = base.Init(obj, args, kw);
+            // tp_new's marks only apply to this construction's __init__
+            if (GetManagedObject(obj) is CLRObject co)
+            {
+                co.ctorRanInNew = null;
+                co.awaitingCtor = false;
+            }
+            return initialized;
         }
 
         protected virtual void OnDeserialization(object sender)
