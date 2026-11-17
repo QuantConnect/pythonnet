@@ -118,4 +118,28 @@ namespace Python.Test
             ++Calls;
         }
     }
+
+    public abstract class AbstractFinalizerCallbackTest
+    {
+        public static int Result;
+
+        public abstract int Callback();
+
+        ~AbstractFinalizerCallbackTest()
+        {
+            Result = Callback();
+        }
+    }
+
+    public class VirtualFinalizerCallbackTest
+    {
+        public static int Result;
+
+        public virtual int Callback() => 7;
+
+        ~VirtualFinalizerCallbackTest()
+        {
+            Result = Callback();
+        }
+    }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 
 namespace Python.Runtime;
 
@@ -29,7 +30,6 @@ internal class ExceptionClassObject : ClassObject
         {
             return Exceptions.RaiseTypeError("invalid object");
         }
-        // Message may be a Python override: its error is raised to the caller as it is
         try
         {
             string name = e.GetType().Name;
@@ -42,7 +42,7 @@ internal class ExceptionClassObject : ClassObject
         }
         catch (Exception error)
         {
-            Exceptions.SetError(error);
+            SetError(error);
             return default;
         }
     }
@@ -58,8 +58,7 @@ internal class ExceptionClassObject : ClassObject
             return Exceptions.RaiseTypeError("invalid object");
         }
 
-        // ToString may be a Python override: its error is raised to the caller as it is, and a None
-        // it returns reads as an empty message
+        // a None returned by a Python override of ToString reads as an empty message
         try
         {
             string message = e.ToString() ?? string.Empty;
@@ -77,9 +76,20 @@ internal class ExceptionClassObject : ClassObject
         }
         catch (Exception error)
         {
-            Exceptions.SetError(error);
+            SetError(error);
             return default;
         }
+    }
+
+    /// <summary>
+    /// Raises to Python the error of an exception member, as it is: a Python override of the member
+    /// throws its PythonException directly, whose InnerException is its cause, while a member the
+    /// Python subclass inherits runs through reflection, which wraps what it throws
+    /// </summary>
+    static void SetError(Exception error)
+    {
+        var raised = error is TargetInvocationException { InnerException: { } invoked } ? invoked : error;
+        Exceptions.SetError(raised);
     }
 
     public override bool Init(BorrowedReference obj, BorrowedReference args, BorrowedReference kw)
@@ -98,7 +108,7 @@ internal class ExceptionClassObject : ClassObject
         }
         catch (Exception error)
         {
-            Exceptions.SetError(error);
+            SetError(error);
             return false;
         }
     }

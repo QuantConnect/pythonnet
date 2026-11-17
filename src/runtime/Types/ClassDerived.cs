@@ -269,7 +269,8 @@ namespace Python.Runtime
                 }
             }
 
-            // add the destructor so the python object created in the constructor gets destroyed
+            // add the destructor so the python object created in the constructor gets destroyed,
+            // after the base class finalizers, which may still call the Python overrides
             MethodBuilder methodBuilder = typeBuilder.DefineMethod("Finalize",
                 MethodAttributes.Family |
                 MethodAttributes.Virtual |
@@ -279,11 +280,11 @@ namespace Python.Runtime
                 Type.EmptyTypes);
             ILGenerator il = methodBuilder.GetILGenerator();
             il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, baseClass.GetMethod("Finalize", BindingFlags.NonPublic | BindingFlags.Instance));
+            il.Emit(OpCodes.Ldarg_0);
 #pragma warning disable CS0618 // PythonDerivedType is for internal use only
             il.Emit(OpCodes.Call, typeof(PythonDerivedType).GetMethod(nameof(PyFinalize)));
 #pragma warning restore CS0618 // PythonDerivedType is for internal use only
-            il.Emit(OpCodes.Ldarg_0);
-            il.Emit(OpCodes.Call, baseClass.GetMethod("Finalize", BindingFlags.NonPublic | BindingFlags.Instance));
             il.Emit(OpCodes.Ret);
 
             Type type = typeBuilder.CreateType();
@@ -929,7 +930,7 @@ namespace Python.Runtime
             // references to the Python object as well
             var self = GetPyObj(obj);
             // every generated type in a chain of Python subclasses has its own Finalize calling this on the
-            // same object: only the first one queues its Python object
+            // same object, once the finalizers of its base classes ran: only the first one queues its Python object
             if (self.Ref == null)
             {
                 return;
