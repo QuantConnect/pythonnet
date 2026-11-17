@@ -53,7 +53,16 @@ internal class ExceptionClassObject : ClassObject
             return Exceptions.RaiseTypeError("invalid object");
         }
 
-        string message = e.ToString();
+        string message;
+        try
+        {
+            message = e.ToString();
+        }
+        catch (Exception error)
+        {
+            Exceptions.SetError(error.InnerException ?? error);
+            return default;
+        }
         string fullTypeName = e.GetType().FullName;
         string prefix = fullTypeName + ": ";
         if (message.StartsWith(prefix))
@@ -93,6 +102,11 @@ internal class ExceptionClassDerivedObject : ClassDerivedObject
     public new static NewReference tp_repr(BorrowedReference ob) => ExceptionClassObject.tp_repr(ob);
 
     public new static NewReference tp_str(BorrowedReference ob) => ExceptionClassObject.tp_str(ob);
+
+    // ClassDerivedObject's tp_clear leaves the object to the .NET finalizer, but the exception's own fields
+    // (args, __cause__, __context__, __traceback__, __dict__) can form cycles that only clearing them breaks.
+    // The wrapper and its handle stay, as the .NET object may still use them.
+    public new static int tp_clear(BorrowedReference ob) => BaseUnmanagedClear(ob);
 
     public override bool Init(BorrowedReference obj, BorrowedReference args, BorrowedReference kw)
     {
