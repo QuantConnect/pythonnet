@@ -29,27 +29,22 @@ internal class ExceptionClassObject : ClassObject
         {
             return Exceptions.RaiseTypeError("invalid object");
         }
-        string name = e.GetType().Name;
-        string exceptionMessage;
+        // Message may be a Python override: its error is raised to the caller as it is
         try
         {
-            exceptionMessage = e.Message;
+            string name = e.GetType().Name;
+            string message = e.Message;
+            if (!string.IsNullOrEmpty(message))
+            {
+                return Runtime.PyString_FromString(String.Format("{0}('{1}')", name, message));
+            }
+            return Runtime.PyString_FromString(String.Format("{0}()", name));
         }
         catch (Exception error)
         {
-            Exceptions.SetError(error.InnerException ?? error);
+            Exceptions.SetError(error);
             return default;
         }
-        string message;
-        if (exceptionMessage != String.Empty)
-        {
-            message = String.Format("{0}('{1}')", name, exceptionMessage);
-        }
-        else
-        {
-            message = String.Format("{0}()", name);
-        }
-        return Runtime.PyString_FromString(message);
     }
 
     /// <summary>
@@ -63,27 +58,28 @@ internal class ExceptionClassObject : ClassObject
             return Exceptions.RaiseTypeError("invalid object");
         }
 
-        string message;
+        // ToString may be a Python override: its error is raised to the caller as it is, and a None
+        // it returns reads as an empty message
         try
         {
-            message = e.ToString();
+            string message = e.ToString() ?? string.Empty;
+            string fullTypeName = e.GetType().FullName;
+            string prefix = fullTypeName + ": ";
+            if (message.StartsWith(prefix))
+            {
+                message = message.Substring(prefix.Length);
+            }
+            else if (message.StartsWith(fullTypeName))
+            {
+                message = message.Substring(fullTypeName.Length);
+            }
+            return Runtime.PyString_FromString(message);
         }
         catch (Exception error)
         {
-            Exceptions.SetError(error.InnerException ?? error);
+            Exceptions.SetError(error);
             return default;
         }
-        string fullTypeName = e.GetType().FullName;
-        string prefix = fullTypeName + ": ";
-        if (message.StartsWith(prefix))
-        {
-            message = message.Substring(prefix.Length);
-        }
-        else if (message.StartsWith(fullTypeName))
-        {
-            message = message.Substring(fullTypeName.Length);
-        }
-        return Runtime.PyString_FromString(message);
     }
 
     public override bool Init(BorrowedReference obj, BorrowedReference args, BorrowedReference kw)
@@ -102,7 +98,7 @@ internal class ExceptionClassObject : ClassObject
         }
         catch (Exception error)
         {
-            Exceptions.SetError(error.InnerException ?? error);
+            Exceptions.SetError(error);
             return false;
         }
     }
