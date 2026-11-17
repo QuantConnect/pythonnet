@@ -2,6 +2,8 @@
 
 """Test exception support."""
 
+import os
+import subprocess
 import sys
 
 import System
@@ -448,3 +450,74 @@ def test_dont_leak_exceptions_inner():
         print('type error, as expected')
     except System.ArgumentException:
         print('type error, also expected')
+
+
+_NAMESPACED_EXCEPTION_SCRIPT = """
+import os, sys
+bin_path = sys.argv[1]
+sys.path.append(bin_path)
+from clr_loader import get_coreclr
+from pythonnet import set_runtime
+set_runtime(get_coreclr(runtime_config=os.path.join(bin_path, "Python.Test.runtimeconfig.json")))
+import clr
+clr.AddReference("Python.Test")
+import gc
+from Python.Test import ExtendedException
+from System import GC, Object
+from System.Collections.Generic import List
+
+class WithoutInit(ExtendedException):
+    __namespace__ = "Python.Test.NamespacedExceptions"
+
+class InitWithoutSuper(ExtendedException):
+    __namespace__ = "Python.Test.NamespacedExceptions"
+    def __init__(self):
+        pass
+    def ToString(self):
+        return "overridden"
+
+class InitWithSuper(ExtendedException):
+    __namespace__ = "Python.Test.NamespacedExceptions"
+    def __init__(self):
+        super().__init__("message")
+
+def check(cls):
+    error = cls()
+    held = List[Object]()
+    held.Add(error)
+    try:
+        raise error
+    except ExtendedException as caught:
+        raised = caught is error
+    print(cls.__name__, error.extra, held[0] is error, raised, str(error), error.args)
+
+check(WithoutInit)
+check(InitWithoutSuper)
+check(InitWithSuper)
+gc.collect()
+for _ in range(2):
+    GC.Collect()
+    GC.WaitForPendingFinalizers()
+print("collected")
+"""
+
+
+@pytest.mark.skipif(os.environ.get("PYTHONNET_RUNTIME") != "netcore", reason="loads the netcore runtime")
+def test_namespaced_exception_subclass_construction():
+    """A Python subclass of a .NET exception declaring __namespace__ runs its base
+    constructor, keeps its Python object for .NET and its overrides, and still
+    reads as an exception; it runs in a subprocess so a native crash fails the test"""
+    from Python.Test import ExtendedException
+
+    bin_path = os.path.dirname(ExtendedException().GetType().Assembly.Location)
+    result = subprocess.run([sys.executable, "-c", _NAMESPACED_EXCEPTION_SCRIPT, bin_path],
+                            capture_output=True, text=True, timeout=300)
+
+    assert result.returncode == 0, result.stderr
+    overflow = "Arithmetic operation resulted in an overflow."
+    assert result.stdout.splitlines()[-4:] == [
+        f"WithoutInit extra True True {overflow} ('{overflow}',)",
+        f"InitWithoutSuper extra True True overridden ('{overflow}',)",
+        "InitWithSuper extra True True message ('message',)",
+        "collected",
+    ]

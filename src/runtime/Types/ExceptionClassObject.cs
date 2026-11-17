@@ -76,3 +76,30 @@ internal class ExceptionClassObject : ClassObject
         return Exceptions.SetArgsAndCause(obj, (Exception)e.inst);
     }
 }
+
+/// <summary>
+/// Implementation for the managed types generated for Python subclasses of exceptions
+/// that declare __namespace__: the generated object keeps its Python object as derived
+/// types do, while it still reads as an exception from Python.
+/// </summary>
+[Serializable]
+internal class ExceptionClassDerivedObject : ClassDerivedObject
+{
+    internal ExceptionClassDerivedObject(Type tp) : base(tp)
+    {
+    }
+
+    // Type slots are looked up on the implementing type's hierarchy, which here is ClassDerivedObject's
+    public new static NewReference tp_repr(BorrowedReference ob) => ExceptionClassObject.tp_repr(ob);
+
+    public new static NewReference tp_str(BorrowedReference ob) => ExceptionClassObject.tp_str(ob);
+
+    public override bool Init(BorrowedReference obj, BorrowedReference args, BorrowedReference kw)
+    {
+        if (!base.Init(obj, args, kw)) return false;
+
+        var e = (CLRObject)GetManagedObject(obj)!;
+
+        return Exceptions.SetArgsAndCause(obj, (Exception)e.inst);
+    }
+}

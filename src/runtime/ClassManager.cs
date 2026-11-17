@@ -190,17 +190,19 @@ namespace Python.Runtime
                 impl = new InterfaceObject(type);
             }
 
-            else if (type == typeof(Exception) ||
-                     type.IsSubclassOf(typeof(Exception)))
-            {
-                impl = new ExceptionClassObject(type);
-            }
-
 #pragma warning disable CS0618 // Type or member is obsolete. OK for internal use.
             else if (null != PythonDerivedType.GetPyObjField(type))
 #pragma warning restore CS0618 // Type or member is obsolete
             {
-                impl = new ClassDerivedObject(type);
+                impl = type.IsSubclassOf(typeof(Exception))
+                    ? new ExceptionClassDerivedObject(type)
+                    : new ClassDerivedObject(type);
+            }
+
+            else if (type == typeof(Exception) ||
+                     type.IsSubclassOf(typeof(Exception)))
+            {
+                impl = new ExceptionClassObject(type);
             }
 
             else if (typeof(IDynamicMetaObjectProvider).IsAssignableFrom(type))
