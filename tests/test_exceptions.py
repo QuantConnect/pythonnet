@@ -555,13 +555,6 @@ class CycleError(ExtendedException):
     def __init__(self):
         pass
 
-class FailingToString(ExtendedException):
-    __namespace__ = "Python.Test.ReleasedExceptions"
-    def __init__(self):
-        pass
-    def ToString(self):
-        raise ValueError("ToString failed")
-
 def release():
     for _ in range(3):
         gc.collect()
@@ -590,37 +583,62 @@ del error
 release()
 print(sum(1 for o in gc.get_objects() if type(o) is CycleError))
 
-try:
-    str(FailingToString())
-except ValueError as error:
-    print(error)
-
-class FailingMessage(ExtendedException):
-    __namespace__ = "Python.Test.ReleasedExceptions"
-    def __init__(self, call_base):
-        if call_base:
-            super().__init__()
-    def get_Message(self):
-        raise ValueError("Message failed")
-
-try:
-    repr(FailingMessage(False))
-except ValueError as error:
-    print("repr", error)
-
-try:
-    FailingMessage(True)
-except ValueError as error:
-    print("init", error)
 """
 
 
 @pytest.mark.skipif(os.environ.get("PYTHONNET_RUNTIME") != "netcore", reason="loads the netcore runtime")
 def test_namespaced_exception_subclass_release():
-    """A __namespace__ exception subclass of another one is released once, exceptions
-    referencing themselves through args, __cause__ or __context__ are collected, and
-    an error raised by a Python ToString or Message override reaches the caller of
-    str(), repr() or the constructor"""
+    """A __namespace__ exception subclass of another one is released once, and exceptions
+    referencing themselves through args, __cause__ or __context__ are collected"""
     output = _run_namespaced_exception_script(_NAMESPACED_EXCEPTION_RELEASE_SCRIPT)
 
-    assert output[-5:] == ["released", "0", "ToString failed", "repr Message failed", "init Message failed"]
+    assert output[-2:] == ["released", "0"]
+
+
+_NAMESPACED_EXCEPTION_OVERRIDES_SCRIPT = """
+class OverridingError(ExtendedException):
+    __namespace__ = "Python.Test.OverridingExceptions"
+    def __init__(self, failing=False):
+        self.failing = failing
+        if failing:
+            super().__init__()
+    def fail(self):
+        raise ValueError("outer") from KeyError("inner")
+    def get_Message(self):
+        if self.failing:
+            self.fail()
+        return "message"
+    def ToString(self):
+        if self.failing:
+            self.fail()
+        return None
+
+error = OverridingError()
+print(repr(str(error)), repr(error))
+error.failing = True
+
+def check(name, call):
+    try:
+        call()
+    except ValueError as raised:
+        print(name, raised, type(raised.__cause__).__name__, raised.__cause__)
+
+check("str", lambda: str(error))
+check("repr", lambda: repr(error))
+check("init", lambda: OverridingError(failing=True))
+"""
+
+
+@pytest.mark.skipif(os.environ.get("PYTHONNET_RUNTIME") != "netcore", reason="loads the netcore runtime")
+def test_namespaced_exception_subclass_override_errors():
+    """str(), repr() and the constructor of a __namespace__ exception subclass read None
+    from a Python ToString override as an empty message, and raise the error of a Python
+    ToString or Message override to their caller as it is, with its cause"""
+    output = _run_namespaced_exception_script(_NAMESPACED_EXCEPTION_OVERRIDES_SCRIPT)
+
+    assert output[-4:] == [
+        "'' OverridingError('message')",
+        "str outer KeyError 'inner'",
+        "repr outer KeyError 'inner'",
+        "init outer KeyError 'inner'",
+    ]
