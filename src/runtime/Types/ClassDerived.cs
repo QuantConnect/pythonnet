@@ -928,7 +928,14 @@ namespace Python.Runtime
             // the C# object is being destroyed which must mean there are no more
             // references to the Python object as well
             var self = GetPyObj(obj);
+            // every generated type in a chain of Python subclasses has its own Finalize calling this on the
+            // same object: only the first one queues its Python object
+            if (self.Ref == null)
+            {
+                return;
+            }
             Finalizer.Instance.AddDerivedFinalizedObject(ref self.RawObj, self.Run);
+            SetPyObj(obj, BorrowedReference.Null);
         }
 
         internal static void Finalize(IntPtr derived)

@@ -452,7 +452,7 @@ def test_dont_leak_exceptions_inner():
         print('type error, also expected')
 
 
-_NAMESPACED_EXCEPTION_SCRIPT = """
+_NAMESPACED_EXCEPTION_SCRIPT_SETUP = """
 import os, sys
 bin_path = sys.argv[1]
 sys.path.append(bin_path)
@@ -464,6 +464,22 @@ clr.AddReference("Python.Test")
 import gc
 from Python.Test import ExtendedException
 from System import GC, Object
+"""
+
+
+def _run_namespaced_exception_script(script):
+    """Runs the script in a subprocess, so a native crash fails the test instead of the test run"""
+    from Python.Test import ExtendedException
+
+    bin_path = os.path.dirname(ExtendedException().GetType().Assembly.Location)
+    result = subprocess.run([sys.executable, "-c", _NAMESPACED_EXCEPTION_SCRIPT_SETUP + script, bin_path],
+                            capture_output=True, text=True, timeout=300)
+
+    assert result.returncode == 0, result.stderr
+    return result.stdout.splitlines()
+
+
+_NAMESPACED_EXCEPTION_SCRIPT = """
 from System.Collections.Generic import List
 
 class WithoutInit(ExtendedException):
@@ -506,18 +522,86 @@ print("collected")
 def test_namespaced_exception_subclass_construction():
     """A Python subclass of a .NET exception declaring __namespace__ runs its base
     constructor, keeps its Python object for .NET and its overrides, and still
-    reads as an exception; it runs in a subprocess so a native crash fails the test"""
-    from Python.Test import ExtendedException
+    reads as an exception"""
+    output = _run_namespaced_exception_script(_NAMESPACED_EXCEPTION_SCRIPT)
 
-    bin_path = os.path.dirname(ExtendedException().GetType().Assembly.Location)
-    result = subprocess.run([sys.executable, "-c", _NAMESPACED_EXCEPTION_SCRIPT, bin_path],
-                            capture_output=True, text=True, timeout=300)
-
-    assert result.returncode == 0, result.stderr
     overflow = "Arithmetic operation resulted in an overflow."
-    assert result.stdout.splitlines()[-4:] == [
+    assert output[-4:] == [
         f"WithoutInit extra True True {overflow} ('{overflow}',)",
         f"InitWithoutSuper extra True True overridden ('{overflow}',)",
         "InitWithSuper extra True True message ('message',)",
         "collected",
     ]
+
+
+_NAMESPACED_EXCEPTION_RELEASE_SCRIPT = """
+class Probe(Object):
+    __namespace__ = "Python.Test.ReleasedExceptions"
+    def ToString(self):
+        return "probe"
+
+class ParentError(ExtendedException):
+    __namespace__ = "Python.Test.ReleasedExceptions"
+    def __init__(self):
+        pass
+
+class ChildError(ParentError):
+    __namespace__ = "Python.Test.ReleasedExceptions"
+    def __init__(self):
+        pass
+
+class CycleError(ExtendedException):
+    __namespace__ = "Python.Test.ReleasedExceptions"
+    def __init__(self):
+        pass
+
+class FailingToString(ExtendedException):
+    __namespace__ = "Python.Test.ReleasedExceptions"
+    def __init__(self):
+        pass
+    def ToString(self):
+        raise ValueError("ToString failed")
+
+def release():
+    for _ in range(3):
+        gc.collect()
+        GC.Collect()
+        GC.WaitForPendingFinalizers()
+        # each call from .NET into the Python override creates Python objects, which
+        # periodically release the queued Python objects of finalized .NET objects
+        for _ in range(300):
+            str(probe)
+
+probe = Probe()
+
+for _ in range(10):
+    ChildError()
+release()
+print("released")
+
+for _ in range(10):
+    error = CycleError()
+    error.__cause__ = error
+    error = CycleError()
+    error.__context__ = error
+    error = CycleError()
+    error.args = (error,)
+del error
+release()
+print(sum(1 for o in gc.get_objects() if type(o) is CycleError))
+
+try:
+    str(FailingToString())
+except ValueError as error:
+    print(error)
+"""
+
+
+@pytest.mark.skipif(os.environ.get("PYTHONNET_RUNTIME") != "netcore", reason="loads the netcore runtime")
+def test_namespaced_exception_subclass_release():
+    """A __namespace__ exception subclass of another one is released once, exceptions
+    referencing themselves through args, __cause__ or __context__ are collected, and
+    an error raised by a Python ToString override reaches str()'s caller"""
+    output = _run_namespaced_exception_script(_NAMESPACED_EXCEPTION_RELEASE_SCRIPT)
+
+    assert output[-3:] == ["released", "0", "ToString failed"]
