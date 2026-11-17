@@ -594,6 +594,24 @@ try:
     str(FailingToString())
 except ValueError as error:
     print(error)
+
+class FailingMessage(ExtendedException):
+    __namespace__ = "Python.Test.ReleasedExceptions"
+    def __init__(self, call_base):
+        if call_base:
+            super().__init__()
+    def get_Message(self):
+        raise ValueError("Message failed")
+
+try:
+    repr(FailingMessage(False))
+except ValueError as error:
+    print("repr", error)
+
+try:
+    FailingMessage(True)
+except ValueError as error:
+    print("init", error)
 """
 
 
@@ -601,7 +619,8 @@ except ValueError as error:
 def test_namespaced_exception_subclass_release():
     """A __namespace__ exception subclass of another one is released once, exceptions
     referencing themselves through args, __cause__ or __context__ are collected, and
-    an error raised by a Python ToString override reaches str()'s caller"""
+    an error raised by a Python ToString or Message override reaches the caller of
+    str(), repr() or the constructor"""
     output = _run_namespaced_exception_script(_NAMESPACED_EXCEPTION_RELEASE_SCRIPT)
 
-    assert output[-3:] == ["released", "0", "ToString failed"]
+    assert output[-5:] == ["released", "0", "ToString failed", "repr Message failed", "init Message failed"]
