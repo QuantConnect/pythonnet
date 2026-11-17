@@ -30,10 +30,20 @@ internal class ExceptionClassObject : ClassObject
             return Exceptions.RaiseTypeError("invalid object");
         }
         string name = e.GetType().Name;
-        string message;
-        if (e.Message != String.Empty)
+        string exceptionMessage;
+        try
         {
-            message = String.Format("{0}('{1}')", name, e.Message);
+            exceptionMessage = e.Message;
+        }
+        catch (Exception error)
+        {
+            Exceptions.SetError(error.InnerException ?? error);
+            return default;
+        }
+        string message;
+        if (exceptionMessage != String.Empty)
+        {
+            message = String.Format("{0}('{1}')", name, exceptionMessage);
         }
         else
         {
@@ -77,12 +87,24 @@ internal class ExceptionClassObject : ClassObject
     }
 
     public override bool Init(BorrowedReference obj, BorrowedReference args, BorrowedReference kw)
+        => base.Init(obj, args, kw) && SetArgsAndCause(obj);
+
+    /// <summary>
+    /// Sets the args and __cause__ of the constructed exception, raising to Python an error
+    /// its members throw, such as a Python override of Message
+    /// </summary>
+    internal static bool SetArgsAndCause(BorrowedReference obj)
     {
-        if (!base.Init(obj, args, kw)) return false;
-
         var e = (CLRObject)GetManagedObject(obj)!;
-
-        return Exceptions.SetArgsAndCause(obj, (Exception)e.inst);
+        try
+        {
+            return Exceptions.SetArgsAndCause(obj, (Exception)e.inst);
+        }
+        catch (Exception error)
+        {
+            Exceptions.SetError(error.InnerException ?? error);
+            return false;
+        }
     }
 }
 
@@ -109,11 +131,5 @@ internal class ExceptionClassDerivedObject : ClassDerivedObject
     public new static int tp_clear(BorrowedReference ob) => BaseUnmanagedClear(ob);
 
     public override bool Init(BorrowedReference obj, BorrowedReference args, BorrowedReference kw)
-    {
-        if (!base.Init(obj, args, kw)) return false;
-
-        var e = (CLRObject)GetManagedObject(obj)!;
-
-        return Exceptions.SetArgsAndCause(obj, (Exception)e.inst);
-    }
+        => base.Init(obj, args, kw) && ExceptionClassObject.SetArgsAndCause(obj);
 }
