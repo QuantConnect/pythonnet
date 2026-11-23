@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 using Python.Runtime.Native;
@@ -34,6 +35,21 @@ namespace Python.Runtime
         private static Dictionary<string, AssemblyBuilder> assemblyBuilders;
         private static Dictionary<Tuple<string, string>, ModuleBuilder> moduleBuilders;
 
+        /// <summary>
+        /// Python objects whose .NET object holds one reference to them, taken in <see cref="tp_finalize"/>
+        /// </summary>
+        internal static readonly HashSet<IntPtr> KeptByManagedObject = new();
+        /// <summary>
+        /// Python objects whose .NET object was finalized while it held a reference to them:
+        /// <see cref="tp_dealloc"/> frees them
+        /// </summary>
+        internal static readonly HashSet<IntPtr> ReleasedByManagedObject = new();
+        /// <summary>
+        /// Nothing else references the wrapper of a .NET object its Python object holds weakly:
+        /// this keeps it alive as long as the .NET object
+        /// </summary>
+        private static readonly ConditionalWeakTable<object, CLRObject> WeaklyHeldWrappers = new();
+
         static ClassDerivedObject()
         {
             assemblyBuilders = new Dictionary<string, AssemblyBuilder>();
@@ -44,6 +60,9 @@ namespace Python.Runtime
         {
             assemblyBuilders = new Dictionary<string, AssemblyBuilder>();
             moduleBuilders = new Dictionary<Tuple<string, string>, ModuleBuilder>();
+            KeptByManagedObject.Clear();
+            ReleasedByManagedObject.Clear();
+            WeaklyHeldWrappers.Clear();
         }
 
         internal ClassDerivedObject(Type tp) : base(tp)
@@ -76,6 +95,12 @@ namespace Python.Runtime
             // don't let the python GC destroy this object
             Runtime.PyObject_GC_UnTrack(ob.Borrow());
 
+            if (ReleasedByManagedObject.Remove(ob.DangerousGetAddress()))
+            {
+                PythonDerivedType.Finalize(ob.DangerousMoveToPointer());
+                return;
+            }
+
             // self may be null after Shutdown begun
             if (self is not null)
             {
@@ -83,11 +108,64 @@ namespace Python.Runtime
                 // deallocate the object until the C# object that references it is destroyed.
                 // So we don't call PyObject_GC_Del here and instead we set the python
                 // reference to a weak reference so that the C# object can be collected.
-                GCHandle oldHandle = GetGCHandle(ob.Borrow());
-                GCHandle gc = GCHandle.Alloc(self, GCHandleType.Weak);
-                SetGCHandle(ob.Borrow(), gc);
-                oldHandle.Free();
+                ReplaceGCHandle(ob.Borrow(), self, GCHandleType.Weak);
             }
+        }
+
+        /// <summary>
+        /// Called by the Python cyclic GC on an object it found unreachable from Python, before it clears
+        /// the cycle. .NET may still reference the object, which Python can't see, so instead of letting
+        /// the cycle be cleared, the .NET object keeps one reference to the Python object, and the Python
+        /// object stops keeping the .NET object alive, as <see cref="tp_dealloc"/> does. Python gets that
+        /// reference back in <see cref="ToPython"/>, and the .NET object releases it when it's finalized.
+        /// </summary>
+        public static void tp_finalize(BorrowedReference ob)
+        {
+            // The GC marks an object finalized before it calls tp_finalize and doesn't call it again
+            // once marked. Otherwise, it's a direct __del__ call from Python, which still references the object.
+            if ((GCPrev(ob) & FinalizedFlag) == 0)
+            {
+                return;
+            }
+
+            var self = (CLRObject?)GetManagedObject(ob);
+            // null once the .NET object is gone: the GC frees the cycle
+            if (self is null)
+            {
+                return;
+            }
+
+            // the next time Python lets go of the object in a cycle, the GC has to call tp_finalize again
+            GCPrev(ob) &= ~FinalizedFlag;
+            Runtime.XIncref(ob);
+            KeptByManagedObject.Add(ob.DangerousGetAddress());
+            ReplaceGCHandle(ob, self, GCHandleType.Weak);
+        }
+
+        /// <summary>
+        /// _PyGC_PREV_MASK_FINALIZED: the GC's finalized flag in _gc_prev
+        /// </summary>
+        private const nint FinalizedFlag = 1;
+
+        /// <summary>
+        /// _gc_prev, the last field of the GC header that precedes the object
+        /// </summary>
+        private static unsafe ref nint GCPrev(BorrowedReference ob)
+            => ref *((nint*)ob.DangerousGetAddress() - 1);
+
+        private static void ReplaceGCHandle(BorrowedReference ob, CLRObject self, GCHandleType type)
+        {
+            if (type == GCHandleType.Weak)
+            {
+                WeaklyHeldWrappers.AddOrUpdate(self.inst, self);
+            }
+            else
+            {
+                WeaklyHeldWrappers.Remove(self.inst);
+            }
+            GCHandle oldHandle = GetGCHandle(ob);
+            SetGCHandle(ob, GCHandle.Alloc(self, type));
+            oldHandle.Free();
         }
 
         /// <summary>
@@ -113,6 +191,13 @@ namespace Python.Runtime
                 return default;
             }
 
+            if (KeptByManagedObject.Remove(self.DangerousGetAddress()))
+            {
+                // Python takes over the reference the .NET object kept in tp_finalize
+                ReplaceGCHandle(self, (CLRObject)GetManagedObject(self)!, GCHandleType.Normal);
+                return NewReference.DangerousFromPointer(self.DangerousGetAddress());
+            }
+
             var result = new NewReference(self);
 
             // when the C# constructor creates the python object it starts as a weak
@@ -123,11 +208,7 @@ namespace Python.Runtime
             if (Runtime.Refcount(self) == 1)
             {
                 Runtime._Py_NewReference(self);
-                GCHandle weak = GetGCHandle(self);
-                var clrObject = GetManagedObject(self);
-                GCHandle gc = GCHandle.Alloc(clrObject, GCHandleType.Normal);
-                SetGCHandle(self, gc);
-                weak.Free();
+                ReplaceGCHandle(self, (CLRObject)GetManagedObject(self)!, GCHandleType.Normal);
 
                 // now the object has a python reference it's safe for the python GC to track it
                 Runtime.PyObject_GC_Track(self);
@@ -933,6 +1014,14 @@ namespace Python.Runtime
 
         internal static void Finalize(IntPtr derived)
         {
+            if (ClassDerivedObject.KeptByManagedObject.Remove(derived))
+            {
+                // the Python object may still be part of a cycle: Python frees it once nothing references it
+                ClassDerivedObject.ReleasedByManagedObject.Add(derived);
+                Runtime.XDecref(StolenReference.DangerousFromPointer(derived));
+                return;
+            }
+
             var @ref = NewReference.DangerousFromPointer(derived);
 
             ClassBase.tp_clear(@ref.Borrow());

@@ -305,3 +305,125 @@ def test_can_be_collected_by_gc():
 
     import gc
     gc.collect()
+
+
+def _release_python_and_net_objects():
+    """Collect Python cycles and .NET objects, then free the Python objects whose .NET object was finalized"""
+    import gc
+    from System import GC
+
+    for _ in range(3):
+        gc.collect()
+        GC.Collect()
+        GC.WaitForPendingFinalizers()
+        # every 200th Python object passed to .NET frees the queued ones
+        List[System.Object]([object() for _ in range(300)])
+    gc.collect()
+
+
+def test_namespaced_subclass_held_by_net_keeps_its_cycle():
+    from System import String
+
+    class CycleHolder(System.Object):
+        __namespace__ = "test_namespaced_subclass_held_by_net_keeps_its_cycle"
+
+        def __init__(self, code):
+            self.code = code
+            self.me = self
+            self.items = [self]
+            self.items.append(self.items)
+
+        def ToString(self):
+            return "holder {}".format(self.code)
+
+    class PythonSubclass(CycleHolder):
+        pass
+
+    # each instance references its class, until it's freed
+    refcounts = sys.getrefcount(CycleHolder), sys.getrefcount(PythonSubclass)
+    held = List[System.Object]()
+    held.Add(CycleHolder(7))
+    held.Add(PythonSubclass(8))
+
+    for _ in range(2):
+        _release_python_and_net_objects()
+        # .NET calls the Python override while only .NET holds the object
+        assert String.Join[System.Object](",", held) == "holder 7,holder 8"
+
+        holder = held[0]
+        assert holder.code == 7
+        assert holder.me is holder
+        assert holder.items[0] is holder
+        assert held[1].code == 8
+        del holder
+
+    held.Clear()
+    _release_python_and_net_objects()
+    assert (sys.getrefcount(CycleHolder), sys.getrefcount(PythonSubclass)) == refcounts
+
+
+def test_namespaced_subclass_cycle_is_collected():
+    class CycleMember(System.Object):
+        __namespace__ = "test_namespaced_subclass_cycle_is_collected"
+
+        def __init__(self):
+            self.me = self
+
+    refcount = sys.getrefcount(CycleMember)
+    for _ in range(100):
+        CycleMember()
+        first, second = CycleMember(), CycleMember()
+        first.other, second.other = second, first
+        del first, second
+
+    held = List[System.Object]()
+    first, second = CycleMember(), CycleMember()
+    first.other, second.other = second, first
+    first.code = 1
+    held.Add(second)
+    del first, second
+
+    _release_python_and_net_objects()
+    assert held[0].other.code == 1
+    assert held[0].other.other is held[0]
+    assert sys.getrefcount(CycleMember) == refcount + 2
+
+    held.Clear()
+    _release_python_and_net_objects()
+    assert sys.getrefcount(CycleMember) == refcount
+
+
+def test_namespaced_subclass_direct_del_call_keeps_net_object():
+    class DirectDelCall(System.Object):
+        __namespace__ = "test_namespaced_subclass_direct_del_call_keeps_net_object"
+
+        def __init__(self):
+            self.me = self
+
+    instance = DirectDelCall()
+    instance.__del__()
+    _release_python_and_net_objects()
+    instance.GetHashCode()
+    assert instance.me is instance
+
+
+@pytest.mark.parametrize("in_cycle", [False, True])
+def test_namespaced_subclass_held_by_net_keeps_its_wrapper(in_cycle):
+    class HeldByNet(System.Object):
+        __namespace__ = "test_namespaced_subclass_held_by_net_keeps_its_wrapper_{}".format(in_cycle)
+
+        def __init__(self, code):
+            self.code = code
+            if in_cycle:
+                self.me = self
+
+    held = List[System.Object]()
+    held.Add(HeldByNet(7))
+    for _ in range(2):
+        _release_python_and_net_objects()
+
+        instance = held[0]
+        assert instance.code == 7
+        assert held.Contains(instance)
+        assert instance.GetType().Name == "HeldByNet"
+        del instance
