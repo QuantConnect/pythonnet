@@ -122,8 +122,18 @@ internal sealed class ReflectedClrType : PyType
                         hasForwarder |= member is MethodInfo { IsVirtual: true, IsFinal: false }
                             && member.DeclaringType == subType
                             && baseVirtualMethods.Contains(member.Name);
+
+                        // an accessor the generated type emits for a property the class body declares with
+                        // clr.clrproperty, by the names ClassDerivedObject gives them
+                        var property = member is MethodInfo { IsSpecialName: true }
+                            && (member.Name.StartsWith("get_") || member.Name.StartsWith("set_"))
+                            ? Runtime.PyDict_GetItemString(dict, member.Name.Substring(4))
+                            : BorrowedReference.Null;
+                        var isBodyPropertyAccessor = !property.IsNull
+                            && Runtime.PyObject_HasAttrString(property, "_clr_property_type_") == 1;
+
                         declaredInBody |= !Runtime.PyDict_GetItemString(dict, member.Name).IsNull
-                            || IsAccessorOfBodyProperty(member, dict);
+                            || isBodyPropertyAccessor;
                     }
                     if (hasForwarder && !declaredInBody)
                     {
@@ -146,21 +156,6 @@ internal sealed class ReflectedClrType : PyType
         {
             return Exceptions.RaiseTypeError(e.Message);
         }
-    }
-
-    /// <summary>
-    /// Whether the member is an accessor the generated type emits for a property the class body declares
-    /// with clr.clrproperty, by the names <see cref="ClassDerivedObject"/> gives them.
-    /// </summary>
-    static bool IsAccessorOfBodyProperty(MemberInfo member, BorrowedReference dict)
-    {
-        if (member is not MethodInfo { IsSpecialName: true }
-            || !(member.Name.StartsWith("get_") || member.Name.StartsWith("set_")))
-        {
-            return false;
-        }
-        var property = Runtime.PyDict_GetItemString(dict, member.Name.Substring(4));
-        return !property.IsNull && Runtime.PyObject_HasAttrString(property, "_clr_property_type_") == 1;
     }
 
     static ReflectedClrType AllocateClass(Type clrType)
