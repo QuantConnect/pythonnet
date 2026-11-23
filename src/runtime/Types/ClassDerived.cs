@@ -269,7 +269,8 @@ namespace Python.Runtime
                 }
             }
 
-            // add the destructor so the python object created in the constructor gets destroyed
+            // add the destructor so the python object created in the constructor gets destroyed,
+            // after the base class finalizers, which may still call the Python overrides
             MethodBuilder methodBuilder = typeBuilder.DefineMethod("Finalize",
                 MethodAttributes.Family |
                 MethodAttributes.Virtual |
@@ -279,11 +280,11 @@ namespace Python.Runtime
                 Type.EmptyTypes);
             ILGenerator il = methodBuilder.GetILGenerator();
             il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, baseClass.GetMethod("Finalize", BindingFlags.NonPublic | BindingFlags.Instance));
+            il.Emit(OpCodes.Ldarg_0);
 #pragma warning disable CS0618 // PythonDerivedType is for internal use only
             il.Emit(OpCodes.Call, typeof(PythonDerivedType).GetMethod(nameof(PyFinalize)));
 #pragma warning restore CS0618 // PythonDerivedType is for internal use only
-            il.Emit(OpCodes.Ldarg_0);
-            il.Emit(OpCodes.Call, baseClass.GetMethod("Finalize", BindingFlags.NonPublic | BindingFlags.Instance));
             il.Emit(OpCodes.Ret);
 
             Type type = typeBuilder.CreateType();
@@ -903,8 +904,8 @@ namespace Python.Runtime
 
         public static void InvokeCtor(IPythonDerivedType obj, string origCtorName, object[] args)
         {
-            var selfRef = GetPyObj(obj);
-            if (selfRef.Ref == null)
+            var createdFromDotNet = GetPyObj(obj).Ref == null;
+            if (createdFromDotNet)
             {
                 // this might happen when the object is created from .NET
                 using var _ = Py.GIL();
@@ -921,6 +922,18 @@ namespace Python.Runtime
                 null,
                 obj,
                 args);
+
+            // the Python object of an exception created from .NET got its args and __cause__
+            // before the base constructor set its Message and InnerException
+            if (!createdFromDotNet || obj is not Exception exception)
+            {
+                return;
+            }
+            using var gil = Py.GIL();
+            if (!Exceptions.SetArgsAndCause(GetPyObj(obj).CheckRun(), exception))
+            {
+                throw PythonException.ThrowLastAsClrException();
+            }
         }
 
         public static void PyFinalize(IPythonDerivedType obj)
@@ -928,7 +941,14 @@ namespace Python.Runtime
             // the C# object is being destroyed which must mean there are no more
             // references to the Python object as well
             var self = GetPyObj(obj);
+            // every generated type in a chain of Python subclasses has its own Finalize calling this on the
+            // same object, once the finalizers of its base classes ran: only the first one queues its Python object
+            if (self.Ref == null)
+            {
+                return;
+            }
             Finalizer.Instance.AddDerivedFinalizedObject(ref self.RawObj, self.Run);
+            SetPyObj(obj, BorrowedReference.Null);
         }
 
         internal static void Finalize(IntPtr derived)

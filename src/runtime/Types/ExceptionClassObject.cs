@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 
 namespace Python.Runtime;
 
@@ -29,17 +30,21 @@ internal class ExceptionClassObject : ClassObject
         {
             return Exceptions.RaiseTypeError("invalid object");
         }
-        string name = e.GetType().Name;
-        string message;
-        if (e.Message != String.Empty)
+        try
         {
-            message = String.Format("{0}('{1}')", name, e.Message);
+            string name = e.GetType().Name;
+            string message = e.Message;
+            if (!string.IsNullOrEmpty(message))
+            {
+                return Runtime.PyString_FromString(String.Format("{0}('{1}')", name, message));
+            }
+            return Runtime.PyString_FromString(String.Format("{0}()", name));
         }
-        else
+        catch (Exception error)
         {
-            message = String.Format("{0}()", name);
+            SetError(error);
+            return default;
         }
-        return Runtime.PyString_FromString(message);
     }
 
     /// <summary>
@@ -53,26 +58,84 @@ internal class ExceptionClassObject : ClassObject
             return Exceptions.RaiseTypeError("invalid object");
         }
 
-        string message = e.ToString();
-        string fullTypeName = e.GetType().FullName;
-        string prefix = fullTypeName + ": ";
-        if (message.StartsWith(prefix))
+        // a None returned by a Python override of ToString reads as an empty message
+        try
         {
-            message = message.Substring(prefix.Length);
+            string message = e.ToString() ?? string.Empty;
+            string fullTypeName = e.GetType().FullName;
+            string prefix = fullTypeName + ": ";
+            if (message.StartsWith(prefix))
+            {
+                message = message.Substring(prefix.Length);
+            }
+            else if (message.StartsWith(fullTypeName))
+            {
+                message = message.Substring(fullTypeName.Length);
+            }
+            return Runtime.PyString_FromString(message);
         }
-        else if (message.StartsWith(fullTypeName))
+        catch (Exception error)
         {
-            message = message.Substring(fullTypeName.Length);
+            SetError(error);
+            return default;
         }
-        return Runtime.PyString_FromString(message);
+    }
+
+    /// <summary>
+    /// Raises to Python the error of an exception member, as it is: a Python override of the member
+    /// throws its PythonException directly, whose InnerException is its cause, while a member the
+    /// Python subclass inherits runs through reflection, which wraps what it throws
+    /// </summary>
+    static void SetError(Exception error)
+    {
+        var raised = error is TargetInvocationException { InnerException: { } invoked } ? invoked : error;
+        Exceptions.SetError(raised);
     }
 
     public override bool Init(BorrowedReference obj, BorrowedReference args, BorrowedReference kw)
+        => base.Init(obj, args, kw) && SetArgsAndCause(obj);
+
+    /// <summary>
+    /// Sets the args and __cause__ of the constructed exception, raising to Python an error
+    /// its members throw, such as a Python override of Message
+    /// </summary>
+    internal static bool SetArgsAndCause(BorrowedReference obj)
     {
-        if (!base.Init(obj, args, kw)) return false;
-
         var e = (CLRObject)GetManagedObject(obj)!;
-
-        return Exceptions.SetArgsAndCause(obj, (Exception)e.inst);
+        try
+        {
+            return Exceptions.SetArgsAndCause(obj, (Exception)e.inst);
+        }
+        catch (Exception error)
+        {
+            SetError(error);
+            return false;
+        }
     }
+}
+
+/// <summary>
+/// Implementation for the managed types generated for Python subclasses of exceptions
+/// that declare __namespace__: the generated object keeps its Python object as derived
+/// types do, while it still reads as an exception from Python.
+/// </summary>
+[Serializable]
+internal class ExceptionClassDerivedObject : ClassDerivedObject
+{
+    internal ExceptionClassDerivedObject(Type tp) : base(tp)
+    {
+    }
+
+    // Type slots are looked up on the implementing type's hierarchy, which here is ClassDerivedObject's
+    public new static NewReference tp_repr(BorrowedReference ob) => ExceptionClassObject.tp_repr(ob);
+
+    public new static NewReference tp_str(BorrowedReference ob) => ExceptionClassObject.tp_str(ob);
+
+    // ClassDerivedObject's tp_clear leaves the object to the .NET finalizer, but the exception's own fields
+    // (args, __cause__, __context__, __traceback__, __dict__) can form cycles that only clearing them breaks.
+    // The wrapper and its handle stay, as the .NET object may still use them.
+    public new static int tp_clear(BorrowedReference ob) => BaseUnmanagedClear(ob);
+
+    public override bool Init(BorrowedReference obj, BorrowedReference args, BorrowedReference kw)
+        => base.Init(obj, args, kw) && ExceptionClassObject.SetArgsAndCause(obj);
 }
