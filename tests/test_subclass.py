@@ -232,6 +232,22 @@ def test_namespace_subclass_of_namespace_subclass():
     assert FunctionsTest.test_foo(ob) == "InterfaceTestClass"
     assert FunctionsTest.test_bar(ob, "bar", 2) == "bar/bar"
 
+    # overloads the generated type doesn't override don't hide the parent's override either
+    class EqualsParentClass(System.Object):
+        __namespace__ = namespace
+
+        def Equals(self, other):
+            return True
+
+    class EqualsChildClass(EqualsParentClass):
+        __namespace__ = namespace
+
+    other = System.Object()
+    ob = EqualsChildClass()
+    assert ob.Equals(other)
+    assert System.Object.Equals(ob, other)
+    assert ob.GetType().GetMethod("Equals", [System.Object]).Invoke(ob, [other])
+
     # members the child declares for .NET keep their snake_case aliases over the parent's Python ones
     import clr
 

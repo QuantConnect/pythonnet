@@ -112,16 +112,18 @@ internal sealed class ReflectedClrType : PyType
                         continue;
                     }
 
-                    // only the generated forwarders, not the members the class body declares for .NET
-                    var isForwarder = true;
+                    // a generated forwarder, possibly among overloads the generated type doesn't override (which
+                    // the parent's Python override replaces too), but not the members the class body declares for .NET
+                    var hasForwarder = false;
+                    var declaredInBody = false;
                     foreach (var member in method.info)
                     {
-                        isForwarder &= member is MethodInfo { IsVirtual: true, IsFinal: false }
+                        hasForwarder |= member is MethodInfo { IsVirtual: true, IsFinal: false }
                             && member.DeclaringType == subType
-                            && baseVirtualMethods.Contains(member.Name)
-                            && Runtime.PyDict_GetItemString(dict, member.Name).IsNull;
+                            && baseVirtualMethods.Contains(member.Name);
+                        declaredInBody |= !Runtime.PyDict_GetItemString(dict, member.Name).IsNull;
                     }
-                    if (isForwarder)
+                    if (hasForwarder && !declaredInBody)
                     {
                         ThrowIfIsNotZero(Runtime.PyDict_DelItem(cls_dict, key.Reference));
                     }
