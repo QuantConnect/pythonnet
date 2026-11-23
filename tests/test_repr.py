@@ -77,6 +77,48 @@ def test_tostring_throws():
     ob = ReprTest.ThrowingToString()
     assert "<Python.Test.ThrowingToString object at " in repr(ob)
 
+def test_str_tostring_throws():
+    """Test str() raises the exception a .NET ToString() throws, also when a Python subclass inherits it"""
+    from System import InvalidOperationException
+
+    class StrThrowingNs(ReprTest.ThrowingToString):
+        __namespace__ = "ReprTestNs"
+
+    for ob in (ReprTest.ThrowingToString(), StrThrowingNs()):
+        with pytest.raises(InvalidOperationException, match="ToString\\(\\) failed"):
+            str(ob)
+
+def test_str_python_tostring_raises():
+    """Test str() raises the error of a Python ToString() override as it is, with its cause"""
+    from System import InvalidOperationException
+
+    class StrRaisingNs(System.Object):
+        __namespace__ = "ReprTestNs"
+
+        def __init__(self, error):
+            self.error = error
+
+        def ToString(self):
+            raise self.error
+
+    with pytest.raises(ValueError, match="plain") as info:
+        str(StrRaisingNs(ValueError("plain")))
+    assert info.value.__cause__ is None
+
+    with pytest.raises(InvalidOperationException, match="from .NET"):
+        str(StrRaisingNs(InvalidOperationException("from .NET")))
+
+    class StrChainedNs(System.Object):
+        __namespace__ = "ReprTestNs"
+
+        def ToString(self):
+            raise ValueError("outer") from KeyError("inner")
+
+    with pytest.raises(ValueError, match="outer") as info:
+        str(StrChainedNs())
+    assert isinstance(info.value.__cause__, KeyError)
+    assert info.value.__cause__.args == ("inner",)
+
 def test_hierarchy1():
     """Test inheritance hierarchy with base & middle class implementing ToString"""
     ob1 = ReprTest.BazBase()
