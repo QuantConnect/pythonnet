@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Reflection;
 using System.Runtime.Serialization;
 
 using static Python.Runtime.PythonException;
@@ -86,6 +88,60 @@ internal sealed class ReflectedClrType : PyType
             // derived class we want the python overrides in there instead if they exist.
             var cls_dict = Util.ReadRef(py_type, TypeOffset.tp_dict);
             ThrowIfIsNotZero(Runtime.PyDict_Update(cls_dict, dict));
+
+            // The generated type's overrides of its base's virtual methods would hide the Python overrides of
+            // a Python base class (a __namespace__ subclass of a __namespace__ subclass), so let lookups of
+            // those reach the Python overrides, as Python's method resolution does.
+            var pyBaseType = Util.ReadRef(py_type, TypeOffset.tp_base);
+            var baseVirtualMethods = baseClass.type.Value.GetMethods()
+                .Where(m => m.IsVirtual && !m.IsFinal)
+                .Select(m => m.Name)
+                .ToHashSet();
+            using var clsDict = new PyDict(cls_dict);
+            using var keys = clsDict.Keys();
+            foreach (PyObject key in keys)
+            {
+                using (key)
+                {
+                    var inherited = Runtime._PyType_Lookup(pyBaseType, key.Reference);
+                    if (inherited.IsNull
+                        || ManagedType.GetManagedObject(inherited) != null
+                        || !Runtime.PyDict_GetItem(dict, key.Reference).IsNull
+                        || ManagedType.GetManagedObject(Runtime.PyDict_GetItem(cls_dict, key.Reference)) is not MethodObject method)
+                    {
+                        continue;
+                    }
+
+                    // a generated forwarder, possibly among overloads the generated type doesn't override (which
+                    // the parent's Python override replaces too), but not the members the class body declares for .NET,
+                    // methods or the accessors of its properties
+                    var hasForwarder = false;
+                    var declaredInBody = false;
+                    foreach (var member in method.info)
+                    {
+                        hasForwarder |= member is MethodInfo { IsVirtual: true, IsFinal: false }
+                            && member.DeclaringType == subType
+                            && baseVirtualMethods.Contains(member.Name);
+
+                        // an accessor the generated type emits for a property the class body declares with
+                        // clr.clrproperty, by the names ClassDerivedObject gives them
+                        var property = member is MethodInfo { IsSpecialName: true }
+                            && (member.Name.StartsWith("get_") || member.Name.StartsWith("set_"))
+                            ? Runtime.PyDict_GetItemString(dict, member.Name.Substring(4))
+                            : BorrowedReference.Null;
+                        var isBodyPropertyAccessor = !property.IsNull
+                            && Runtime.PyObject_HasAttrString(property, "_clr_property_type_") == 1;
+
+                        declaredInBody |= !Runtime.PyDict_GetItemString(dict, member.Name).IsNull
+                            || isBodyPropertyAccessor;
+                    }
+                    if (hasForwarder && !declaredInBody)
+                    {
+                        ThrowIfIsNotZero(Runtime.PyDict_DelItem(cls_dict, key.Reference));
+                    }
+                }
+            }
+
             // Update the __classcell__ if it exists
             BorrowedReference cell = Runtime.PyDict_GetItemString(cls_dict, "__classcell__");
             if (!cell.IsNull)

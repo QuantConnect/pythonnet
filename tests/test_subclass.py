@@ -197,6 +197,149 @@ def test_create_instance():
     assert id(y) == id(ob2)
 
 
+def test_namespace_subclass_of_namespace_subclass():
+    """Test managed code reaches the Python overrides a namespaced subclass inherits from a namespaced parent"""
+    subnamespace = test_namespace_subclass_of_namespace_subclass.__name__
+    namespace = "Python.Test." + subnamespace
+    DerivedClass = derived_class_fixture(subnamespace)
+
+    class ChildClass(DerivedClass):
+        __namespace__ = namespace
+
+    class GrandChildClass(ChildClass):
+        __namespace__ = namespace
+
+        def bar(self, x, i):
+            return "GrandChildClass"
+
+    for ob in (ChildClass(), GrandChildClass(), FunctionsTest.create_instance(GrandChildClass)):
+        assert ob.foo() == "DerivedClass"
+        assert FunctionsTest.test_foo(ob) == "DerivedClass"
+        assert ob.not_overriden() == "not_overriden"
+        assert list(SubClassTest.test_list(ob)) == ["A", "B", "C"]
+
+    assert FunctionsTest.test_bar(ChildClass(), "bar", 2) == "bar_bar"
+    assert FunctionsTest.test_bar(GrandChildClass(), "bar", 2) == "GrandChildClass"
+
+    # interface methods have no managed implementation to fall back to
+    InterfaceTestClass = interface_test_class_fixture(subnamespace)
+
+    class InterfaceChildClass(InterfaceTestClass):
+        __namespace__ = namespace
+
+    ob = InterfaceChildClass()
+    assert ob.foo() == "InterfaceTestClass"
+    assert FunctionsTest.test_foo(ob) == "InterfaceTestClass"
+    assert FunctionsTest.test_bar(ob, "bar", 2) == "bar/bar"
+
+    # overloads the generated type doesn't override don't hide the parent's override either
+    class EqualsParentClass(System.Object):
+        __namespace__ = namespace
+
+        def Equals(self, other):
+            return True
+
+    class EqualsChildClass(EqualsParentClass):
+        __namespace__ = namespace
+
+    other = System.Object()
+    ob = EqualsChildClass()
+    assert ob.Equals(other)
+    assert System.Object.Equals(ob, other)
+    assert ob.GetType().GetMethod("Equals", [System.Object]).Invoke(ob, [other])
+
+    # members the child declares for .NET keep their snake_case aliases over the parent's Python ones
+    import clr
+
+    class AliasParentClass(SubClassTest):
+        __namespace__ = namespace
+
+        def calculate(self):
+            return 1
+
+        @property
+        def number(self):
+            return 2
+
+    class AliasChildClass(AliasParentClass):
+        __namespace__ = namespace
+
+        @clr.clrmethod(int, [])
+        def Calculate(self):
+            return 3
+
+        @clr.clrproperty(int)
+        def Number(self):
+            return 4
+
+    ob = AliasChildClass()
+    assert ob.calculate() == 3
+    assert ob.Calculate() == 3
+    assert ob.number == 4
+    assert ob.Number == 4
+
+    # nor the accessors of a property the child redeclares
+    class PropertyParentClass(System.Object):
+        __namespace__ = namespace
+
+        def get_Number(self):
+            return 1
+
+        def set_Number(self, value):
+            self.value = value + 1
+
+        Number = clr.clrproperty(int, get_Number, set_Number)
+
+    class PropertyChildClass(PropertyParentClass):
+        __namespace__ = namespace
+
+        def get_Number(self):
+            return 3
+
+        def set_Number(self, value):
+            self.value = value + 3
+
+        Number = clr.clrproperty(int, get_Number, set_Number)
+
+    class PropertyDecoratedChildClass(PropertyParentClass):
+        __namespace__ = namespace
+
+        @clr.clrproperty(int)
+        def Number(self):
+            return 3
+
+        @Number.setter
+        def Number(self, value):
+            self.value = value + 3
+
+    for cls in (PropertyChildClass, PropertyDecoratedChildClass):
+        ob = cls()
+        prop = ob.GetType().GetProperty("Number")
+        assert ob.Number == 3
+        assert ob.get_Number() == 3
+        assert prop.GetValue(ob) == 3
+        ob.set_Number(10)
+        assert ob.value == 13
+        prop.SetValue(ob, 20)
+        assert ob.value == 23
+
+    # the managed constructor still runs once
+    from Python.Test import CountedConstructorTest
+
+    class CountedParentClass(CountedConstructorTest):
+        __namespace__ = namespace
+
+        def __init__(self):
+            super().__init__()
+
+    class CountedChildClass(CountedParentClass):
+        __namespace__ = namespace
+
+    CountedConstructorTest.Calls = 0
+    CountedChildClass()
+    assert CountedConstructorTest.Calls == 1
+
+
 def test_events():
     class EventHandler(object):
         def handler(self, x, args):
