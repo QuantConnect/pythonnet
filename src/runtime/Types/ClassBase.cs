@@ -348,7 +348,8 @@ namespace Python.Runtime
             }
             catch (Exception e)
             {
-                if (e.InnerException != null)
+                // a PythonException's InnerException is the Python error's __cause__, not a wrapper
+                if (e is not PythonException && e.InnerException != null)
                 {
                     e = e.InnerException;
                 }
