@@ -697,3 +697,45 @@ def test_namespaced_exception_subclass_override_errors():
         "init outer KeyError 'inner'",
         "inherited str outer KeyError 'inner'",
     ]
+
+
+_NAMESPACED_EXCEPTION_FROM_DOTNET_SCRIPT = """
+from System import Activator, Array, Exception as ClrException, String, Type
+
+class CreatedError(ClrException):
+    __namespace__ = "Python.Test.DotNetCreatedExceptions"
+    def __init__(self):
+        pass
+
+class ChildCreatedError(CreatedError):
+    __namespace__ = "Python.Test.DotNetCreatedExceptions"
+    def __init__(self):
+        pass
+
+def check(name, error):
+    cause = error.__cause__
+    print(name, error.Message, error.args, cause.Message if cause is not None else None,
+          error.InnerException.Message if error.InnerException is not None else None)
+
+inner = ClrException("inner")
+created = clr.GetClrType(CreatedError)
+check("activator", Activator.CreateInstance(created, Array[Object](["custom message", inner])))
+check("constructor info", created.GetConstructor(Array[Type]([String])).Invoke(Array[Object](["message only"])))
+check("parameterless", Activator.CreateInstance(created))
+check("child", Activator.CreateInstance(clr.GetClrType(ChildCreatedError), Array[Object](["child message", inner])))
+"""
+
+
+@pytest.mark.skipif(os.environ.get("PYTHONNET_RUNTIME") != "netcore", reason="loads the netcore runtime")
+def test_namespaced_exception_subclass_created_from_dotnet():
+    """The args and __cause__ of a __namespace__ exception subclass constructed from .NET
+    match the Message and InnerException its base constructor set"""
+    output = _run_namespaced_exception_script(_NAMESPACED_EXCEPTION_FROM_DOTNET_SCRIPT)
+
+    default = "Exception of type 'Python.Test.DotNetCreatedExceptions.CreatedError' was thrown."
+    assert output[-4:] == [
+        "activator custom message ('custom message',) inner inner",
+        "constructor info message only ('message only',) None None",
+        f"parameterless {default} ({default!r},) None None",
+        "child child message ('child message',) inner inner",
+    ]

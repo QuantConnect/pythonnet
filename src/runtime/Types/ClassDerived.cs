@@ -904,8 +904,8 @@ namespace Python.Runtime
 
         public static void InvokeCtor(IPythonDerivedType obj, string origCtorName, object[] args)
         {
-            var selfRef = GetPyObj(obj);
-            if (selfRef.Ref == null)
+            var createdFromDotNet = GetPyObj(obj).Ref == null;
+            if (createdFromDotNet)
             {
                 // this might happen when the object is created from .NET
                 using var _ = Py.GIL();
@@ -922,6 +922,18 @@ namespace Python.Runtime
                 null,
                 obj,
                 args);
+
+            // the Python object of an exception created from .NET got its args and __cause__
+            // before the base constructor set its Message and InnerException
+            if (!createdFromDotNet || obj is not Exception exception)
+            {
+                return;
+            }
+            using var gil = Py.GIL();
+            if (!Exceptions.SetArgsAndCause(GetPyObj(obj).CheckRun(), exception))
+            {
+                throw PythonException.ThrowLastAsClrException();
+            }
         }
 
         public static void PyFinalize(IPythonDerivedType obj)
