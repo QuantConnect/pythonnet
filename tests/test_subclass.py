@@ -232,16 +232,51 @@ def test_namespace_subclass_of_namespace_subclass():
     assert FunctionsTest.test_foo(ob) == "InterfaceTestClass"
     assert FunctionsTest.test_bar(ob, "bar", 2) == "bar/bar"
 
-    class InitParentClass(SubClassTest):
+    # members the child declares for .NET keep their snake_case aliases over the parent's Python ones
+    import clr
+
+    class AliasParentClass(SubClassTest):
         __namespace__ = namespace
 
-        def __init__(self, value):
-            self.value = value
+        def calculate(self):
+            return 1
 
-    class InitChildClass(InitParentClass):
+        @property
+        def number(self):
+            return 2
+
+    class AliasChildClass(AliasParentClass):
         __namespace__ = namespace
 
-    assert InitChildClass(5).value == 5
+        @clr.clrmethod(int, [])
+        def Calculate(self):
+            return 3
+
+        @clr.clrproperty(int)
+        def Number(self):
+            return 4
+
+    ob = AliasChildClass()
+    assert ob.calculate() == 3
+    assert ob.Calculate() == 3
+    assert ob.number == 4
+    assert ob.Number == 4
+
+    # the managed constructor still runs once
+    from Python.Test import CountedConstructorTest
+
+    class CountedParentClass(CountedConstructorTest):
+        __namespace__ = namespace
+
+        def __init__(self):
+            super().__init__()
+
+    class CountedChildClass(CountedParentClass):
+        __namespace__ = namespace
+
+    CountedConstructorTest.Calls = 0
+    CountedChildClass()
+    assert CountedConstructorTest.Calls == 1
 
 
 def test_events():

@@ -108,4 +108,14 @@ namespace Python.Test
             Interlocked.Increment(ref Finalized);
         }
     }
+
+    public class CountedConstructorTest
+    {
+        public static int Calls;
+
+        public CountedConstructorTest()
+        {
+            ++Calls;
+        }
+    }
 }

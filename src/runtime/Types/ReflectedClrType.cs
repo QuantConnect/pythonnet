@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Reflection;
 using System.Runtime.Serialization;
 
 using static Python.Runtime.PythonException;
@@ -87,10 +89,14 @@ internal sealed class ReflectedClrType : PyType
             var cls_dict = Util.ReadRef(py_type, TypeOffset.tp_dict);
             ThrowIfIsNotZero(Runtime.PyDict_Update(cls_dict, dict));
 
-            // The generated type's own members, such as the overrides of its base's virtual methods, would
-            // hide the Python overrides of a Python base class (a __namespace__ subclass of a __namespace__
-            // subclass), so let lookups reach those as Python's method resolution does.
+            // The generated type's overrides of its base's virtual methods would hide the Python overrides of
+            // a Python base class (a __namespace__ subclass of a __namespace__ subclass), so let lookups of
+            // those reach the Python overrides, as Python's method resolution does.
             var pyBaseType = Util.ReadRef(py_type, TypeOffset.tp_base);
+            var baseVirtualMethods = baseClass.type.Value.GetMethods()
+                .Where(m => m.IsVirtual && !m.IsFinal)
+                .Select(m => m.Name)
+                .ToHashSet();
             using var clsDict = new PyDict(cls_dict);
             using var keys = clsDict.Keys();
             foreach (PyObject key in keys)
@@ -101,11 +107,24 @@ internal sealed class ReflectedClrType : PyType
                     if (inherited.IsNull
                         || ManagedType.GetManagedObject(inherited) != null
                         || !Runtime.PyDict_GetItem(dict, key.Reference).IsNull
-                        || ManagedType.GetManagedObject(Runtime.PyDict_GetItem(cls_dict, key.Reference)) == null)
+                        || ManagedType.GetManagedObject(Runtime.PyDict_GetItem(cls_dict, key.Reference)) is not MethodObject method)
                     {
                         continue;
                     }
-                    ThrowIfIsNotZero(Runtime.PyDict_DelItem(cls_dict, key.Reference));
+
+                    // only the generated forwarders, not the members the class body declares for .NET
+                    var isForwarder = true;
+                    foreach (var member in method.info)
+                    {
+                        isForwarder &= member is MethodInfo { IsVirtual: true, IsFinal: false }
+                            && member.DeclaringType == subType
+                            && baseVirtualMethods.Contains(member.Name)
+                            && Runtime.PyDict_GetItemString(dict, member.Name).IsNull;
+                    }
+                    if (isForwarder)
+                    {
+                        ThrowIfIsNotZero(Runtime.PyDict_DelItem(cls_dict, key.Reference));
+                    }
                 }
             }
 
