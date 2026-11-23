@@ -154,7 +154,7 @@ namespace Python.Runtime
             obj = IntPtr.Zero;
         }
 
-        internal void AddDerivedFinalizedObject(ref IntPtr derived, int run)
+        internal void AddDerivedFinalizedObject(ref IntPtr derived, int run, object managed)
         {
             if (derived == IntPtr.Zero)
                 throw new ArgumentNullException(nameof(derived));
@@ -164,7 +164,7 @@ namespace Python.Runtime
                 return;
             }
 
-            var pending = new PendingFinalization { PyObj = derived, RuntimeRun = run };
+            var pending = new PendingFinalization { PyObj = derived, RuntimeRun = run, Managed = managed };
             derived = IntPtr.Zero;
             _derivedQueue.Enqueue(pending);
         }
@@ -254,7 +254,7 @@ namespace Python.Runtime
                         }
 
 #pragma warning disable CS0618 // Type or member is obsolete. OK for internal use
-                        PythonDerivedType.Finalize(derived.PyObj);
+                        PythonDerivedType.Finalize(derived.PyObj, derived.Managed);
 #pragma warning restore CS0618 // Type or member is obsolete
 
                         collected++;
@@ -367,6 +367,10 @@ namespace Python.Runtime
         public IntPtr PyObj;
         public BorrowedReference Ref => new(PyObj);
         public int RuntimeRun;
+        /// <summary>
+        /// The finalized .NET object of a Python derived type, kept alive until it's handled
+        /// </summary>
+        public object? Managed;
 #if TRACE_ALLOC
         public string StackTrace;
 #endif

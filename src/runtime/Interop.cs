@@ -63,6 +63,8 @@ namespace Python.Runtime
     [Flags]
     public enum TypeFlags: long
     {
+        /// <summary>Python 3.7 calls tp_finalize only when set</summary>
+        HaveFinalize = (1 << 0),
         HeapType = (1 << 9),
         BaseType = (1 << 10),
         Ready = (1 << 12),

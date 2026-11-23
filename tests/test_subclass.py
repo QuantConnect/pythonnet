@@ -407,6 +407,64 @@ def test_namespaced_subclass_direct_del_call_keeps_net_object():
     assert instance.me is instance
 
 
+def _resurrect_through_python(cls, survivors):
+    """Drop an instance in a cycle whose other member's __del__ gives Python the instance back"""
+    import gc
+    from System import GC
+
+    class Resurrector:
+        def __init__(self, owner):
+            self.owner = owner
+
+        def __del__(self):
+            survivors.append(self.owner)
+
+    owner = cls()
+    owner.other = Resurrector(owner)
+    del owner
+
+    gc.collect()
+    GC.Collect()
+    GC.WaitForPendingFinalizers()
+
+
+def test_namespaced_subclass_resurrected_by_python_keeps_net_object():
+    class Resurrected(System.Object):
+        __namespace__ = "test_namespaced_subclass_resurrected_by_python_keeps_net_object"
+
+        def __init__(self):
+            self.code = 7
+
+    survivors = []
+    _resurrect_through_python(Resurrected, survivors)
+    # before the finalized .NET object is handled
+    survivors[0].GetHashCode()
+
+    _release_python_and_net_objects()
+    assert survivors[0].GetType().Name == "Resurrected"
+    assert survivors[0].code == 7
+
+
+def test_namespaced_subclass_resurrected_by_python_is_collected():
+    class Resurrected(System.Object):
+        __namespace__ = "test_namespaced_subclass_resurrected_by_python_is_collected"
+
+        def __init__(self):
+            self.code = 7
+
+    refcount = sys.getrefcount(Resurrected)
+    survivors = []
+    _resurrect_through_python(Resurrected, survivors)
+
+    _release_python_and_net_objects()
+    assert survivors[0].code == 7
+    assert survivors[0].other.owner is survivors[0]
+
+    survivors.clear()
+    _release_python_and_net_objects()
+    assert sys.getrefcount(Resurrected) == refcount
+
+
 @pytest.mark.parametrize("in_cycle", [False, True])
 def test_namespaced_subclass_held_by_net_keeps_its_wrapper(in_cycle):
     class HeldByNet(System.Object):
