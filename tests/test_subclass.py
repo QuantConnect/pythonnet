@@ -278,6 +278,51 @@ def test_namespace_subclass_of_namespace_subclass():
     assert ob.number == 4
     assert ob.Number == 4
 
+    # nor the accessors of a property the child redeclares
+    class PropertyParentClass(System.Object):
+        __namespace__ = namespace
+
+        def get_Number(self):
+            return 1
+
+        def set_Number(self, value):
+            self.value = value + 1
+
+        Number = clr.clrproperty(int, get_Number, set_Number)
+
+    class PropertyChildClass(PropertyParentClass):
+        __namespace__ = namespace
+
+        def get_Number(self):
+            return 3
+
+        def set_Number(self, value):
+            self.value = value + 3
+
+        Number = clr.clrproperty(int, get_Number, set_Number)
+
+    class PropertyDecoratedChildClass(PropertyParentClass):
+        __namespace__ = namespace
+
+        @clr.clrproperty(int)
+        def Number(self):
+            return 3
+
+        @Number.setter
+        def Number(self, value):
+            self.value = value + 3
+
+    for cls in (PropertyChildClass, PropertyDecoratedChildClass):
+        ob = cls()
+        prop = ob.GetType().GetProperty("Number")
+        assert ob.Number == 3
+        assert ob.get_Number() == 3
+        assert prop.GetValue(ob) == 3
+        ob.set_Number(10)
+        assert ob.value == 13
+        prop.SetValue(ob, 20)
+        assert ob.value == 23
+
     # the managed constructor still runs once
     from Python.Test import CountedConstructorTest
 
