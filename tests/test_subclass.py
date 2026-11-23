@@ -197,6 +197,53 @@ def test_create_instance():
     assert id(y) == id(ob2)
 
 
+def test_namespace_subclass_of_namespace_subclass():
+    """Test managed code reaches the Python overrides a namespaced subclass inherits from a namespaced parent"""
+    subnamespace = test_namespace_subclass_of_namespace_subclass.__name__
+    namespace = "Python.Test." + subnamespace
+    DerivedClass = derived_class_fixture(subnamespace)
+
+    class ChildClass(DerivedClass):
+        __namespace__ = namespace
+
+    class GrandChildClass(ChildClass):
+        __namespace__ = namespace
+
+        def bar(self, x, i):
+            return "GrandChildClass"
+
+    for ob in (ChildClass(), GrandChildClass(), FunctionsTest.create_instance(GrandChildClass)):
+        assert ob.foo() == "DerivedClass"
+        assert FunctionsTest.test_foo(ob) == "DerivedClass"
+        assert ob.not_overriden() == "not_overriden"
+        assert list(SubClassTest.test_list(ob)) == ["A", "B", "C"]
+
+    assert FunctionsTest.test_bar(ChildClass(), "bar", 2) == "bar_bar"
+    assert FunctionsTest.test_bar(GrandChildClass(), "bar", 2) == "GrandChildClass"
+
+    # interface methods have no managed implementation to fall back to
+    InterfaceTestClass = interface_test_class_fixture(subnamespace)
+
+    class InterfaceChildClass(InterfaceTestClass):
+        __namespace__ = namespace
+
+    ob = InterfaceChildClass()
+    assert ob.foo() == "InterfaceTestClass"
+    assert FunctionsTest.test_foo(ob) == "InterfaceTestClass"
+    assert FunctionsTest.test_bar(ob, "bar", 2) == "bar/bar"
+
+    class InitParentClass(SubClassTest):
+        __namespace__ = namespace
+
+        def __init__(self, value):
+            self.value = value
+
+    class InitChildClass(InitParentClass):
+        __namespace__ = namespace
+
+    assert InitChildClass(5).value == 5
+
+
 def test_events():
     class EventHandler(object):
         def handler(self, x, args):

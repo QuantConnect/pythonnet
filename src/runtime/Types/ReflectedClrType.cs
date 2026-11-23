@@ -86,6 +86,29 @@ internal sealed class ReflectedClrType : PyType
             // derived class we want the python overrides in there instead if they exist.
             var cls_dict = Util.ReadRef(py_type, TypeOffset.tp_dict);
             ThrowIfIsNotZero(Runtime.PyDict_Update(cls_dict, dict));
+
+            // The generated type's own members, such as the overrides of its base's virtual methods, would
+            // hide the Python overrides of a Python base class (a __namespace__ subclass of a __namespace__
+            // subclass), so let lookups reach those as Python's method resolution does.
+            var pyBaseType = Util.ReadRef(py_type, TypeOffset.tp_base);
+            using var clsDict = new PyDict(cls_dict);
+            using var keys = clsDict.Keys();
+            foreach (PyObject key in keys)
+            {
+                using (key)
+                {
+                    var inherited = Runtime._PyType_Lookup(pyBaseType, key.Reference);
+                    if (inherited.IsNull
+                        || ManagedType.GetManagedObject(inherited) != null
+                        || !Runtime.PyDict_GetItem(dict, key.Reference).IsNull
+                        || ManagedType.GetManagedObject(Runtime.PyDict_GetItem(cls_dict, key.Reference)) == null)
+                    {
+                        continue;
+                    }
+                    ThrowIfIsNotZero(Runtime.PyDict_DelItem(cls_dict, key.Reference));
+                }
+            }
+
             // Update the __classcell__ if it exists
             BorrowedReference cell = Runtime.PyDict_GetItemString(cls_dict, "__classcell__");
             if (!cell.IsNull)
