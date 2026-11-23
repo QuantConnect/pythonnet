@@ -154,7 +154,7 @@ namespace Python.Runtime
             obj = IntPtr.Zero;
         }
 
-        internal void AddDerivedFinalizedObject(ref IntPtr derived, int run, object managed)
+        internal void AddDerivedFinalizedObject(ref IntPtr derived, int run, object? deferred = null, bool keptReference = false)
         {
             if (derived == IntPtr.Zero)
                 throw new ArgumentNullException(nameof(derived));
@@ -164,7 +164,10 @@ namespace Python.Runtime
                 return;
             }
 
-            var pending = new PendingFinalization { PyObj = derived, RuntimeRun = run, Managed = managed };
+            var pending = new PendingFinalization
+            {
+                PyObj = derived, RuntimeRun = run, Deferred = deferred, KeptReference = keptReference,
+            };
             derived = IntPtr.Zero;
             _derivedQueue.Enqueue(pending);
         }
@@ -254,7 +257,7 @@ namespace Python.Runtime
                         }
 
 #pragma warning disable CS0618 // Type or member is obsolete. OK for internal use
-                        PythonDerivedType.Finalize(derived.PyObj, derived.Managed);
+                        PythonDerivedType.Finalize(derived.PyObj, derived.Deferred, derived.KeptReference);
 #pragma warning restore CS0618 // Type or member is obsolete
 
                         collected++;
@@ -368,9 +371,13 @@ namespace Python.Runtime
         public BorrowedReference Ref => new(PyObj);
         public int RuntimeRun;
         /// <summary>
-        /// The finalized .NET object of a Python derived type, kept alive until it's handled
+        /// The .NET object of a Python derived type whose finalization waits until this is handled
         /// </summary>
-        public object? Managed;
+        public object? Deferred;
+        /// <summary>
+        /// <see cref="Deferred"/> holds a reference to <see cref="PyObj"/>
+        /// </summary>
+        public bool KeptReference;
 #if TRACE_ALLOC
         public string StackTrace;
 #endif
