@@ -52,6 +52,7 @@ namespace Python.Runtime.Native
         int tp_descr_set { get; }
         int tp_dict { get; }
         int tp_dictoffset { get; }
+        int tp_finalize { get; }
         int tp_flags { get; }
         int tp_free { get; }
         int tp_getattro { get; }

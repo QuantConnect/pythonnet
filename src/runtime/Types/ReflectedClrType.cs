@@ -168,6 +168,10 @@ internal sealed class ReflectedClrType : PyType
                         | TypeFlags.HeapType
                         | TypeFlags.BaseType
                         | TypeFlags.HaveGC;
+        if (Runtime.PyVersion < new Version(3, 8))
+        {
+            type.Flags |= TypeFlags.HaveFinalize;
+        }
 
         return new ReflectedClrType(type.Steal());
     }

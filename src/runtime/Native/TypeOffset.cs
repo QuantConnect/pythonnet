@@ -59,6 +59,7 @@ namespace Python.Runtime
         internal static int tp_descr_set { get; private set; }
         internal static int tp_dict { get; private set; }
         internal static int tp_dictoffset { get; private set; }
+        internal static int tp_finalize { get; private set; }
         internal static int tp_flags { get; private set; }
         internal static int tp_free { get; private set; }
         internal static int tp_getattro { get; private set; }

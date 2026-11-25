@@ -63,6 +63,8 @@ namespace Python.Runtime
     [Flags]
     public enum TypeFlags: long
     {
+        /// <summary>Python 3.7 calls tp_finalize only when set</summary>
+        HaveFinalize = (1 << 0),
         HeapType = (1 << 9),
         BaseType = (1 << 10),
         Ready = (1 << 12),
@@ -187,6 +189,9 @@ namespace Python.Runtime
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate void N_V(NewReference ob);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void B_V(BorrowedReference ob);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate int BPP_I32(BorrowedReference ob, IntPtr a1, IntPtr a2);

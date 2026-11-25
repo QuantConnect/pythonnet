@@ -448,3 +448,273 @@ def test_can_be_collected_by_gc():
 
     import gc
     gc.collect()
+
+
+def _release_python_and_net_objects():
+    """Collect Python cycles and .NET objects, then free the Python objects whose .NET object was finalized"""
+    import gc
+    from System import GC
+
+    for _ in range(3):
+        gc.collect()
+        GC.Collect()
+        GC.WaitForPendingFinalizers()
+        # every 200th Python object passed to .NET frees the queued ones
+        List[System.Object]([object() for _ in range(300)])
+    gc.collect()
+
+
+def test_namespaced_subclass_held_by_net_keeps_its_cycle():
+    from System import String
+
+    class CycleHolder(System.Object):
+        __namespace__ = "test_namespaced_subclass_held_by_net_keeps_its_cycle"
+
+        def __init__(self, code):
+            self.code = code
+            self.me = self
+            self.items = [self]
+            self.items.append(self.items)
+
+        def ToString(self):
+            return "holder {}".format(self.code)
+
+    class PythonSubclass(CycleHolder):
+        pass
+
+    # each instance references its class, until it's freed
+    refcounts = sys.getrefcount(CycleHolder), sys.getrefcount(PythonSubclass)
+    held = List[System.Object]()
+    held.Add(CycleHolder(7))
+    held.Add(PythonSubclass(8))
+
+    for _ in range(2):
+        _release_python_and_net_objects()
+        # .NET calls the Python override while only .NET holds the object
+        assert String.Join[System.Object](",", held) == "holder 7,holder 8"
+
+        holder = held[0]
+        assert holder.code == 7
+        assert holder.me is holder
+        assert holder.items[0] is holder
+        assert held[1].code == 8
+        del holder
+
+    held.Clear()
+    _release_python_and_net_objects()
+    assert (sys.getrefcount(CycleHolder), sys.getrefcount(PythonSubclass)) == refcounts
+
+
+def test_namespaced_subclass_cycle_is_collected():
+    class CycleMember(System.Object):
+        __namespace__ = "test_namespaced_subclass_cycle_is_collected"
+
+        def __init__(self):
+            self.me = self
+
+    refcount = sys.getrefcount(CycleMember)
+    for _ in range(100):
+        CycleMember()
+        first, second = CycleMember(), CycleMember()
+        first.other, second.other = second, first
+        del first, second
+
+    held = List[System.Object]()
+    first, second = CycleMember(), CycleMember()
+    first.other, second.other = second, first
+    first.code = 1
+    held.Add(second)
+    del first, second
+
+    _release_python_and_net_objects()
+    assert held[0].other.code == 1
+    assert held[0].other.other is held[0]
+    assert sys.getrefcount(CycleMember) == refcount + 2
+
+    held.Clear()
+    _release_python_and_net_objects()
+    assert sys.getrefcount(CycleMember) == refcount
+
+
+def test_namespaced_subclass_direct_del_call_keeps_net_object():
+    class DirectDelCall(System.Object):
+        __namespace__ = "test_namespaced_subclass_direct_del_call_keeps_net_object"
+
+        def __init__(self):
+            self.me = self
+
+    instance = DirectDelCall()
+    instance.__del__()
+    _release_python_and_net_objects()
+    instance.GetHashCode()
+    assert instance.me is instance
+
+
+def _resurrect_through_python(cls, survivors):
+    """Drop an instance in a cycle whose other member's __del__ gives Python the instance back"""
+    import gc
+    from System import GC
+
+    class Resurrector:
+        def __init__(self, owner):
+            self.owner = owner
+
+        def __del__(self):
+            survivors.append(self.owner)
+
+    owner = cls()
+    owner.other = Resurrector(owner)
+    del owner
+
+    gc.collect()
+    GC.Collect()
+    GC.WaitForPendingFinalizers()
+
+
+def test_namespaced_subclass_resurrected_by_python_keeps_net_object():
+    class Resurrected(System.Object):
+        __namespace__ = "test_namespaced_subclass_resurrected_by_python_keeps_net_object"
+
+        def __init__(self):
+            self.code = 7
+
+    survivors = []
+    _resurrect_through_python(Resurrected, survivors)
+    # before the finalized .NET object is handled
+    survivors[0].GetHashCode()
+
+    _release_python_and_net_objects()
+    assert survivors[0].GetType().Name == "Resurrected"
+    assert survivors[0].code == 7
+
+
+def test_namespaced_subclass_resurrected_by_python_is_collected():
+    class Resurrected(System.Object):
+        __namespace__ = "test_namespaced_subclass_resurrected_by_python_is_collected"
+
+        def __init__(self):
+            self.code = 7
+
+    refcount = sys.getrefcount(Resurrected)
+    survivors = []
+    _resurrect_through_python(Resurrected, survivors)
+
+    _release_python_and_net_objects()
+    assert survivors[0].code == 7
+    assert survivors[0].other.owner is survivors[0]
+
+    survivors.clear()
+    _release_python_and_net_objects()
+    assert sys.getrefcount(Resurrected) == refcount
+
+
+def test_namespaced_subclass_resurrected_by_python_and_passed_to_net():
+    class Resurrected(System.Object):
+        __namespace__ = "test_namespaced_subclass_resurrected_by_python_and_passed_to_net"
+
+        def __init__(self):
+            self.code = 7
+
+    from Python.Runtime import Finalizer
+
+    refcount = sys.getrefcount(Resurrected)
+    survivors = []
+    held = List[System.Object]()
+    threshold = Finalizer.Instance.Threshold
+    # .NET gets the instance back before the finalized .NET object is handled
+    Finalizer.Instance.Threshold = 1000000
+    try:
+        _resurrect_through_python(Resurrected, survivors)
+        held.Add(survivors[0])
+        alias = held[0]
+        assert alias is survivors[0]
+        # the next Python object passed to .NET handles the finalized .NET object
+        Finalizer.Instance.Threshold = 1
+        List[System.Object]([object()])
+    finally:
+        Finalizer.Instance.Threshold = threshold
+    assert alias.code == 7
+
+    # Python lets go first, then .NET
+    survivors.clear()
+    del alias
+    _release_python_and_net_objects()
+    assert held[0].code == 7
+    assert held[0].GetType().Name == "Resurrected"
+
+    held.Clear()
+    _release_python_and_net_objects()
+    assert sys.getrefcount(Resurrected) == refcount
+
+
+def test_namespaced_subclass_taken_back_by_python_then_released():
+    class TakenBack(System.Object):
+        __namespace__ = "test_namespaced_subclass_taken_back_by_python_then_released"
+
+        def __init__(self):
+            self.code = 7
+            self.me = self
+
+    refcount = sys.getrefcount(TakenBack)
+    held = List[System.Object]()
+    held.Add(TakenBack())
+    _release_python_and_net_objects()
+
+    instance = held[0]
+    assert instance.code == 7
+    instance.me = None
+    del instance
+    held.Clear()
+    for _ in range(2):
+        _release_python_and_net_objects()
+    assert sys.getrefcount(TakenBack) == refcount
+
+
+@pytest.mark.parametrize("cycle", ["none", "self", "resurrected"])
+def test_namespaced_subclass_runs_base_finalizer_once(cycle):
+    from Python.Test import FinalizedConstructorTest
+
+    class Finalized(FinalizedConstructorTest):
+        __namespace__ = "test_namespaced_subclass_runs_base_finalizer_once_{}".format(cycle)
+
+        def __init__(self):
+            self.code = 7
+
+    before = FinalizedConstructorTest.Finalized
+    survivors = []
+    if cycle == "resurrected":
+        _resurrect_through_python(Finalized, survivors)
+        _release_python_and_net_objects()
+        assert survivors[0].code == 7
+        survivors.clear()
+    else:
+        instance = Finalized()
+        if cycle == "self":
+            instance.me = instance
+        del instance
+
+    for _ in range(3):
+        _release_python_and_net_objects()
+    assert FinalizedConstructorTest.Finalized - before == 1
+
+
+@pytest.mark.parametrize("in_cycle", [False, True])
+def test_namespaced_subclass_held_by_net_keeps_its_wrapper(in_cycle):
+    class HeldByNet(System.Object):
+        __namespace__ = "test_namespaced_subclass_held_by_net_keeps_its_wrapper_{}".format(in_cycle)
+
+        def __init__(self, code):
+            self.code = code
+            if in_cycle:
+                self.me = self
+
+    held = List[System.Object]()
+    held.Add(HeldByNet(7))
+    for _ in range(2):
+        _release_python_and_net_objects()
+
+        instance = held[0]
+        assert instance.code == 7
+        assert held.Contains(instance)
+        assert instance.GetType().Name == "HeldByNet"
+        del instance
