@@ -141,11 +141,11 @@ namespace Python.Runtime
         {
             private const int ExtraFrames = 100;
 
-            private readonly int _limit;
+            private readonly bool _entered;
 
-            private RecursionHeadroom(int limit)
+            private RecursionHeadroom(bool entered)
             {
-                _limit = limit;
+                _entered = entered;
             }
 
             public static RecursionHeadroom Enter()
@@ -156,16 +156,16 @@ namespace Python.Runtime
                 }
 
                 _hasRecursionHeadroom = true;
-                var limit = Runtime.Py_GetRecursionLimit();
-                Runtime.Py_SetRecursionLimit(limit + ExtraFrames);
-                return new RecursionHeadroom(limit);
+                Runtime.Py_SetRecursionLimit(Runtime.Py_GetRecursionLimit() + ExtraFrames);
+                return new RecursionHeadroom(true);
             }
 
             public void Dispose()
             {
-                if (_limit > 0)
+                if (_entered)
                 {
-                    Runtime.Py_SetRecursionLimit(_limit);
+                    // undo the increment, a saved limit would be stale when another thread is decoding too
+                    Runtime.Py_SetRecursionLimit(Runtime.Py_GetRecursionLimit() - ExtraFrames);
                     _hasRecursionHeadroom = false;
                 }
             }
