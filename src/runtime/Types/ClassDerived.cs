@@ -76,6 +76,16 @@ namespace Python.Runtime
             // don't let the python GC destroy this object
             Runtime.PyObject_GC_UnTrack(ob.Borrow());
 
+            // a wrapper that isn't the object's own Python object, such as a raw conversion's, is freed as usual.
+            // Once finalized, the object no longer names its own, which its finalizer queued to release.
+            if (self?.inst is IPythonDerivedType derived
+                && GetPyObj(derived).Ref is var own && own != null && own != ob.Borrow())
+            {
+                ClassBase.tp_clear(ob.Borrow());
+                DecrefTypeAndFree(ob.Steal());
+                return;
+            }
+
             // self may be null after Shutdown begun
             if (self is not null)
             {
@@ -113,6 +123,14 @@ namespace Python.Runtime
                 return default;
             }
 
+            return ToPython(obj, self);
+        }
+
+        /// <summary>
+        /// Gives Python <paramref name="self"/>, the Python object of <paramref name="obj"/>.
+        /// </summary>
+        internal static NewReference ToPython(IPythonDerivedType obj, BorrowedReference self)
+        {
             var result = new NewReference(self);
 
             // when the C# constructor creates the python object it starts as a weak
@@ -132,6 +150,17 @@ namespace Python.Runtime
 
                 // now the object has a python reference it's safe for the python GC to track it
                 Runtime.PyObject_GC_Track(self);
+
+                // Python's GC clears the args of an exception in a cycle, as it doesn't see .NET holding it
+                if (obj is Exception)
+                {
+                    using var args = Runtime.PyObject_GetAttrString(self, "args");
+                    if (args.IsNull() || args.Borrow() == Runtime.PyNone && !ExceptionClassObject.SetArgsAndCause(self))
+                    {
+                        result.Dispose();
+                        return default;
+                    }
+                }
             }
 
             return result;
@@ -721,7 +750,8 @@ namespace Python.Runtime
                 PyGILState gs = Runtime.PyGILState_Ensure();
                 try
                 {
-                    using var pyself = new PyObject(self.CheckRun());
+                    // as Python would get it, with a managed wrapper even after .NET collected the old one
+                    using var pyself = new PyObject(ClassDerivedObject.ToPython(obj, self.CheckRun()).StealOrThrow());
                     using PyObject method = pyself.GetAttr(methodName, Runtime.None);
                     if (method.Reference != Runtime.PyNone)
                     {
@@ -776,7 +806,8 @@ namespace Python.Runtime
                 PyGILState gs = Runtime.PyGILState_Ensure();
                 try
                 {
-                    using var pyself = new PyObject(self.CheckRun());
+                    // as Python would get it, with a managed wrapper even after .NET collected the old one
+                    using var pyself = new PyObject(ClassDerivedObject.ToPython(obj, self.CheckRun()).StealOrThrow());
                     using PyObject method = pyself.GetAttr(methodName, Runtime.None);
                     if (method.Reference != Runtime.None)
                     {
@@ -869,7 +900,8 @@ namespace Python.Runtime
             PyGILState gs = Runtime.PyGILState_Ensure();
             try
             {
-                using var pyself = new PyObject(self.CheckRun());
+                // as Python would get it, with a managed wrapper even after .NET collected the old one
+                using var pyself = new PyObject(ClassDerivedObject.ToPython(obj, self.CheckRun()).StealOrThrow());
                 using (PyObject pyvalue = pyself.GetAttr(propertyName))
                 {
                     return pyvalue.As<T>();
@@ -893,7 +925,8 @@ namespace Python.Runtime
             PyGILState gs = Runtime.PyGILState_Ensure();
             try
             {
-                using var pyself = new PyObject(self.CheckRun());
+                // as Python would get it, with a managed wrapper even after .NET collected the old one
+                using var pyself = new PyObject(ClassDerivedObject.ToPython(obj, self.CheckRun()).StealOrThrow());
                 using var pyvalue = Converter.ToPythonImplicit(value).MoveToPyObject();
                 pyself.SetAttr(propertyName, pyvalue);
             }

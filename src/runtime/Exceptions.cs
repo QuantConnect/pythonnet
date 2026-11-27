@@ -80,10 +80,12 @@ namespace Python.Runtime
         internal static bool SetArgsAndCause(BorrowedReference ob, Exception e)
         {
             NewReference args;
-            if (!string.IsNullOrEmpty(e.Message))
+            // read once: a Python override of Message may return something else, or raise, on another call
+            string message = e.Message;
+            if (!string.IsNullOrEmpty(message))
             {
                 args = Runtime.PyTuple_New(1);
-                using var msg = Runtime.PyString_FromString(e.Message);
+                using var msg = Runtime.PyString_FromString(message);
                 Runtime.PyTuple_SetItem(args.Borrow(), 0, msg.StealOrThrow());
             }
             else
