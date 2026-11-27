@@ -19,8 +19,6 @@ public unsafe partial class Runtime
             Py_InitializeEx = (delegate* unmanaged[Cdecl]<int, void>)GetFunctionByName(nameof(Py_InitializeEx), GetUnmanagedDll(_PythonDll));
             Py_IsInitialized = (delegate* unmanaged[Cdecl]<int>)GetFunctionByName(nameof(Py_IsInitialized), GetUnmanagedDll(_PythonDll));
             Py_Finalize = (delegate* unmanaged[Cdecl]<void>)GetFunctionByName(nameof(Py_Finalize), GetUnmanagedDll(_PythonDll));
-            Py_GetRecursionLimit = (delegate* unmanaged[Cdecl]<int>)GetFunctionByName(nameof(Py_GetRecursionLimit), GetUnmanagedDll(_PythonDll));
-            Py_SetRecursionLimit = (delegate* unmanaged[Cdecl]<int, void>)GetFunctionByName(nameof(Py_SetRecursionLimit), GetUnmanagedDll(_PythonDll));
             Py_NewInterpreter = (delegate* unmanaged[Cdecl]<PyThreadState*>)GetFunctionByName(nameof(Py_NewInterpreter), GetUnmanagedDll(_PythonDll));
             Py_EndInterpreter = (delegate* unmanaged[Cdecl]<PyThreadState*, void>)GetFunctionByName(nameof(Py_EndInterpreter), GetUnmanagedDll(_PythonDll));
             PyThreadState_New = (delegate* unmanaged[Cdecl]<PyInterpreterState*, PyThreadState*>)GetFunctionByName(nameof(PyThreadState_New), GetUnmanagedDll(_PythonDll));
@@ -326,8 +324,6 @@ public unsafe partial class Runtime
         internal static delegate* unmanaged[Cdecl]<int, void> Py_InitializeEx { get; }
         internal static delegate* unmanaged[Cdecl]<int> Py_IsInitialized { get; }
         internal static delegate* unmanaged[Cdecl]<void> Py_Finalize { get; }
-        internal static delegate* unmanaged[Cdecl]<int> Py_GetRecursionLimit { get; }
-        internal static delegate* unmanaged[Cdecl]<int, void> Py_SetRecursionLimit { get; }
         internal static delegate* unmanaged[Cdecl]<PyThreadState*> Py_NewInterpreter { get; }
         internal static delegate* unmanaged[Cdecl]<PyThreadState*, void> Py_EndInterpreter { get; }
         internal static delegate* unmanaged[Cdecl]<PyInterpreterState*, PyThreadState*> PyThreadState_New { get; }

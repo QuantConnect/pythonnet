@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Threading;
 
 using NUnit.Framework;
 using Python.Runtime;
@@ -377,58 +376,51 @@ finally:
         }
 
         [Test]
-        public void DecodingOnTwoThreadsRestoresTheRecursionLimit()
+        public void DecodingKeepsARecursionLimitSetWhileItRuns()
         {
-            var limit = Runtime.Runtime.Py_GetRecursionLimit();
+            using var _ = Py.GIL();
             using var scope = Py.CreateScope();
-            // decoding reads attributes of the error: this one sleeps, releasing the GIL, so the decodes overlap
+            // decoding reads attributes of the error, and this one changes the limit when it is read
             scope.Exec(@"
-import time
+import sys
+limit = sys.getrecursionlimit()
 
-class SlowError(Exception):
+class LimitError(Exception):
     def __getattr__(self, name):
-        time.sleep(self.args[0])
+        sys.setrecursionlimit(250)
         raise AttributeError(name)
 ");
-            var decoded = 0;
-            void Raise(string seconds)
-            {
-                using var _ = Py.GIL();
-                try
-                {
-                    scope.Exec($"raise SlowError({seconds})");
-                }
-                catch (PythonException)
-                {
-                    Interlocked.Increment(ref decoded);
-                }
-            }
-
-            // the first decode to start is also the first to finish, the order that used to leak the headroom
-            var threads = new[] { new Thread(() => Raise("0.1")), new Thread(() => Raise("0.3")) };
-            // the fixture initializes the engine with the GIL held on this thread
-            var ts = PythonEngine.BeginAllowThreads();
             try
             {
-                foreach (var thread in threads)
-                {
-                    thread.Start();
-                    Thread.Sleep(30);
-                }
-                foreach (var thread in threads)
-                {
-                    thread.Join();
-                }
+                Assert.Throws<PythonException>(() => scope.Exec("raise LimitError('boom')"));
+                Assert.AreEqual(250, scope.Eval<int>("sys.getrecursionlimit()"));
             }
             finally
             {
-                PythonEngine.EndAllowThreads(ts);
+                scope.Exec("sys.setrecursionlimit(limit)");
             }
+        }
 
-            var limitAfter = Runtime.Runtime.Py_GetRecursionLimit();
-            Runtime.Runtime.Py_SetRecursionLimit(limit);
-            Assert.AreEqual(2, decoded);
-            Assert.AreEqual(limit, limitAfter);
+        [Test]
+        public void ErrorIsDecodedAtTheHighestRecursionLimit()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Exec(@"
+import sys
+limit = sys.getrecursionlimit()
+sys.setrecursionlimit(2147483647)
+");
+            try
+            {
+                var error = Assert.Throws<PythonException>(() => scope.Exec("raise ValueError('boom')"));
+                Assert.AreEqual("boom", error.Message);
+                Assert.AreEqual(2147483647, scope.Eval<int>("sys.getrecursionlimit()"));
+            }
+            finally
+            {
+                scope.Exec("sys.setrecursionlimit(limit)");
+            }
         }
 
         public class ReentrantCaller
