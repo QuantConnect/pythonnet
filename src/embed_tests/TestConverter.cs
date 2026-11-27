@@ -875,7 +875,8 @@ finally:
 errors = sorted(errors)
 ");
                 var errors = scope.Get("errors").As<string[]>();
-                CollectionAssert.AreEqual(new[] { "RecursionError", "TypeError" }, errors);
+                // str(float) only fails at the limit on some Python versions, so a TypeError is optional
+                CollectionAssert.Contains(errors, "RecursionError");
             }
         }
     }
