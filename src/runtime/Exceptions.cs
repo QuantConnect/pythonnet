@@ -102,7 +102,14 @@ namespace Python.Runtime
             if (e.InnerException != null)
             {
                 // Note: For an AggregateException, InnerException is only the first of the InnerExceptions.
-                using var cause = CLRObject.GetReference(e.InnerException);
+                // A Python subclass's exception is its own Python object, whose release .NET handles
+                using var cause = e.InnerException is IPythonDerivedType derived
+                    ? ClassDerivedObject.ToPython(derived)
+                    : CLRObject.GetReference(e.InnerException);
+                if (cause.IsNull())
+                {
+                    return false;
+                }
                 Runtime.PyException_SetCause(ob, cause.Steal());
             }
 
