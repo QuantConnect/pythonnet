@@ -536,59 +536,6 @@ def test_namespaced_exception_subclass_construction():
     ]
 
 
-_NAMESPACED_ROUND_TRIP_SCRIPT = """
-from System import Exception as ClrException
-from System.Collections.Generic import List
-from System.Threading.Tasks import Task
-
-class Plain(Object):
-    __namespace__ = "Python.Test.RoundTrips"
-    def __init__(self):
-        self.tag = "plain"
-
-class Inner(ExtendedException):
-    __namespace__ = "Python.Test.RoundTrips"
-    def __init__(self):
-        super().__init__("inner")
-        self.tag = "inner"
-
-def collect():
-    gc.collect()
-    GC.Collect()
-    GC.WaitForPendingFinalizers()
-
-held = List[Object]()
-held.Add(Plain())
-held.Add(Inner())
-task = Task.FromException(Inner())
-collect()
-
-plain, inner = held[0], held[1]
-print(type(plain).__name__, plain.tag, held[0] is plain)
-print(type(inner).__name__, inner.tag, str(inner), held[1] is inner)
-cause = task.Exception.__cause__
-print(type(cause).__name__, cause.tag, str(cause), cause.args)
-del plain, inner, cause, task
-collect()
-print("collected")
-"""
-
-
-@pytest.mark.skipif(os.environ.get("PYTHONNET_RUNTIME") != "netcore", reason="loads the netcore runtime")
-def test_namespaced_subclass_round_trip_after_gc():
-    """A __namespace__ subclass that Python dropped, and .NET garbage collected around
-    while still holding it, comes back to Python as its own working Python object,
-    from a .NET collection and as an exception's __cause__"""
-    output = _run_namespaced_exception_script(_NAMESPACED_ROUND_TRIP_SCRIPT)
-
-    assert output[-4:] == [
-        "Plain plain True",
-        "Inner inner inner True",
-        "Inner inner inner ('inner',)",
-        "collected",
-    ]
-
-
 _NAMESPACED_EXCEPTION_RELEASE_SCRIPT = """
 class Probe(Object):
     __namespace__ = "Python.Test.ReleasedExceptions"

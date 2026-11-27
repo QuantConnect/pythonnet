@@ -40,9 +40,6 @@ namespace Python.Runtime
             this.inst = inst;
         }
 
-        // A wrapper for an object whose Python object already exists
-        internal static CLRObject Wrap(object inst) => new CLRObject(inst);
-
         internal static NewReference GetReference(object ob, BorrowedReference pyType)
             => Create(ob, pyType);
 

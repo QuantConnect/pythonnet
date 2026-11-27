@@ -124,8 +124,7 @@ namespace Python.Runtime
             {
                 Runtime._Py_NewReference(self);
                 GCHandle weak = GetGCHandle(self);
-                // the weak handle's wrapper is gone after a .NET GC, while the object itself still lives
-                var clrObject = GetManagedObject(self) ?? CLRObject.Wrap(obj);
+                var clrObject = GetManagedObject(self);
                 GCHandle gc = GCHandle.Alloc(clrObject, GCHandleType.Normal);
                 SetGCHandle(self, gc);
                 weak.Free();
