@@ -1039,7 +1039,8 @@ class GMT(tzinfo):
                             goto type_error;
                         }
                         TimeSpan ts;
-                        var arr = Runtime.GetManagedString(op.Borrow()).Split(',');
+                        var arr = Runtime.GetManagedSpan(op.Borrow(), out var timeSpanText).ToString().Split(',');
+                        timeSpanText.Dispose();
                         op.Dispose();
                         string sts = arr.Length == 1 ? arr[0] : arr[1];
                         if (!TimeSpan.TryParse(sts, out ts))

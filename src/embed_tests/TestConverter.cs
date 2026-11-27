@@ -838,6 +838,64 @@ class BadStr:
             }
         }
 
+        [TestCase(typeof(decimal), true)]
+        [TestCase(typeof(decimal), false)]
+        [TestCase(typeof(DateTime), true)]
+        [TestCase(typeof(DateTime), false)]
+        [TestCase(typeof(TimeSpan), true)]
+        [TestCase(typeof(TimeSpan), false)]
+        public void ConversionFailsWhenStrCannotBeEncoded(Type type, bool setError)
+        {
+            using (Py.GIL())
+            {
+                using var scope = Py.CreateScope();
+                // a lone surrogate has no UTF-16 form
+                scope.Exec(@"
+class Unreadable:
+    def __str__(self):
+        return chr(0xD800)
+");
+                using var value = scope.Eval("Unreadable()");
+
+                Assert.IsFalse(Converter.ToManaged(value, type, out var result, setError));
+                Assert.AreEqual(setError, Exceptions.ErrorOccurred());
+                if (setError)
+                {
+                    Assert.IsTrue(Exceptions.ExceptionMatches(Exceptions.TypeError));
+                }
+                Exceptions.Clear();
+            }
+        }
+
+        [Test]
+        public void StrSubclassTextIsParsed()
+        {
+            using (Py.GIL())
+            {
+                using var scope = Py.CreateScope();
+                scope.Exec(@"
+class Text(str):
+    pass
+
+class Value:
+    def __init__(self, text):
+        self.text = text
+    def __str__(self):
+        return Text(self.text)
+");
+                using var amount = scope.Eval("Value('1.5')");
+                using var duration = scope.Eval("Value('1:30:00')");
+                using var moment = scope.Eval("Value('2020-01-02 03:04:05')");
+
+                Assert.IsTrue(Converter.ToManaged(amount, typeof(decimal), out var result, false));
+                Assert.AreEqual(1.5m, result);
+                Assert.IsTrue(Converter.ToManaged(duration, typeof(TimeSpan), out result, false));
+                Assert.AreEqual(new TimeSpan(1, 30, 0), result);
+                Assert.IsTrue(Converter.ToManaged(moment, typeof(DateTime), out result, false));
+                Assert.AreEqual(new DateTime(2020, 1, 2, 3, 4, 5), result);
+            }
+        }
+
         [Test]
         public void FloatToDecimalAtTheRecursionLimitRaisesPythonError()
         {
