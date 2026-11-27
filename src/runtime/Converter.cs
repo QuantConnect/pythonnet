@@ -1034,6 +1034,10 @@ class GMT(tzinfo):
                     if (obType == typeof(TimeSpan))
                     {
                         op = Runtime.PyObject_Str(value);
+                        if (op.IsNull())
+                        {
+                            goto type_error;
+                        }
                         TimeSpan ts;
                         var arr = Runtime.GetManagedString(op.Borrow()).Split(',');
                         op.Dispose();
@@ -1370,6 +1374,10 @@ class GMT(tzinfo):
                     }
                 case TypeCode.Decimal:
                     op = Runtime.PyObject_Str(value);
+                    if (op.IsNull())
+                    {
+                        goto type_error;
+                    }
                     decimal m;
                     var sm = Runtime.GetManagedSpan(op.Borrow(), out var newReference);
                     if (!Decimal.TryParse(sm, NumberStyles.Number | NumberStyles.AllowExponent, nfi, out m))
@@ -1391,6 +1399,10 @@ class GMT(tzinfo):
 
                         // fallback to string parsing for types such as numpy
                         op = Runtime.PyObject_Str(value);
+                        if (op.IsNull())
+                        {
+                            goto type_error;
+                        }
                         var sdt = Runtime.GetManagedSpan(op.Borrow(), out var reference);
                         if (!DateTime.TryParse(sdt, out var dt))
                         {

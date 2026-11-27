@@ -809,6 +809,82 @@ def contains():
                 Exceptions.Clear();
             }
         }
+
+        [TestCase(typeof(decimal), true)]
+        [TestCase(typeof(decimal), false)]
+        [TestCase(typeof(DateTime), true)]
+        [TestCase(typeof(DateTime), false)]
+        [TestCase(typeof(TimeSpan), true)]
+        [TestCase(typeof(TimeSpan), false)]
+        public void ConversionFailsWhenStrRaises(Type type, bool setError)
+        {
+            using (Py.GIL())
+            {
+                using var scope = Py.CreateScope();
+                scope.Exec(@"
+class BadStr:
+    def __str__(self):
+        raise ValueError('boom')
+");
+                using var value = scope.Eval("BadStr()");
+
+                Assert.IsFalse(Converter.ToManaged(value, type, out var result, setError));
+                Assert.AreEqual(setError, Exceptions.ErrorOccurred());
+                if (setError)
+                {
+                    Assert.IsTrue(Exceptions.ExceptionMatches(Exceptions.TypeError));
+                }
+                Exceptions.Clear();
+            }
+        }
+
+        [Test]
+        public void FloatToDecimalAtTheRecursionLimitRaisesPythonError()
+        {
+            using (Py.GIL())
+            {
+                using var scope = Py.CreateScope();
+                scope.Set("target", new DecimalConsumer().ToPython());
+                // str(float) itself fails at the recursion limit, so sweep the depth to land exactly on it
+                scope.Exec(@"
+import sys
+limit = sys.getrecursionlimit()
+sys.setrecursionlimit(200)
+errors = set()
+
+# a first failed call warms up the lazy state the mismatch diagnosis needs
+try:
+    target.Take('not a number')
+except TypeError:
+    pass
+
+def call(depth):
+    if depth == 0:
+        target.Take(1.5)
+    else:
+        call(depth - 1)
+
+try:
+    for depth in range(100, 260):
+        try:
+            call(depth)
+        except (RecursionError, TypeError) as e:
+            errors.add(type(e).__name__)
+finally:
+    sys.setrecursionlimit(limit)
+errors = sorted(errors)
+");
+                var errors = scope.Get("errors").As<string[]>();
+                CollectionAssert.AreEqual(new[] { "RecursionError", "TypeError" }, errors);
+            }
+        }
+    }
+
+    public class DecimalConsumer
+    {
+        public void Take(decimal value)
+        {
+        }
     }
 
     public interface IGetList

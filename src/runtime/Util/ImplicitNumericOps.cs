@@ -234,7 +234,11 @@ namespace Python.Runtime
             var reference = value.Reference;
             if (Runtime.PyInt_Check(reference))
             {
-                number = new Number(ToBigInteger(reference));
+                if (!TryToBigInteger(reference, out var big))
+                {
+                    return false;
+                }
+                number = new Number(big);
                 return true;
             }
             if (Runtime.PyObject_TypeCheck(reference, Runtime.PyFloatType))
@@ -245,9 +249,9 @@ namespace Python.Runtime
             if (Runtime.PyObject_HasAttrString(reference, "__index__") != 0)
             {
                 using var integer = Runtime.PyNumber_Long(reference);
-                if (!integer.IsNull())
+                if (!integer.IsNull() && TryToBigInteger(integer.Borrow(), out var big))
                 {
-                    number = new Number(ToBigInteger(integer.Borrow()));
+                    number = new Number(big);
                     return true;
                 }
             }
@@ -266,18 +270,26 @@ namespace Python.Runtime
             return false;
         }
 
-        private static BigInteger ToBigInteger(BorrowedReference integer)
+        private static bool TryToBigInteger(BorrowedReference integer, out BigInteger result)
         {
             var value = Runtime.PyLong_AsLongLong(integer);
             if (value.HasValue)
             {
-                return value.Value;
+                result = value.Value;
+                return true;
             }
 
             // beyond long, parse its digits
             Exceptions.Clear();
             using var digits = Runtime.PyObject_Str(integer);
-            return BigInteger.Parse(Runtime.GetManagedString(digits.Borrow())!, CultureInfo.InvariantCulture);
+            if (digits.IsNull())
+            {
+                // str() itself can raise, the operand is then not a number
+                Exceptions.Clear();
+                result = default;
+                return false;
+            }
+            return BigInteger.TryParse(Runtime.GetManagedString(digits.Borrow()), NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
         }
 
         /// <summary>

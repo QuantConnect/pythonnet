@@ -349,6 +349,41 @@ def CallThrow():
             }
         }
 
+        [Test]
+        public void ErrorRaisedAtTheRecursionLimitReachesPython()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Set("target", new ReentrantCaller().ToPython());
+            // managed code calls back into Python until the recursion limit, so the error is decoded right at it
+            scope.Exec(@"
+import sys
+limit = sys.getrecursionlimit()
+sys.setrecursionlimit(200)
+
+def handler():
+    target.Call(handler)
+
+try:
+    target.Call(handler)
+    error = ''
+except RecursionError as e:
+    error = str(e)
+finally:
+    sys.setrecursionlimit(limit)
+");
+            StringAssert.Contains("maximum recursion depth exceeded", scope.Get<string>("error"));
+        }
+
+        public class ReentrantCaller
+        {
+            public void Call(PyObject callback)
+            {
+                using var _ = Py.GIL();
+                callback.Invoke().Dispose();
+            }
+        }
+
         public class TestClass
         {
             public void ThrowException()

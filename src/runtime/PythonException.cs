@@ -91,6 +91,7 @@ namespace Python.Runtime
                 return null;
             }
 
+            using var headroom = RecursionHeadroom.Enter();
             try
             {
                 if (TryDecodePyErr(type.Borrow(), value.BorrowNullable(), traceback.BorrowNullable()) is { } pyErr)
@@ -128,6 +129,47 @@ namespace Python.Runtime
         internal static Exception FetchCurrent()
             => FetchCurrentOrNull(out _)
                ?? throw new InvalidOperationException("No exception is set");
+
+        [ThreadStatic]
+        private static bool _hasRecursionHeadroom;
+
+        /// <summary>
+        /// Decoding an error runs Python code, which fails again when the error was raised at the
+        /// recursion limit. Raises the limit while the outermost decode of the thread runs. Requires the GIL.
+        /// </summary>
+        private readonly ref struct RecursionHeadroom
+        {
+            private const int ExtraFrames = 100;
+
+            private readonly int _limit;
+
+            private RecursionHeadroom(int limit)
+            {
+                _limit = limit;
+            }
+
+            public static RecursionHeadroom Enter()
+            {
+                if (_hasRecursionHeadroom)
+                {
+                    return default;
+                }
+
+                _hasRecursionHeadroom = true;
+                var limit = Runtime.Py_GetRecursionLimit();
+                Runtime.Py_SetRecursionLimit(limit + ExtraFrames);
+                return new RecursionHeadroom(limit);
+            }
+
+            public void Dispose()
+            {
+                if (_limit > 0)
+                {
+                    Runtime.Py_SetRecursionLimit(_limit);
+                    _hasRecursionHeadroom = false;
+                }
+            }
+        }
 
         private static ExceptionDispatchInfo? TryGetDispatchInfo(BorrowedReference exception)
         {

@@ -732,6 +732,10 @@ namespace Python.Runtime
 
         internal static void Py_Finalize() => Delegates.Py_Finalize();
 
+        internal static int Py_GetRecursionLimit() => Delegates.Py_GetRecursionLimit();
+
+        internal static void Py_SetRecursionLimit(int limit) => Delegates.Py_SetRecursionLimit(limit);
+
 
         internal static PyThreadState* Py_NewInterpreter() => Delegates.Py_NewInterpreter();
 

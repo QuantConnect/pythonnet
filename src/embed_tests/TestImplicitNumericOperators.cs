@@ -333,6 +333,27 @@ def own_ordering_wins():
         }
 
         [Test]
+        public void IntOperandWhoseStrRaisesIsUnsupported()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Set("count", new ConvertibleCount(1).ToPython());
+            // beyond long, the int is read through its str()
+            scope.Exec(@"
+class BadInt(int):
+    def __str__(self):
+        raise ValueError('boom')
+
+try:
+    count + BadInt(10 ** 25)
+    error = ''
+except Exception as e:
+    error = type(e).__name__
+");
+            Assert.AreEqual("TypeError", scope.Get<string>("error"));
+        }
+
+        [Test]
         public void InheritedOperatorsKeepWinning()
         {
             using var _ = Py.GIL();
