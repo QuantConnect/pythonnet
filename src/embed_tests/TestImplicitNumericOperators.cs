@@ -354,6 +354,46 @@ except Exception as e:
         }
 
         [Test]
+        public void IntOperandWhoseStrCannotBeEncodedIsUnsupported()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Set("count", new ConvertibleCount(1).ToPython());
+            // a lone surrogate has no UTF-16 form
+            scope.Exec(@"
+class BadInt(int):
+    def __str__(self):
+        return chr(0xD800)
+
+try:
+    count + BadInt(10 ** 25)
+    error = ''
+except Exception as e:
+    error = type(e).__name__
+");
+            Assert.AreEqual("TypeError", scope.Get<string>("error"));
+        }
+
+        [Test]
+        public void IntOperandWhoseStrIsAStrSubclassIsRead()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Set("count", new ConvertibleCount(1).ToPython());
+            scope.Exec(@"
+class Text(str):
+    pass
+
+class BigInt(int):
+    def __str__(self):
+        return Text(int(self))
+
+matches = count + BigInt(10 ** 25) == 10 ** 25 + 1
+");
+            Assert.IsTrue(scope.Get<bool>("matches"));
+        }
+
+        [Test]
         public void InheritedOperatorsKeepWinning()
         {
             using var _ = Py.GIL();

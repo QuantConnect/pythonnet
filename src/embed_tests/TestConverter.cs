@@ -868,6 +868,7 @@ class Unreadable:
         }
 
         [Test]
+        [SetCulture("en-US")]
         public void StrSubclassTextIsParsed()
         {
             using (Py.GIL())

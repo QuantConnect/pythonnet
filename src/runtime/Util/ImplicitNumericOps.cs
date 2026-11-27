@@ -289,7 +289,10 @@ namespace Python.Runtime
                 result = default;
                 return false;
             }
-            return BigInteger.TryParse(Runtime.GetManagedString(digits.Borrow()), NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
+            var text = Runtime.GetManagedSpan(digits.Borrow(), out var reference);
+            var parsed = BigInteger.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
+            reference.Dispose();
+            return parsed;
         }
 
         /// <summary>
