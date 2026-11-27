@@ -349,6 +349,115 @@ def CallThrow():
             }
         }
 
+        [Test]
+        public void ErrorRaisedAtTheRecursionLimitReachesPython()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Set("target", new ReentrantCaller().ToPython());
+            // managed code calls back into Python until the recursion limit, so the error is decoded right at it
+            scope.Exec(@"
+import sys
+limit = sys.getrecursionlimit()
+sys.setrecursionlimit(200)
+
+def handler():
+    target.Call(handler)
+
+try:
+    target.Call(handler)
+    error = ''
+except RecursionError as e:
+    error = str(e)
+finally:
+    sys.setrecursionlimit(limit)
+");
+            StringAssert.Contains("maximum recursion depth exceeded", scope.Get<string>("error"));
+        }
+
+        [Test]
+        public void DecodingKeepsARecursionLimitSetWhileItRuns()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            // decoding reads attributes of the error, and this one changes the limit when it is read
+            scope.Exec(@"
+import sys
+limit = sys.getrecursionlimit()
+
+class LimitError(Exception):
+    def __getattr__(self, name):
+        sys.setrecursionlimit(250)
+        raise AttributeError(name)
+");
+            try
+            {
+                Assert.Throws<PythonException>(() => scope.Exec("raise LimitError('boom')"));
+                Assert.AreEqual(250, scope.Eval<int>("sys.getrecursionlimit()"));
+            }
+            finally
+            {
+                scope.Exec("sys.setrecursionlimit(limit)");
+            }
+        }
+
+        [Test]
+        public void ErrorIsDecodedAtTheHighestRecursionLimit()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Exec(@"
+import sys
+limit = sys.getrecursionlimit()
+sys.setrecursionlimit(2147483647)
+");
+            try
+            {
+                var error = Assert.Throws<PythonException>(() => scope.Exec("raise ValueError('boom')"));
+                Assert.AreEqual("boom", error.Message);
+                Assert.AreEqual(2147483647, scope.Eval<int>("sys.getrecursionlimit()"));
+            }
+            finally
+            {
+                scope.Exec("sys.setrecursionlimit(limit)");
+            }
+        }
+
+        [Test]
+        public void ErrorWhoseStrRaisesArrivesAsItself()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Exec(@"
+class Unprintable(Exception):
+    def __str__(self):
+        raise KeyError('from str')
+");
+            var error = Assert.Throws<PythonException>(() => scope.Exec("raise Unprintable('original')"));
+            Assert.AreEqual("Unprintable", error.Type.Name);
+            Assert.AreEqual("original", error.Message);
+        }
+
+        [Test]
+        public void ErrorWhoseStrRaisesIsNamedAfterItsTypeWithoutATextArgument()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            // the type name is not ASCII
+            scope.Exec("class D\u00e9faut(Exception):\n    def __str__(self):\n        raise KeyError('from str')\n");
+            var error = Assert.Throws<PythonException>(() => scope.Exec("raise D\u00e9faut(1, 2)"));
+            Assert.AreEqual("D\u00e9faut", error.Message);
+        }
+
+        public class ReentrantCaller
+        {
+            public void Call(PyObject callback)
+            {
+                using var _ = Py.GIL();
+                callback.Invoke().Dispose();
+            }
+        }
+
         public class TestClass
         {
             public void ThrowException()

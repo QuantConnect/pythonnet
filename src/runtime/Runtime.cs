@@ -1439,11 +1439,15 @@ namespace Python.Runtime
 
         internal static ReadOnlySpan<char> GetManagedSpan(BorrowedReference op, out NewReference reference)
         {
-            var type = PyObject_TYPE(op);
-
-            if (type == PyUnicodeType)
+            if (PyObject_TypeCheck(op, PyUnicodeType))
             {
                 reference = PyUnicode_AsUTF16String(op);
+                if (reference.IsNull())
+                {
+                    // no UTF-16 form (lone surrogates): reads as empty, like a non-str
+                    Exceptions.Clear();
+                    return null;
+                }
                 int bytesLength = checked((int)PyBytes_Size(reference.Borrow()));
                 var codePoints = PyBytes_AsString(reference.Borrow());
                 return new ReadOnlySpan<char>(IntPtr.Add(codePoints, sizeof(char)).ToPointer(), length: bytesLength / 2 - 1);

@@ -91,38 +91,89 @@ namespace Python.Runtime
                 return null;
             }
 
+            if (_decodingError)
+            {
+                // raised by the decoding below: decoding it too could fail the same way, without end
+                return ToUndecoded(ref type, ref value, ref traceback);
+            }
+
+            _decodingError = true;
             try
             {
                 if (TryDecodePyErr(type.Borrow(), value.BorrowNullable(), traceback.BorrowNullable()) is { } pyErr)
                 {
-                    type.Dispose();
-                    value.Dispose();
-                    traceback.Dispose();
                     return pyErr;
                 }
-            }
-            catch
-            {
-                type.Dispose();
-                value.Dispose();
-                traceback.Dispose();
-                throw;
-            }
 
-            try
-            {
                 // an error set without a value, as PyErr_SetNone does, only gets one once normalized
                 var normalizedValue = new NewReference(value.BorrowNullable(), canBeNull: true);
                 Runtime.PyErr_NormalizeException(type: ref type, val: ref normalizedValue, tb: ref traceback);
 
                 return FromPyErr(typeRef: type.Borrow(), valRef: value.IsNull() ? normalizedValue.Borrow() : value.Borrow(), nValRef: normalizedValue.Borrow(), tbRef: traceback.BorrowNullable(), out dispatchInfo);
             }
+            catch (PythonException)
+            {
+                // decoding runs Python code, which fails too at the recursion limit: keep the error as fetched
+                Exceptions.Clear();
+                dispatchInfo = null;
+                return ToUndecoded(ref type, ref value, ref traceback);
+            }
             finally
             {
+                _decodingError = false;
                 type.Dispose();
                 value.Dispose();
                 traceback.Dispose();
             }
+        }
+
+        [ThreadStatic]
+        private static bool _decodingError;
+
+        /// <summary>
+        /// Wraps a fetched error as it is, without running any Python code.
+        /// </summary>
+        private static PythonException ToUndecoded(ref NewReference type, ref NewReference value, ref NewReference traceback)
+        {
+            var pyType = new PyType(type.Steal());
+            var message = GetUndecodedMessage(pyType, value.BorrowNullable());
+            return new PythonException(pyType, value.MoveToPyObjectOrNull(),
+                traceback.MoveToPyObjectOrNull(), message, innerException: null);
+        }
+
+        /// <summary>
+        /// The message of an error, read without str(): the text of an error that is not normalized
+        /// yet, or the only argument of an exception when it is a string. Else the name of its type.
+        /// </summary>
+        private static string GetUndecodedMessage(PyType type, BorrowedReference value)
+        {
+            try
+            {
+                if (!value.IsNull)
+                {
+                    if (Runtime.GetManagedString(value) is { } text)
+                    {
+                        return text;
+                    }
+
+                    using var args = Runtime.PyObject_GetAttrString(value, "args");
+                    if (args.IsNull())
+                    {
+                        Exceptions.Clear();
+                    }
+                    else if (Runtime.PyTuple_Check(args.Borrow()) && Runtime.PyTuple_Size(args.Borrow()) == 1
+                        && Runtime.GetManagedString(Runtime.PyTuple_GetItem(args.Borrow(), 0)) is { } argument)
+                    {
+                        return argument;
+                    }
+                }
+            }
+            catch (PythonException)
+            {
+                Exceptions.Clear();
+            }
+
+            return type.Name;
         }
 
         internal static Exception FetchCurrent()

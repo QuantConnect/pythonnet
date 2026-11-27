@@ -809,6 +809,142 @@ def contains():
                 Exceptions.Clear();
             }
         }
+
+        [TestCase(typeof(decimal), true)]
+        [TestCase(typeof(decimal), false)]
+        [TestCase(typeof(DateTime), true)]
+        [TestCase(typeof(DateTime), false)]
+        [TestCase(typeof(TimeSpan), true)]
+        [TestCase(typeof(TimeSpan), false)]
+        public void ConversionFailsWhenStrRaises(Type type, bool setError)
+        {
+            using (Py.GIL())
+            {
+                using var scope = Py.CreateScope();
+                scope.Exec(@"
+class BadStr:
+    def __str__(self):
+        raise ValueError('boom')
+");
+                using var value = scope.Eval("BadStr()");
+
+                Assert.IsFalse(Converter.ToManaged(value, type, out var result, setError));
+                Assert.AreEqual(setError, Exceptions.ErrorOccurred());
+                if (setError)
+                {
+                    Assert.IsTrue(Exceptions.ExceptionMatches(Exceptions.TypeError));
+                }
+                Exceptions.Clear();
+            }
+        }
+
+        [TestCase(typeof(decimal), true)]
+        [TestCase(typeof(decimal), false)]
+        [TestCase(typeof(DateTime), true)]
+        [TestCase(typeof(DateTime), false)]
+        [TestCase(typeof(TimeSpan), true)]
+        [TestCase(typeof(TimeSpan), false)]
+        public void ConversionFailsWhenStrCannotBeEncoded(Type type, bool setError)
+        {
+            using (Py.GIL())
+            {
+                using var scope = Py.CreateScope();
+                // a lone surrogate has no UTF-16 form
+                scope.Exec(@"
+class Unreadable:
+    def __str__(self):
+        return chr(0xD800)
+");
+                using var value = scope.Eval("Unreadable()");
+
+                Assert.IsFalse(Converter.ToManaged(value, type, out var result, setError));
+                Assert.AreEqual(setError, Exceptions.ErrorOccurred());
+                if (setError)
+                {
+                    Assert.IsTrue(Exceptions.ExceptionMatches(Exceptions.TypeError));
+                }
+                Exceptions.Clear();
+            }
+        }
+
+        [Test]
+        [SetCulture("en-US")]
+        public void StrSubclassTextIsParsed()
+        {
+            using (Py.GIL())
+            {
+                using var scope = Py.CreateScope();
+                scope.Exec(@"
+class Text(str):
+    pass
+
+class Value:
+    def __init__(self, text):
+        self.text = text
+    def __str__(self):
+        return Text(self.text)
+");
+                using var amount = scope.Eval("Value('1.5')");
+                using var duration = scope.Eval("Value('1:30:00')");
+                using var moment = scope.Eval("Value('2020-01-02 03:04:05')");
+
+                Assert.IsTrue(Converter.ToManaged(amount, typeof(decimal), out var result, false));
+                Assert.AreEqual(1.5m, result);
+                Assert.IsTrue(Converter.ToManaged(duration, typeof(TimeSpan), out result, false));
+                Assert.AreEqual(new TimeSpan(1, 30, 0), result);
+                Assert.IsTrue(Converter.ToManaged(moment, typeof(DateTime), out result, false));
+                Assert.AreEqual(new DateTime(2020, 1, 2, 3, 4, 5), result);
+            }
+        }
+
+        [Test]
+        public void FloatToDecimalAtTheRecursionLimitRaisesPythonError()
+        {
+            using (Py.GIL())
+            {
+                using var scope = Py.CreateScope();
+                scope.Set("target", new DecimalConsumer().ToPython());
+                // str(float) itself fails at the recursion limit, so sweep the depth to land exactly on it
+                scope.Exec(@"
+import sys
+limit = sys.getrecursionlimit()
+sys.setrecursionlimit(200)
+errors = set()
+
+# a first failed call warms up the lazy state the mismatch diagnosis needs
+try:
+    target.Take('not a number')
+except TypeError:
+    pass
+
+def call(depth):
+    if depth == 0:
+        target.Take(1.5)
+    else:
+        call(depth - 1)
+
+try:
+    for depth in range(100, 260):
+        try:
+            call(depth)
+        except (RecursionError, TypeError) as e:
+            errors.add(type(e).__name__)
+finally:
+    sys.setrecursionlimit(limit)
+errors = sorted(errors)
+");
+                var errors = scope.Get("errors").As<string[]>();
+                // str(float) only fails at the limit on some Python versions, so a TypeError is optional
+                CollectionAssert.Contains(errors, "RecursionError");
+            }
+        }
+    }
+
+    public class DecimalConsumer
+    {
+        public void Take(decimal value)
+        {
+        }
     }
 
     public interface IGetList
