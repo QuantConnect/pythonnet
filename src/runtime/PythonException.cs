@@ -135,8 +135,9 @@ namespace Python.Runtime
         /// </summary>
         private static PythonException ToUndecoded(ref NewReference type, ref NewReference value, ref NewReference traceback)
         {
-            var message = GetUndecodedMessage(type.Borrow(), value.BorrowNullable());
-            return new PythonException(new PyType(type.Steal()), value.MoveToPyObjectOrNull(),
+            var pyType = new PyType(type.Steal());
+            var message = GetUndecodedMessage(pyType, value.BorrowNullable());
+            return new PythonException(pyType, value.MoveToPyObjectOrNull(),
                 traceback.MoveToPyObjectOrNull(), message, innerException: null);
         }
 
@@ -144,7 +145,7 @@ namespace Python.Runtime
         /// The message of an error, read without str(): the text of an error that is not normalized
         /// yet, or the only argument of an exception when it is a string. Else the name of its type.
         /// </summary>
-        private static string GetUndecodedMessage(BorrowedReference type, BorrowedReference value)
+        private static string GetUndecodedMessage(PyType type, BorrowedReference value)
         {
             try
             {
@@ -172,7 +173,7 @@ namespace Python.Runtime
                 Exceptions.Clear();
             }
 
-            return System.Runtime.InteropServices.Marshal.PtrToStringAnsi(Util.ReadIntPtr(type, TypeOffset.tp_name)) ?? "Python error";
+            return type.Name;
         }
 
         internal static Exception FetchCurrent()

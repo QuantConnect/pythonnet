@@ -423,6 +423,32 @@ sys.setrecursionlimit(2147483647)
             }
         }
 
+        [Test]
+        public void ErrorWhoseStrRaisesArrivesAsItself()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Exec(@"
+class Unprintable(Exception):
+    def __str__(self):
+        raise KeyError('from str')
+");
+            var error = Assert.Throws<PythonException>(() => scope.Exec("raise Unprintable('original')"));
+            Assert.AreEqual("Unprintable", error.Type.Name);
+            Assert.AreEqual("original", error.Message);
+        }
+
+        [Test]
+        public void ErrorWhoseStrRaisesIsNamedAfterItsTypeWithoutATextArgument()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            // the type name is not ASCII
+            scope.Exec("class D\u00e9faut(Exception):\n    def __str__(self):\n        raise KeyError('from str')\n");
+            var error = Assert.Throws<PythonException>(() => scope.Exec("raise D\u00e9faut(1, 2)"));
+            Assert.AreEqual("D\u00e9faut", error.Message);
+        }
+
         public class ReentrantCaller
         {
             public void Call(PyObject callback)
