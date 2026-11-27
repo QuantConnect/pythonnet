@@ -112,6 +112,10 @@ namespace Python.Runtime
 
             object obj = FormatterServices.GetUninitializedObject(type);
             var pythonObj = self.NewObjectToPython(obj, tp);
+            if (pythonObj.IsNull())
+            {
+                return default;
+            }
 
             // Constructing the reflected type itself always continues with __init__ (MetaType.tp_call),
             // which binds and runs the matching constructor: running one here too would run a constructor

@@ -29,8 +29,12 @@ namespace Python.Runtime
 
 
             // Fix the BaseException args (and __cause__ in case of Python 3)
-            // slot if wrapping a CLR exception
-            if (ob is Exception e) Exceptions.SetArgsAndCause(py.Borrow(), e);
+            // slot if wrapping a CLR exception, raising to Python what its members throw
+            if (ob is Exception && !ExceptionClassObject.SetArgsAndCause(py.Borrow()))
+            {
+                py.Dispose();
+                return default;
+            }
 
             return py;
         }

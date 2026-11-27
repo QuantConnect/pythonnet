@@ -581,7 +581,30 @@ cyclic = Inner()
 cyclic.link = cyclic
 cyclic_task = Task.FromException(cyclic)
 del cyclic
+
+from System.Runtime.Serialization import ISerializable
+
+class Hashed(ExtendedException):
+    __namespace__ = "Python.Test.RoundTrips"
+    armed = False
+    def __init__(self):
+        pass
+    def GetHashCode(self):
+        return 7
+    def get_Message(self):
+        if Hashed.armed:
+            raise ValueError("armed")
+        return "hashed"
+
+hashed = Hashed()
+hashed_raw = ISerializable(hashed).__raw_implementation__
+hashed.link = hashed
+del hashed
 collect()
+
+# a .NET call into an override doesn't read its other members, which may raise
+Hashed.armed = True
+print(hash(hashed_raw))
 
 # .NET calls the Python overrides, which read managed members, before Python gets the objects back
 print(String.Join(",", managed.ToArray()), managed_task.Exception.__cause__.Message)
@@ -603,10 +626,12 @@ def test_namespaced_subclass_round_trip_after_gc():
     """A __namespace__ subclass that Python dropped, and .NET garbage collected around
     while still holding it, comes back to Python as its own working Python object,
     from a .NET collection and as an exception's __cause__, with its args also after Python's
-    GC cleared them in a cycle. .NET calls into its Python overrides can use its managed members"""
+    GC cleared them in a cycle. .NET calls into its Python overrides can use its managed members,
+    and don't read its other members"""
     output = _run_namespaced_exception_script(_NAMESPACED_ROUND_TRIP_SCRIPT)
 
-    assert output[-6:] == [
+    assert output[-7:] == [
+        "7",
         "ManagedPlain ManagedMessage",
         "('inner',)",
         "Plain plain True",
@@ -672,16 +697,33 @@ class RawError(ExtendedException):
     def __init__(self):
         pass
 
+class FailingRawError(ExtendedException):
+    __namespace__ = "Python.Test.ReleasedExceptions"
+    def __init__(self):
+        self.armed = False
+    def get_Message(self):
+        if self.armed:
+            raise ValueError("armed")
+        return "message"
+
 raw = RawError()
+failing_raw = FailingRawError()
+failing_interface = ISerializable(failing_raw)
+failing_raw.armed = True
 def convert_raw():
-    for _ in range(2000):
+    for _ in range(1000):
         ISerializable(raw).__raw_implementation__
+        try:
+            failing_interface.__raw_implementation__
+        except ValueError:
+            pass
     release()
     return sys.getallocatedblocks()
 
 convert_raw()
 before = convert_raw()
-# a raw conversion's own Python object isn't kept for .NET, which only knows the registered one
+# a raw conversion's own Python object isn't kept for .NET, which only knows the registered one,
+# nor is one whose Message override raised
 print(convert_raw() - before < 1000)
 
 from Python.Test import AbstractFinalizerCallbackTest, VirtualFinalizerCallbackTest
@@ -722,7 +764,7 @@ for cls, base in ((AbstractCallback, AbstractFinalizerCallbackTest),
 def test_namespaced_exception_subclass_release():
     """A __namespace__ exception subclass of another one is released once, exceptions
     referencing themselves through args, __cause__ or __context__ are collected, as are
-    the Python objects of raw conversions, and the finalizer of a .NET base class still reaches the Python overrides of its
+    the Python objects of raw conversions, also of failed ones, and the finalizer of a .NET base class still reaches the Python overrides of its
     __namespace__ subclasses, before their Python object is released"""
     output = _run_namespaced_exception_script(_NAMESPACED_EXCEPTION_RELEASE_SCRIPT)
 
@@ -808,6 +850,34 @@ class ReadOnceError(ExtendedException):
 
 read_once = ReadOnceError()
 print(read_once.args)
+
+class ArgsLookupError(ExtendedException):
+    __namespace__ = "Python.Test.OverridingExceptions"
+    def __getattribute__(self, name):
+        if name == "args":
+            raise LookupError("args")
+        return object.__getattribute__(self, name)
+    def __init__(self):
+        super().__init__("constructed")
+
+print(str(ArgsLookupError()))
+
+from System.Runtime.Serialization import ISerializable
+
+class RawFailingError(ExtendedException):
+    __namespace__ = "Python.Test.OverridingExceptions"
+    def __init__(self):
+        self.failing = False
+    def get_Message(self):
+        if self.failing:
+            raise ValueError("outer") from KeyError("inner")
+        return "message"
+
+raw_failing = RawFailingError()
+interface = ISerializable(raw_failing)
+raw_failing.failing = True
+check("raw", lambda: interface.__raw_implementation__)
+check("cast", lambda: ISerializable(raw_failing))
 """
 
 
@@ -816,11 +886,12 @@ def test_namespaced_exception_subclass_override_errors():
     """str(), repr() and the constructor of a __namespace__ exception subclass read None
     from a Python ToString override as an empty message, and raise the error of a Python
     ToString or Message override to their caller as it is, with its cause, also when an
-    inherited ToString calls the Message override, through one or two generated levels.
-    The constructor reads the Message override once"""
+    inherited ToString calls the Message override, through one or two generated levels,
+    and when a raw conversion or an interface cast reads it.
+    The constructor reads the Message override once, and no Python override of args"""
     output = _run_namespaced_exception_script(_NAMESPACED_EXCEPTION_OVERRIDES_SCRIPT)
 
-    assert output[-7:] == [
+    assert output[-10:] == [
         "'' OverridingError('message')",
         "str outer KeyError 'inner'",
         "repr outer KeyError 'inner'",
@@ -828,4 +899,7 @@ def test_namespaced_exception_subclass_override_errors():
         "inherited str outer KeyError 'inner'",
         "two-level inherited str outer KeyError 'inner'",
         "('once',)",
+        "constructed",
+        "raw outer KeyError 'inner'",
+        "cast outer KeyError 'inner'",
     ]

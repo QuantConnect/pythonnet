@@ -223,6 +223,26 @@ class TestException(NameError):
         }
 
         [Test]
+        public void TestThrowLastAsClrExceptionKeepsNoReference()
+        {
+            using var _ = Py.GIL();
+            using var scope = Py.CreateScope();
+            scope.Exec("instance = ValueError('x')\nimport sys");
+            using var instance = scope.Get("instance");
+            using var sys = scope.Get("sys");
+            long before = sys.InvokeMethod("getrefcount", instance).As<long>();
+            for (int i = 0; i < 10; i++)
+            {
+                Runtime.Runtime.PyErr_SetObject(Exceptions.ValueError.Reference, instance.Reference);
+                var error = Assert.Throws<PythonException>(() => throw PythonException.ThrowLastAsClrException());
+                error.Value?.Dispose();
+                error.Type.Dispose();
+                error.Traceback?.Dispose();
+            }
+            Assert.AreEqual(before, sys.InvokeMethod("getrefcount", instance).As<long>());
+        }
+
+        [Test]
         public void TestGetsPythonCodeInfoInStackTrace()
         {
             using (Py.GIL())

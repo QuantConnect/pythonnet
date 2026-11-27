@@ -53,6 +53,10 @@ namespace Python.Runtime
         protected override NewReference NewObjectToPython(object obj, BorrowedReference tp)
         {
             var self = base.NewObjectToPython(obj, tp);
+            if (self.IsNull())
+            {
+                return default;
+            }
 
             SetPyObj((IPythonDerivedType)obj, self.Borrow());
 
@@ -109,7 +113,7 @@ namespace Python.Runtime
         /// Called from Converter.ToPython for types that are python subclasses of managed types.
         /// The referenced python object is returned instead of a new wrapper.
         /// </summary>
-        internal static NewReference ToPython(IPythonDerivedType obj)
+        internal static unsafe NewReference ToPython(IPythonDerivedType obj)
         {
             // derived types have a __pyobj__ field that gets set to the python
             // object in the overridden constructor
@@ -123,7 +127,25 @@ namespace Python.Runtime
                 return default;
             }
 
-            return ToPython(obj, self);
+            var result = ToPython(obj, self);
+            if (obj is not Exception || result.IsNull())
+            {
+                return result;
+            }
+
+            // Python's GC clears the args of an exception in a cycle, as it doesn't see .NET holding it:
+            // converting it sets them again, as converting a .NET exception does. BaseException's own
+            // descriptor reads them as None then, without running a Python override of args
+            using var descriptor = Runtime.PyObject_GetAttrString(Exceptions.BaseException.Reference, "args");
+            var getArgs = (delegate* unmanaged[Cdecl]<BorrowedReference, BorrowedReference, BorrowedReference, NewReference>)
+                Util.ReadIntPtr(Runtime.PyObject_TYPE(descriptor.BorrowOrThrow()), TypeOffset.tp_descr_get);
+            using var args = getArgs(descriptor.Borrow(), self, Runtime.PyObject_TYPE(self));
+            if (args.BorrowOrThrow() == Runtime.PyNone && !ExceptionClassObject.SetArgsAndCause(self))
+            {
+                result.Dispose();
+                return default;
+            }
+            return result;
         }
 
         /// <summary>
@@ -150,17 +172,6 @@ namespace Python.Runtime
 
                 // now the object has a python reference it's safe for the python GC to track it
                 Runtime.PyObject_GC_Track(self);
-
-                // Python's GC clears the args of an exception in a cycle, as it doesn't see .NET holding it
-                if (obj is Exception)
-                {
-                    using var args = Runtime.PyObject_GetAttrString(self, "args");
-                    if (args.IsNull() || args.Borrow() == Runtime.PyNone && !ExceptionClassObject.SetArgsAndCause(self))
-                    {
-                        result.Dispose();
-                        return default;
-                    }
-                }
             }
 
             return result;
@@ -947,7 +958,7 @@ namespace Python.Runtime
                 // This doesn't actually destroy the object, it just sets the reference to this object
                 // to be a weak reference and it will be destroyed when the C# object is destroyed.
                 using var self = CLRObject.GetReference(obj, obj.GetType());
-                SetPyObj(obj, self.Borrow());
+                SetPyObj(obj, self.BorrowOrThrow());
             }
 
             // call the base constructor
