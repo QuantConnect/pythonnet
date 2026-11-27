@@ -84,12 +84,16 @@ internal class ExceptionClassObject : ClassObject
     /// <summary>
     /// Raises to Python the error of an exception member, as it is: a Python override of the member
     /// throws its PythonException directly, whose InnerException is its cause, while a member the
-    /// Python subclass inherits runs through reflection, which wraps what it throws
+    /// Python subclass inherits runs through reflection, which wraps what it throws once per
+    /// generated level it goes through
     /// </summary>
     static void SetError(Exception error)
     {
-        var raised = error is TargetInvocationException { InnerException: { } invoked } ? invoked : error;
-        Exceptions.SetError(raised);
+        while (error is TargetInvocationException { InnerException: { } inner })
+        {
+            error = inner;
+        }
+        Exceptions.SetError(error);
     }
 
     public override bool Init(BorrowedReference obj, BorrowedReference args, BorrowedReference kw)

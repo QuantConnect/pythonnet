@@ -679,6 +679,19 @@ class InheritedToStringError(ExtendedException):
 inherited = InheritedToStringError()
 inherited.failing = True
 check("inherited str", lambda: str(inherited))
+
+class TwoLevelInheritedToStringError(InheritedToStringError):
+    __namespace__ = "Python.Test.OverridingExceptions"
+    def __init__(self):
+        self.failing = False
+    def get_Message(self):
+        if self.failing:
+            raise ValueError("outer") from KeyError("inner")
+        return "message"
+
+two_level = TwoLevelInheritedToStringError()
+two_level.failing = True
+check("two-level inherited str", lambda: str(two_level))
 """
 
 
@@ -687,13 +700,14 @@ def test_namespaced_exception_subclass_override_errors():
     """str(), repr() and the constructor of a __namespace__ exception subclass read None
     from a Python ToString override as an empty message, and raise the error of a Python
     ToString or Message override to their caller as it is, with its cause, also when an
-    inherited ToString calls the Message override"""
+    inherited ToString calls the Message override, through one or two generated levels"""
     output = _run_namespaced_exception_script(_NAMESPACED_EXCEPTION_OVERRIDES_SCRIPT)
 
-    assert output[-5:] == [
+    assert output[-6:] == [
         "'' OverridingError('message')",
         "str outer KeyError 'inner'",
         "repr outer KeyError 'inner'",
         "init outer KeyError 'inner'",
         "inherited str outer KeyError 'inner'",
+        "two-level inherited str outer KeyError 'inner'",
     ]
