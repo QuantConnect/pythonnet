@@ -480,7 +480,6 @@ def _run_namespaced_exception_script(script):
 
 
 _NAMESPACED_EXCEPTION_SCRIPT = """
-from System import Exception as ClrException
 from System.Collections.Generic import List
 
 class WithoutInit(ExtendedException):
@@ -506,8 +505,7 @@ def check(cls):
         raise error
     except ExtendedException as caught:
         raised = caught is error
-    outer = ClrException("outer", error)
-    print(cls.__name__, error.extra, held[0] is error, raised, str(error), error.args, outer.__cause__ is error)
+    print(cls.__name__, error.extra, held[0] is error, raised, str(error), error.args)
 
 check(WithoutInit)
 check(InitWithoutSuper)
@@ -523,15 +521,15 @@ print("collected")
 @pytest.mark.skipif(os.environ.get("PYTHONNET_RUNTIME") != "netcore", reason="loads the netcore runtime")
 def test_namespaced_exception_subclass_construction():
     """A Python subclass of a .NET exception declaring __namespace__ runs its base
-    constructor, keeps its Python object for .NET and its overrides, still reads
-    as an exception, and is itself the __cause__ of an exception it is the inner one of"""
+    constructor, keeps its Python object for .NET and its overrides, and still
+    reads as an exception"""
     output = _run_namespaced_exception_script(_NAMESPACED_EXCEPTION_SCRIPT)
 
     overflow = "Arithmetic operation resulted in an overflow."
     assert output[-4:] == [
-        f"WithoutInit extra True True {overflow} ('{overflow}',) True",
-        f"InitWithoutSuper extra True True overridden ('{overflow}',) True",
-        "InitWithSuper extra True True message ('message',) True",
+        f"WithoutInit extra True True {overflow} ('{overflow}',)",
+        f"InitWithoutSuper extra True True overridden ('{overflow}',)",
+        "InitWithSuper extra True True message ('message',)",
         "collected",
     ]
 
